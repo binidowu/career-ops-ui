@@ -1,0 +1,440 @@
+.dashboardPage {
+  gap: var(--space-2xl);
+}
+
+.hero,
+.dashboardGrid,
+.emptyGrid {
+  display: grid;
+  gap: var(--space-xl);
+}
+
+.hero {
+  grid-template-columns: minmax(0, 1.7fr) minmax(19rem, 0.9fr);
+  align-items: stretch;
+}
+
+.heroIntro,
+.heroAside,
+.panel,
+.stepCard,
+.queueItem,
+.activityCard {
+  display: grid;
+  gap: var(--space-md);
+}
+
+.heroIntro,
+.heroAside,
+.panel {
+  padding: clamp(var(--space-xl), 3vw, var(--space-2xl));
+  border: 1px solid var(--color-border-subtle);
+  border-radius: calc(var(--radius-lg) + 6px);
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in oklch, var(--color-surface) 97%, var(--color-bg)),
+      color-mix(in oklch, var(--color-surface) 92%, var(--color-bg))
+    );
+}
+
+.heroIntro {
+  position: relative;
+  overflow: clip;
+}
+
+.heroIntro::after {
+  content: "";
+  position: absolute;
+  inset: auto -12% -28% auto;
+  width: 17rem;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background:
+    radial-gradient(
+      circle,
+      color-mix(in oklch, var(--color-accent-subtle) 88%, transparent),
+      transparent 72%
+    );
+  pointer-events: none;
+}
+
+.heroIntro > * {
+  position: relative;
+  z-index: 1;
+}
+
+.heroMetrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-sm);
+  margin-top: var(--space-sm);
+}
+
+.heroMetric {
+  display: grid;
+  gap: 2px;
+  padding: var(--space-md);
+  border: 1px solid color-mix(in oklch, var(--color-border) 82%, transparent);
+  border-radius: var(--radius-md);
+  background-color: color-mix(in oklch, var(--color-surface) 78%, transparent);
+}
+
+.heroMetric span,
+.spotlightKicker,
+.activityDate,
+.stepIndex,
+.rank {
+  color: var(--color-text-tertiary);
+  font-size: var(--text-xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.heroMetric strong {
+  font-size: clamp(var(--text-lg), 2vw, var(--text-xl));
+  font-weight: var(--weight-semibold);
+}
+
+.actionRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+
+.primaryAction,
+.secondaryAction,
+.linkStack a,
+.queueItem,
+.activityCard {
+  transition:
+    transform var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out),
+    background-color var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
+}
+
+.primaryAction,
+.secondaryAction,
+.linkStack a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.75rem;
+  padding: 0 var(--space-lg);
+  border-radius: var(--radius-full);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+}
+
+.primaryAction {
+  background-color: var(--color-accent);
+  color: var(--color-accent-text);
+}
+
+.primaryAction:hover {
+  background-color: var(--color-accent-hover);
+  color: var(--color-accent-text);
+  transform: translateY(-1px);
+}
+
+.secondaryAction,
+.linkStack a {
+  border: 1px solid var(--color-border);
+  background-color: color-mix(in oklch, var(--color-surface) 96%, var(--color-bg));
+}
+
+.secondaryAction:hover,
+.linkStack a:hover {
+  border-color: var(--color-line-strong);
+  transform: translateY(-1px);
+}
+
+.spotlight {
+  display: grid;
+  gap: var(--space-sm);
+}
+
+.spotlightHeader,
+.queueHeading,
+.queueMeta,
+.statusLabel {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-md);
+}
+
+.spotlight h2,
+.panelHeader h2 {
+  max-width: 18ch;
+}
+
+.spotlight p,
+.pathNote,
+.rowCopy p,
+.queueItem p,
+.activityCard p,
+.stepCard p,
+.bulletList li {
+  max-width: none;
+}
+
+.dashboardGrid {
+  grid-template-columns: minmax(0, 1.45fr) minmax(18rem, 0.85fr);
+  align-items: start;
+}
+
+.mainColumn,
+.sideColumn,
+.stack,
+.setupSteps,
+.tableLike,
+.statusList,
+.linkStack,
+.signalList,
+.bulletList {
+  display: grid;
+  gap: var(--space-lg);
+}
+
+.panelHeader {
+  display: grid;
+  gap: var(--space-sm);
+}
+
+.queueItem {
+  padding: var(--space-lg);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-lg);
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in oklch, var(--color-surface) 98%, var(--color-bg)),
+      color-mix(in oklch, var(--color-surface) 92%, var(--color-bg))
+    );
+}
+
+.queueItem:hover,
+.activityCard:hover {
+  border-color: var(--color-line-strong);
+  transform: translateY(-1px);
+}
+
+.badgeRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+
+.reasonBadge,
+.scoreBadge,
+.statusPill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.9rem;
+  padding: 0 var(--space-sm);
+  border-radius: var(--radius-full);
+  font-size: var(--text-xs);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.reasonBadge,
+.scoreBadge {
+  border: 1px solid var(--color-border-subtle);
+  background-color: color-mix(in oklch, var(--color-surface) 90%, var(--color-bg));
+}
+
+.statusPill {
+  border: 1px solid transparent;
+}
+
+.statusPill[data-tone="success"] {
+  background-color: color-mix(in oklch, var(--color-success) 18%, var(--color-surface));
+  border-color: color-mix(in oklch, var(--color-success) 36%, transparent);
+  color: var(--color-text);
+}
+
+.statusPill[data-tone="info"] {
+  background-color: color-mix(in oklch, var(--color-info) 18%, var(--color-surface));
+  border-color: color-mix(in oklch, var(--color-info) 34%, transparent);
+  color: var(--color-text);
+}
+
+.statusPill[data-tone="quiet"] {
+  background-color: color-mix(in oklch, var(--color-surface-2) 88%, var(--color-bg));
+  border-color: var(--color-border-subtle);
+  color: var(--color-text-secondary);
+}
+
+.statusPill[data-tone="default"] {
+  background-color: color-mix(in oklch, var(--color-accent-subtle) 48%, var(--color-surface));
+  border-color: color-mix(in oklch, var(--color-accent) 28%, transparent);
+  color: var(--color-text);
+}
+
+.tableRow {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: var(--space-md);
+  align-items: center;
+  padding: var(--space-lg) 0;
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+.tableRow:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.tableRow:last-child {
+  padding-bottom: 0;
+}
+
+.rowCopy {
+  display: grid;
+  gap: 4px;
+}
+
+.rowMeta {
+  display: grid;
+  justify-items: end;
+  gap: 4px;
+}
+
+.activityStrip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-md);
+}
+
+.activityCard {
+  padding: var(--space-lg);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-lg);
+  background-color: color-mix(in oklch, var(--color-surface) 98%, var(--color-bg));
+}
+
+.activityCard h3 {
+  font-size: var(--text-base);
+}
+
+.signalList,
+.bulletList {
+  padding: 0;
+  list-style: none;
+}
+
+.signalList li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  padding-bottom: var(--space-md);
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.signalList li:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.signalList li strong {
+  font-size: var(--text-sm);
+}
+
+.signalList li[data-ready="true"] strong {
+  color: var(--color-success);
+}
+
+.signalList li[data-ready="false"] strong {
+  color: var(--color-text-secondary);
+}
+
+.pathNote {
+  font-size: var(--text-sm);
+}
+
+.statusRow {
+  display: grid;
+  gap: var(--space-sm);
+}
+
+.statusBar {
+  height: 0.55rem;
+  overflow: clip;
+  border-radius: var(--radius-full);
+  background-color: color-mix(in oklch, var(--color-surface-2) 88%, var(--color-bg));
+}
+
+.statusBar span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background:
+    linear-gradient(
+      90deg,
+      color-mix(in oklch, var(--color-accent) 38%, var(--color-surface)),
+      color-mix(in oklch, var(--color-focus) 56%, var(--color-surface))
+    );
+}
+
+.emptyGrid {
+  grid-template-columns: minmax(0, 1.4fr) minmax(18rem, 0.9fr);
+  align-items: start;
+}
+
+.setupSteps {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.stepCard {
+  min-height: 100%;
+  padding: var(--space-lg);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-lg);
+  background-color: color-mix(in oklch, var(--color-surface) 96%, var(--color-bg));
+}
+
+@media (max-width: 78rem) {
+  .activityStrip,
+  .setupSteps {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 68rem) {
+  .hero,
+  .dashboardGrid,
+  .emptyGrid,
+  .activityStrip,
+  .setupSteps,
+  .heroMetrics {
+    grid-template-columns: 1fr;
+  }
+
+  .panelHeader h2,
+  .spotlight h2 {
+    max-width: none;
+  }
+}
+
+@media (max-width: 44rem) {
+  .actionRow,
+  .queueHeading,
+  .queueMeta,
+  .spotlightHeader,
+  .statusLabel {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .tableRow {
+    grid-template-columns: 1fr;
+  }
+
+  .rowMeta {
+    justify-items: start;
+  }
+}

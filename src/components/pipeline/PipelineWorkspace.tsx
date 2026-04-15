@@ -1,5 +1,6 @@
 "use client";
-import { useDeferredValue, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { startTransition, useDeferredValue, useMemo, useState } from "react";
 
 import { useToast } from "@/components/common/ToastContext";
 import type { Opportunity } from "@/lib/types";
@@ -36,6 +37,7 @@ export default function PipelineWorkspace({
   statusOptions,
 }: PipelineWorkspaceProps) {
   const notify = useToast();
+  const router = useRouter();
 
   const [activeId, setActiveId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
@@ -330,12 +332,18 @@ export default function PipelineWorkspace({
           <div className={styles.selectionActions}>
             <button
               onClick={() =>
-                notify({
-                  title: "Compare handoff is staged",
-                  description:
-                    "The floating selection bar is live now; the next pass can connect selected rows directly into the compare workflow.",
-                  dismissAfter: 4000,
-                })
+                selectedCount >= 2
+                  ? startTransition(() => {
+                      router.push(
+                        `/compare?ids=${selectedIds.slice(0, 5).join(",")}`,
+                      );
+                    })
+                  : notify({
+                      title: "Select at least two roles",
+                      description:
+                        "Comparison becomes useful once there are at least two dossiers on the board.",
+                      dismissAfter: 4000,
+                    })
               }
               type="button"
             >
