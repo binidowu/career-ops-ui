@@ -1,0 +1,24 @@
+.shell {
+  min-height: 100dvh;
+}
+
+.skipLink {
+  position: absolute;
+  left: var(--page-gutter);
+  top: 0;
+  z-index: 60;
+  padding: var(--space-sm) var(--space-md);
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
+  background-color: var(--color-surface);
+  color: var(--color-text);
+  transform: translateY(-120%);
+  transition: transform var(--duration-fast) var(--ease-out);
+}
+
+.skipLink:focus-visible {
+  transform: translateY(0);
+}
+
+.main {
+  padding-bottom: max(var(--space-4xl), env(safe-area-inset-bottom));
+}

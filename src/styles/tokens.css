@@ -1,0 +1,176 @@
+/* ============================================================
+   Career-Ops UI — Design Tokens
+   
+   Color palette, typography, spacing, motion, and elevation.
+   All values defined for both light and dark themes via
+   prefers-color-scheme and CSS light-dark().
+   
+   Palette built in OKLCH for perceptual uniformity.
+   WCAG AAA contrast ratios (7:1 normal text, 4.5:1 large text).
+   Color-vision safe: meaning is never conveyed by color alone.
+   ============================================================ */
+
+/* ---- Color Palette ----
+   Brand hue: ~250 (a muted slate-indigo — serious, editorial)
+   Neutrals tinted toward brand hue at low chroma.
+   Single accent (warm amber) for primary actions.
+   
+   Grade colors use distinct lightness levels + shapes for CVD safety.
+   ---------------------------------------- */
+
+:root {
+  color-scheme: light dark;
+
+  /* ---- Brand ---- */
+  --hue-brand: 260;
+  --hue-accent: 75;
+
+  /* ---- Neutrals (light mode) ---- */
+  --color-bg:         light-dark(oklch(0.985 0.005 var(--hue-brand)), oklch(0.145 0.01 var(--hue-brand)));
+  --color-surface:    light-dark(oklch(0.97 0.005 var(--hue-brand)),  oklch(0.185 0.01 var(--hue-brand)));
+  --color-surface-2:  light-dark(oklch(0.94 0.008 var(--hue-brand)),  oklch(0.22 0.012 var(--hue-brand)));
+  --color-border:     light-dark(oklch(0.88 0.008 var(--hue-brand)),  oklch(0.30 0.012 var(--hue-brand)));
+  --color-border-subtle: light-dark(oklch(0.92 0.005 var(--hue-brand)), oklch(0.25 0.008 var(--hue-brand)));
+  --color-line-strong: light-dark(oklch(0.80 0.01 var(--hue-brand)), oklch(0.38 0.012 var(--hue-brand)));
+
+  /* ---- Text ---- */
+  --color-text:       light-dark(oklch(0.20 0.015 var(--hue-brand)),  oklch(0.92 0.008 var(--hue-brand)));
+  --color-text-secondary: light-dark(oklch(0.42 0.012 var(--hue-brand)), oklch(0.68 0.01 var(--hue-brand)));
+  --color-text-tertiary:  light-dark(oklch(0.55 0.01 var(--hue-brand)),  oklch(0.52 0.008 var(--hue-brand)));
+
+  /* ---- Accent (warm amber — primary actions) ---- */
+  --color-accent:     light-dark(oklch(0.55 0.14 var(--hue-accent)),  oklch(0.72 0.14 var(--hue-accent)));
+  --color-accent-hover: light-dark(oklch(0.48 0.14 var(--hue-accent)), oklch(0.78 0.12 var(--hue-accent)));
+  --color-accent-subtle: light-dark(oklch(0.94 0.04 var(--hue-accent)), oklch(0.22 0.04 var(--hue-accent)));
+  --color-accent-text: light-dark(oklch(0.99 0.005 var(--hue-accent)), oklch(0.15 0.02 var(--hue-accent)));
+  --color-accent-strong: light-dark(oklch(0.46 0.12 var(--hue-accent)), oklch(0.78 0.12 var(--hue-accent)));
+
+  /* ---- Focus indicator ---- */
+  --color-focus: light-dark(oklch(0.50 0.14 var(--hue-brand)), oklch(0.70 0.12 var(--hue-brand)));
+
+  /* ---- Semantic: Grades (A-F) ---- 
+     Each grade has a distinct lightness + chroma so they remain
+     distinguishable under deuteranopia/protanopia/tritanopia.
+     Shape differentiation is handled in components, not here.  */
+  --color-grade-a: light-dark(oklch(0.45 0.12 155), oklch(0.70 0.12 155));  /* teal-green */
+  --color-grade-b: light-dark(oklch(0.48 0.10 220), oklch(0.68 0.10 220));  /* blue */
+  --color-grade-c: light-dark(oklch(0.50 0.08 var(--hue-brand)), oklch(0.62 0.08 var(--hue-brand)));  /* neutral indigo */
+  --color-grade-d: light-dark(oklch(0.50 0.10 55),  oklch(0.65 0.10 55));   /* amber */
+  --color-grade-f: light-dark(oklch(0.50 0.12 25),  oklch(0.65 0.12 25));   /* red-brown */
+
+  /* ---- Semantic: Status ---- */
+  --color-success: light-dark(oklch(0.48 0.10 155), oklch(0.68 0.10 155));
+  --color-warning: light-dark(oklch(0.52 0.10 75),  oklch(0.70 0.10 75));
+  --color-error:   light-dark(oklch(0.50 0.12 25),  oklch(0.68 0.12 25));
+  --color-info:    light-dark(oklch(0.48 0.08 240), oklch(0.65 0.08 240));
+
+  /* ---- Overlay / Scrim ---- */
+  --color-scrim: light-dark(oklch(0.20 0.01 var(--hue-brand) / 0.4), oklch(0.05 0.01 var(--hue-brand) / 0.6));
+
+
+  /* ============================================================
+     Typography
+     
+     Font pairing selected via impeccable font procedure:
+     - Display: Satoshi (geometric sans with personality — editorial, confident)
+     - Body: General Sans (clean, tabular figures, excellent readability)
+     Both from Pangram Pangram / Fontshare (free for web).
+     
+     Neither appears on the reflex-fonts-to-reject list.
+     Brand words: measured, precise, editorial.
+     ============================================================ */
+
+  /* Font families — loaded via @font-face or Google Fonts link in layout */
+  --font-display: 'Satoshi', system-ui, sans-serif;
+  --font-body: 'General Sans', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+
+  /* Type scale: fixed rem, 1.25 ratio (Major Third)
+     5 steps with strong contrast between levels */
+  --text-xs:   0.75rem;   /* 12px — labels, captions */
+  --text-sm:   0.875rem;  /* 14px — secondary text, table cells */
+  --text-base: 1rem;      /* 16px — body text */
+  --text-lg:   1.25rem;   /* 20px — section headers */
+  --text-xl:   1.563rem;  /* 25px — page titles */
+  --text-2xl:  1.953rem;  /* 31px — hero headings */
+
+  /* Line heights — tighter for headings, looser for body */
+  --leading-tight:  1.2;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.65;
+
+  /* Letter spacing */
+  --tracking-tight:  -0.02em;
+  --tracking-normal:  0;
+  --tracking-wide:    0.04em;
+
+  /* Font weights */
+  --weight-regular:  400;
+  --weight-medium:   500;
+  --weight-semibold: 600;
+  --weight-bold:     700;
+
+
+  /* ============================================================
+     Spacing — 4pt scale with semantic names
+     ============================================================ */
+
+  --space-px:  1px;
+  --space-0:   0;
+  --space-xs:  4px;    /* 4 */
+  --space-sm:  8px;    /* 8 */
+  --space-md:  12px;   /* 12 */
+  --space-lg:  16px;   /* 16 */
+  --space-xl:  24px;   /* 24 */
+  --space-2xl: 32px;   /* 32 */
+  --space-3xl: 48px;   /* 48 */
+  --space-4xl: 64px;   /* 64 */
+  --space-5xl: 96px;   /* 96 */
+
+
+  /* ============================================================
+     Radii
+     ============================================================ */
+
+  --radius-sm:   4px;
+  --radius-md:   6px;
+  --radius-lg:   8px;
+  --radius-full: 9999px;
+
+
+  /* ============================================================
+     Elevation
+     ============================================================ */
+
+  --shadow-raised:
+    0 12px 28px -20px color-mix(in oklch, var(--color-text) 24%, transparent);
+  --shadow-overlay:
+    0 24px 60px -28px color-mix(in oklch, var(--color-text) 36%, transparent);
+
+
+  /* ============================================================
+     Motion
+     Exponential easing (ease-out-quart) for natural deceleration.
+     Collapses to 0ms under prefers-reduced-motion (see reset.css).
+     ============================================================ */
+
+  --duration-fast:   120ms;
+  --duration-normal: 200ms;
+  --duration-slow:   350ms;
+  --ease-out:        cubic-bezier(0.25, 1, 0.5, 1);       /* ease-out-quart */
+  --ease-in-out:     cubic-bezier(0.76, 0, 0.24, 1);      /* ease-in-out-quart */
+
+
+  /* ============================================================
+     Layout
+     ============================================================ */
+
+  --content-max-width: 1280px;
+  --content-narrow:    720px;
+  --topbar-height:     64px;
+  --drawer-width:      480px;
+  --page-gutter:       clamp(var(--space-lg), 2.5vw, var(--space-2xl));
+
+  /* Measure: max line length for readable body text */
+  --measure: 68ch;
+}

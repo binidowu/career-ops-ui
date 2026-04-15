@@ -1,0 +1,35 @@
+/* ============================================================
+   Career-Ops UI — Component Styles Index
+   
+   Per-component CSS modules live here.
+   Each component imports its own [Name].module.css.
+   This file is not imported directly — it exists as documentation.
+   ============================================================ */
+
+/*
+  Planned component styles:
+  
+  shell/
+    Topbar.module.css
+    CommandPalette.module.css
+  
+  pipeline/
+    PipelineTable.module.css
+    PipelineFilters.module.css
+    OpportunityDrawer.module.css
+  
+  dashboard/
+    DashboardGrid.module.css
+    ScoreCard.module.css
+    FollowUpList.module.css
+  
+  compare/
+    CompareGrid.module.css
+  
+  common/
+    Toast.module.css
+    Badge.module.css
+    Button.module.css
+    GradeBadge.module.css
+    StatusIndicator.module.css
+*/
