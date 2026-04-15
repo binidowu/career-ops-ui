@@ -1,10 +1,15 @@
-import Link from "next/link";
+import PipelineWorkspace from "@/components/pipeline/PipelineWorkspace";
 
-import { getOpportunities, getWorkspaceSignals } from "@/lib/api/career-ops";
+import {
+  getOpportunities,
+  getStates,
+  getWorkspaceSignals,
+} from "@/lib/api/career-ops";
 
 export default async function PipelinePage() {
-  const [opportunities, workspace] = await Promise.all([
+  const [opportunities, states, workspace] = await Promise.all([
     getOpportunities(),
+    getStates(),
     getWorkspaceSignals(),
   ]);
 
@@ -15,10 +20,9 @@ export default async function PipelinePage() {
           <p className="eyebrow">Pipeline</p>
           <h1>The operating table for active opportunities.</h1>
           <p className="lede">
-            This route is framed for a full-width tracker with a sticky filter
-            rail, compact rows, and an adjacent detail drawer. For now, the
-            content below sketches the information rhythm the live parser will
-            populate.
+            This route now runs as a working tracker: sticky filters, sortable
+            columns, bulk selection, and a right-side dossier drawer layered on
+            top of the live career-ops data model.
           </p>
         </div>
 
@@ -33,56 +37,12 @@ export default async function PipelinePage() {
       </header>
 
       {opportunities.length ? (
-        <section className="table-preview">
-          <div className="table-toolbar">
-            <span className="chip">Tracked: {opportunities.length}</span>
-            <span className="chip">
-              Reports: {opportunities.filter((opportunity) => opportunity.reportPath).length}
-            </span>
-            <span className="chip">
-              Active:{" "}
-              {
-                opportunities.filter((opportunity) =>
-                  ["Applied", "Responded", "Interview", "Offer"].includes(
-                    opportunity.status,
-                  ),
-                ).length
-              }
-            </span>
-          </div>
-
-          <div className="table-head" role="presentation">
-            <span>Role</span>
-            <span>Score</span>
-            <span>Status</span>
-            <span>Next note</span>
-          </div>
-
-          <div className="table-body">
-            {opportunities.map((opportunity) => (
-              <div className="table-row" key={opportunity.id}>
-                <div>
-                  <strong>
-                    <Link href={`/pipeline/${opportunity.id}`}>
-                      {opportunity.company} · {opportunity.role}
-                    </Link>
-                  </strong>
-                  <small>
-                    {opportunity.remote ?? "Location pending"} · Evaluated{" "}
-                    {opportunity.date || "unknown date"}
-                  </small>
-                </div>
-                <p className="tabular-nums">
-                  {typeof opportunity.score === "number"
-                    ? opportunity.score.toFixed(1)
-                    : opportunity.scoreRaw || "N/A"}
-                </p>
-                <p>{opportunity.status}</p>
-                <p>{opportunity.notes || opportunity.summary || "No note captured yet."}</p>
-              </div>
-            ))}
-          </div>
-        </section>
+        <PipelineWorkspace
+          opportunities={opportunities}
+          statusOptions={states
+            .map((state) => state.label)
+            .filter((label) => label !== "Unknown")}
+        />
       ) : (
         <section className="empty-state">
           <p className="section-label">No tracked opportunities yet</p>

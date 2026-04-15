@@ -1,0 +1,230 @@
+.workspace {
+  display: grid;
+  gap: var(--space-lg);
+}
+
+.toolbar {
+  position: sticky;
+  top: calc(var(--topbar-height) + var(--space-sm));
+  z-index: 10;
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) auto auto;
+  gap: var(--space-md);
+  padding: var(--space-md);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-lg);
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in oklch, var(--color-surface) 96%, var(--color-bg)),
+      var(--color-surface)
+    );
+  backdrop-filter: blur(10px);
+}
+
+.search input,
+.filter select {
+  width: 100%;
+  min-height: 2.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background-color: var(--color-bg);
+  padding: 0 var(--space-md);
+}
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+
+.filter {
+  display: grid;
+  gap: 6px;
+}
+
+.filter span {
+  color: var(--color-text-tertiary);
+  font-size: var(--text-xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.summary {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-sm);
+}
+
+.tableFrame {
+  display: grid;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-lg);
+  overflow: clip;
+  background-color: color-mix(in oklch, var(--color-surface) 96%, var(--color-bg));
+}
+
+.tableHead,
+.row {
+  display: grid;
+  grid-template-columns: 2.5rem minmax(0, 2fr) minmax(4rem, 0.55fr) minmax(7rem, 0.7fr) minmax(0, 1.25fr);
+  gap: var(--space-md);
+  align-items: center;
+}
+
+.tableHead {
+  position: sticky;
+  top: calc(var(--topbar-height) + 5.75rem);
+  z-index: 5;
+  padding: var(--space-md) var(--space-lg);
+  border-bottom: 1px solid var(--color-line-strong);
+  background-color: color-mix(in oklch, var(--color-surface) 98%, var(--color-bg));
+}
+
+.sortButton {
+  border: 0;
+  background: none;
+  color: var(--color-text-tertiary);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  letter-spacing: 0.08em;
+  text-align: left;
+  text-transform: uppercase;
+}
+
+.tableBody {
+  display: grid;
+}
+
+.row {
+  padding: var(--space-lg);
+  border-bottom: 1px solid var(--color-border-subtle);
+  transition: background-color var(--duration-fast) var(--ease-out);
+}
+
+.row:last-child {
+  border-bottom: 0;
+}
+
+.row:hover,
+.row[data-active="true"] {
+  background-color: var(--color-surface);
+}
+
+.checkboxLabel {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.checkboxLabel input {
+  width: 1rem;
+  height: 1rem;
+}
+
+.roleBlock {
+  display: grid;
+  gap: 4px;
+}
+
+.roleBlock strong {
+  font-size: var(--text-sm);
+}
+
+.metaBlock {
+  display: grid;
+  gap: 4px;
+}
+
+.metaBlock p,
+.status,
+.score {
+  max-width: none;
+}
+
+.status {
+  color: var(--color-text);
+  font-size: var(--text-sm);
+}
+
+.score {
+  color: var(--color-text);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semibold);
+}
+
+.selectionBar {
+  position: fixed;
+  left: 50%;
+  bottom: max(var(--space-lg), env(safe-area-inset-bottom));
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-lg);
+  width: min(100vw - (var(--space-lg) * 2), 36rem);
+  padding: var(--space-md) var(--space-lg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background-color: color-mix(in oklch, var(--color-surface) 96%, var(--color-bg));
+  box-shadow: var(--shadow-overlay);
+  transform: translateX(-50%);
+}
+
+.selectionBar p {
+  max-width: none;
+}
+
+.selectionActions {
+  display: flex;
+  gap: var(--space-sm);
+}
+
+.selectionActions button {
+  min-height: 2.5rem;
+  padding: 0 var(--space-md);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface-2);
+}
+
+@media (max-width: 72rem) {
+  .toolbar {
+    grid-template-columns: 1fr;
+  }
+
+  .summary {
+    justify-content: flex-start;
+  }
+
+  .tableHead {
+    display: none;
+  }
+
+  .row {
+    grid-template-columns: 2rem 1fr;
+    align-items: start;
+  }
+
+  .score,
+  .status,
+  .metaBlock {
+    padding-left: calc(2rem + var(--space-md));
+  }
+}
+
+@media (max-width: 44rem) {
+  .selectionBar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .selectionActions {
+    justify-content: stretch;
+  }
+
+  .selectionActions button {
+    flex: 1;
+  }
+}
