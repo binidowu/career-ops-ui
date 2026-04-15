@@ -291,44 +291,29 @@ export default function CompareWorkspace({
 
       {selectedEntries.length >= 2 ? (
         <>
-          <section className={styles.summaryRow}>
-            <div className={styles.summaryCard}>
-              <p className="section-label">Board state</p>
-              <h2>{selectedEntries.length} roles in play</h2>
-              <p>
-                The comparison board is reading live tracker rows and report
-                detail for the selections below.
-              </p>
-            </div>
-
-            <div className={styles.summaryCard}>
-              <p className="section-label">Highest fit</p>
-              <h2>
-                {badgeWinners.find((badge) => badge.label === "Best Fit")
-                  ? selectedEntries.find(
-                      (entry) =>
-                        entry.opportunity.id ===
-                        badgeWinners.find((badge) => badge.label === "Best Fit")?.id,
-                    )?.opportunity.company
-                  : "Unavailable"}
-              </h2>
-              <p>Strongest numerical fit among the currently selected roles.</p>
-            </div>
-
-            <div className={styles.summaryCard}>
-              <p className="section-label">Furthest along</p>
-              <h2>
-                {badgeWinners.find((badge) => badge.label === "Fastest Process")
-                  ? selectedEntries.find(
-                      (entry) =>
-                        entry.opportunity.id ===
-                        badgeWinners.find((badge) => badge.label === "Fastest Process")?.id,
-                    )?.opportunity.company
-                  : "Unavailable"}
-              </h2>
-              <p>The role currently deepest in the application process.</p>
-            </div>
-          </section>
+          <div className={styles.contextStrip}>
+            <span>{selectedEntries.length} roles in play</span>
+            {badgeWinners.find((badge) => badge.label === "Best Fit") ? (
+              <span>
+                Best fit:{" "}
+                {selectedEntries.find(
+                  (entry) =>
+                    entry.opportunity.id ===
+                    badgeWinners.find((badge) => badge.label === "Best Fit")?.id,
+                )?.opportunity.company ?? "Unavailable"}
+              </span>
+            ) : null}
+            {badgeWinners.find((badge) => badge.label === "Fastest Process") ? (
+              <span>
+                Furthest along:{" "}
+                {selectedEntries.find(
+                  (entry) =>
+                    entry.opportunity.id ===
+                    badgeWinners.find((badge) => badge.label === "Fastest Process")?.id,
+                )?.opportunity.company ?? "Unavailable"}
+              </span>
+            ) : null}
+          </div>
 
           <section className={styles.boardFrame}>
             <div className={styles.boardScroller}>

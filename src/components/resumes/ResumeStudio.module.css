@@ -1,6 +1,7 @@
 .studio,
 .controls,
-.panel,
+.controlsShell,
+.controlSection,
 .panelHead,
 .roleList,
 .keywordList,
@@ -24,7 +25,7 @@
   top: calc(var(--topbar-height) + var(--space-sm));
 }
 
-.panel,
+.controlsShell,
 .previewPanel {
   padding: var(--space-xl);
   border: 1px solid var(--color-border-subtle);
@@ -35,6 +36,16 @@
       color-mix(in oklch, var(--color-surface) 96%, var(--color-bg)),
       color-mix(in oklch, var(--color-surface) 92%, var(--color-bg))
     );
+}
+
+.controlSection {
+  padding-top: var(--space-lg);
+  border-top: 1px solid var(--color-line-strong);
+}
+
+.controlSection:first-child {
+  padding-top: 0;
+  border-top: 0;
 }
 
 .roleCard,

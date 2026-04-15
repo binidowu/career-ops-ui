@@ -85,13 +85,13 @@ export default function Topbar({ onNotify, onOpenPalette }: TopbarProps) {
             <kbd>⌘K</kbd>
           </button>
 
-          <button className={styles.profile} type="button">
+          <div className={styles.profile} role="status">
             <span className={styles.profileMonogram}>BO</span>
             <span className={styles.profileCopy}>
-              <strong>Workspace</strong>
+              <strong>Local workspace</strong>
               <small>Local draft</small>
             </span>
-          </button>
+          </div>
 
           <button
             aria-expanded={mobileMenuOpen}

@@ -248,7 +248,8 @@ export default function ResumeStudio({
   return (
     <section className={styles.studio}>
       <section className={styles.controls}>
-        <div className={styles.panel}>
+        <div className={styles.controlsShell}>
+          <section className={styles.controlSection}>
           <div className={styles.panelHead}>
             <p className="section-label">Source role</p>
             <h2>Choose the opportunity to tailor against.</h2>
@@ -281,9 +282,9 @@ export default function ResumeStudio({
               );
             })}
           </div>
-        </div>
+          </section>
 
-        <div className={styles.panel}>
+          <section className={styles.controlSection}>
           <div className={styles.panelHead}>
             <p className="section-label">Keyword tuning</p>
             <h2>Turn evidence-rich terms on or off before export.</h2>
@@ -312,9 +313,9 @@ export default function ResumeStudio({
               );
             })}
           </div>
-        </div>
+          </section>
 
-        <div className={styles.panel}>
+          <section className={styles.controlSection}>
           <div className={styles.panelHead}>
             <p className="section-label">Export settings</p>
             <h2>Keep the output close to the working draft.</h2>
@@ -351,6 +352,7 @@ export default function ResumeStudio({
           >
             {exporting ? "Rendering PDF..." : "Download tailored PDF"}
           </button>
+          </section>
         </div>
       </section>
 

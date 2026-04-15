@@ -1,7 +1,5 @@
 .workspace,
 .selectionDock,
-.summaryRow,
-.summaryCard,
 .boardFrame,
 .board,
 .column,
@@ -18,7 +16,6 @@
 }
 
 .selectionDock,
-.summaryCard,
 .boardFrame {
   padding: var(--space-xl);
   border: 1px solid var(--color-border-subtle);
@@ -100,8 +97,12 @@
   background-color: color-mix(in oklch, var(--color-surface) 90%, var(--color-bg));
 }
 
-.summaryRow {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+.contextStrip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-md);
+  color: var(--color-text-secondary);
+  font-size: var(--text-sm);
 }
 
 .boardFrame {
@@ -199,9 +200,6 @@
     align-items: start;
   }
 
-  .summaryRow {
-    grid-template-columns: 1fr;
-  }
 }
 
 @media (max-width: 44rem) {

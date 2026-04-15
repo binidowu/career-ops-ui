@@ -16,7 +16,6 @@
 
 .heroIntro,
 .heroAside,
-.panel,
 .stepCard,
 .queueItem,
 .activityCard {
@@ -25,8 +24,7 @@
 }
 
 .heroIntro,
-.heroAside,
-.panel {
+.heroAside {
   padding: clamp(var(--space-xl), 3vw, var(--space-2xl));
   border: 1px solid var(--color-border-subtle);
   border-radius: calc(var(--radius-lg) + 6px);
@@ -64,23 +62,19 @@
   z-index: 1;
 }
 
-.heroMetrics {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--space-sm);
+.heroStats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-lg);
   margin-top: var(--space-sm);
 }
 
-.heroMetric {
+.heroStats div {
   display: grid;
   gap: 2px;
-  padding: var(--space-md);
-  border: 1px solid color-mix(in oklch, var(--color-border) 82%, transparent);
-  border-radius: var(--radius-md);
-  background-color: color-mix(in oklch, var(--color-surface) 78%, transparent);
 }
 
-.heroMetric span,
+.heroStats dt,
 .spotlightKicker,
 .activityDate,
 .stepIndex,
@@ -91,7 +85,8 @@
   text-transform: uppercase;
 }
 
-.heroMetric strong {
+.heroStats dd {
+  margin: 0;
   font-size: clamp(var(--text-lg), 2vw, var(--text-xl));
   font-weight: var(--weight-semibold);
 }
@@ -203,22 +198,28 @@
   gap: var(--space-sm);
 }
 
+.panel {
+  display: grid;
+  gap: var(--space-lg);
+  padding-top: var(--space-lg);
+  border-top: 1px solid var(--color-line-strong);
+}
+
 .queueItem {
-  padding: var(--space-lg);
-  border: 1px solid var(--color-border-subtle);
-  border-radius: var(--radius-lg);
-  background:
-    linear-gradient(
-      180deg,
-      color-mix(in oklch, var(--color-surface) 98%, var(--color-bg)),
-      color-mix(in oklch, var(--color-surface) 92%, var(--color-bg))
-    );
+  padding: var(--space-lg) 0;
+  border-top: 1px solid var(--color-border-subtle);
+  background: none;
 }
 
 .queueItem:hover,
 .activityCard:hover {
-  border-color: var(--color-line-strong);
   transform: translateY(-1px);
+}
+
+.stack > :first-child,
+.activityStrip > :first-child {
+  border-top: 0;
+  padding-top: 0;
 }
 
 .badgeRow {
@@ -310,10 +311,9 @@
 }
 
 .activityCard {
-  padding: var(--space-lg);
-  border: 1px solid var(--color-border-subtle);
-  border-radius: var(--radius-lg);
-  background-color: color-mix(in oklch, var(--color-surface) 98%, var(--color-bg));
+  padding-top: var(--space-lg);
+  border-top: 1px solid var(--color-border-subtle);
+  background: none;
 }
 
 .activityCard h3 {
@@ -409,8 +409,7 @@
   .dashboardGrid,
   .emptyGrid,
   .activityStrip,
-  .setupSteps,
-  .heroMetrics {
+  .setupSteps {
     grid-template-columns: 1fr;
   }
 
@@ -428,6 +427,11 @@
   .statusLabel {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .heroStats {
+    display: grid;
+    gap: var(--space-md);
   }
 
   .tableRow {

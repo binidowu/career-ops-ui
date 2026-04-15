@@ -325,20 +325,20 @@ export default function DashboardOverview({
             the pieces of the system that still need attention.
           </p>
 
-          <div className={styles.heroMetrics}>
-            <div className={styles.heroMetric}>
-              <span>Total tracked</span>
-              <strong className="tabular-nums">{stats.totalEvaluated}</strong>
+          <dl className={styles.heroStats}>
+            <div>
+              <dt>Total tracked</dt>
+              <dd className="tabular-nums">{stats.totalEvaluated}</dd>
             </div>
-            <div className={styles.heroMetric}>
-              <span>Active funnel</span>
-              <strong className="tabular-nums">{activeFunnelCount}</strong>
+            <div>
+              <dt>Active funnel</dt>
+              <dd className="tabular-nums">{activeFunnelCount}</dd>
             </div>
-            <div className={styles.heroMetric}>
-              <span>Report coverage</span>
-              <strong className="tabular-nums">{reportCoverage}%</strong>
+            <div>
+              <dt>Report coverage</dt>
+              <dd className="tabular-nums">{reportCoverage}%</dd>
             </div>
-          </div>
+          </dl>
         </div>
 
         <aside className={styles.heroAside}>

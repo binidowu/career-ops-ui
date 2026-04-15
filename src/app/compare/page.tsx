@@ -58,25 +58,13 @@ export default async function ComparePage({
 
   return (
     <article className="app-page">
-      <header className="page-head">
-        <div className="page-copy">
-          <p className="eyebrow">Compare</p>
-          <h1>Side-by-side decision support for the roles worth slowing down for.</h1>
-          <p className="lede">
-            Build a temporary board of two to five scored opportunities, then
-            compare fit, compensation, process momentum, and report depth
-            without flattening away the nuance in each dossier.
-          </p>
-        </div>
-
-        <aside className="page-note">
-          <p className="note-label">How this board behaves</p>
-          <ul className="compact-list">
-            <li>Selections persist in the URL for quick return and sharing.</li>
-            <li>The left rail stays sticky while role columns scroll horizontally.</li>
-            <li>Pipeline bulk selection can hand roles directly into this route.</li>
-          </ul>
-        </aside>
+      <header className="page-copy">
+        <p className="eyebrow">Compare</p>
+        <h1>Side-by-side decision support for the roles worth slowing down for.</h1>
+        <p className="lede">
+          Choose a small set of scored opportunities, keep the criteria visible,
+          and compare the actual signals that matter before making the next move.
+        </p>
       </header>
 
       <CompareWorkspace

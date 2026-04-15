@@ -33,25 +33,14 @@ export default async function ResumesPage() {
 
   return (
     <article className="app-page">
-      <header className="page-head">
-        <div className="page-copy">
-          <p className="eyebrow">Resume studio</p>
-          <h1>A focused tailoring desk with the preview and export path in one place.</h1>
-          <p className="lede">
-            Choose a report-backed opportunity, keep only the strongest keywords
-            in view, then export a clean PDF through the connected career-ops
-            toolchain without leaving the workspace.
-          </p>
-        </div>
-
-        <aside className="page-note">
-          <p className="note-label">Studio posture</p>
-          <ul className="compact-list">
-            <li>CV markdown is the base layer.</li>
-            <li>Evaluation keywords and fit evidence drive the tailoring pass.</li>
-            <li>PDF export uses the existing career-ops renderer when available.</li>
-          </ul>
-        </aside>
+      <header className="page-copy">
+        <p className="eyebrow">Resume studio</p>
+        <h1>A focused tailoring desk with the preview and export path in one place.</h1>
+        <p className="lede">
+          Choose a report-backed opportunity, trim the evidence down to the
+          strongest terms, and export a clean PDF through the connected
+          career-ops toolchain.
+        </p>
       </header>
 
       <ResumeStudio
