@@ -40,5 +40,5 @@
 ## Step 6: Remaining Screens & Auth — next
 
 - [x] Deepen Compare into a true multi-role analysis workspace
-- [ ] Turn Resume Studio into a real tailoring/export flow
+- [x] Turn Resume Studio into a real tailoring/export flow
 - [ ] Add multi-user authentication and protected routes

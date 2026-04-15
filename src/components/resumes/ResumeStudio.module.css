@@ -1,0 +1,212 @@
+.studio,
+.controls,
+.panel,
+.panelHead,
+.roleList,
+.keywordList,
+.previewPanel,
+.previewSheet,
+.previewHeader,
+.previewSection,
+.entryStack,
+.entryCard {
+  display: grid;
+  gap: var(--space-lg);
+}
+
+.studio {
+  grid-template-columns: minmax(19rem, 0.9fr) minmax(0, 1.25fr);
+  align-items: start;
+}
+
+.controls {
+  position: sticky;
+  top: calc(var(--topbar-height) + var(--space-sm));
+}
+
+.panel,
+.previewPanel {
+  padding: var(--space-xl);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: calc(var(--radius-lg) + 4px);
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in oklch, var(--color-surface) 96%, var(--color-bg)),
+      color-mix(in oklch, var(--color-surface) 92%, var(--color-bg))
+    );
+}
+
+.roleCard,
+.keyword,
+.exportButton,
+.select,
+.entryCard,
+.previewChip {
+  transition:
+    transform var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out),
+    background-color var(--duration-fast) var(--ease-out);
+}
+
+.roleCard {
+  display: grid;
+  gap: 4px;
+  padding: var(--space-lg);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-lg);
+  background-color: color-mix(in oklch, var(--color-surface) 98%, var(--color-bg));
+  text-align: left;
+}
+
+.roleCard[data-active="true"],
+.roleCard:hover:not(:disabled) {
+  border-color: color-mix(in oklch, var(--color-focus) 40%, transparent);
+  background-color: color-mix(in oklch, var(--color-accent-subtle) 46%, var(--color-surface));
+  transform: translateY(-1px);
+}
+
+.roleCard:disabled {
+  opacity: 0.7;
+}
+
+.roleCard p,
+.previewMeta,
+.entryCard p,
+.metaBlock p {
+  max-width: none;
+}
+
+.keywordList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+
+.keyword,
+.previewChip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2rem;
+  padding: 0 var(--space-md);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-full);
+  background-color: color-mix(in oklch, var(--color-surface) 98%, var(--color-bg));
+  font-size: var(--text-sm);
+}
+
+.keyword[data-active="true"],
+.keyword:hover {
+  border-color: color-mix(in oklch, var(--color-focus) 34%, transparent);
+  background-color: color-mix(in oklch, var(--color-accent-subtle) 56%, var(--color-surface));
+}
+
+.field {
+  display: grid;
+  gap: var(--space-sm);
+}
+
+.field span {
+  color: var(--color-text-secondary);
+  font-size: var(--text-sm);
+}
+
+.select {
+  min-height: 2.875rem;
+  padding: 0 var(--space-md);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background-color: var(--color-bg);
+}
+
+.metaBlock {
+  display: grid;
+  gap: var(--space-sm);
+}
+
+.exportButton {
+  min-height: 2.875rem;
+  padding: 0 var(--space-lg);
+  border: 0;
+  border-radius: var(--radius-full);
+  background-color: var(--color-accent);
+  color: var(--color-accent-text);
+  font-weight: var(--weight-semibold);
+}
+
+.exportButton:hover:not(:disabled) {
+  background-color: var(--color-accent-hover);
+  transform: translateY(-1px);
+}
+
+.exportButton:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.previewHead {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: var(--space-lg);
+}
+
+.previewSheet {
+  padding: clamp(var(--space-xl), 3vw, var(--space-2xl));
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-lg);
+  background-color: var(--color-bg);
+}
+
+.previewHeader h3 {
+  font-size: var(--text-xl);
+}
+
+.contactRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  color: var(--color-text-secondary);
+  font-size: var(--text-sm);
+}
+
+.previewSection {
+  gap: var(--space-md);
+}
+
+.previewSection h4 {
+  font-size: var(--text-sm);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-tertiary);
+}
+
+.previewList {
+  display: grid;
+  gap: var(--space-sm);
+  padding-left: 1.1rem;
+}
+
+.entryCard {
+  padding: var(--space-lg);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-lg);
+  background-color: color-mix(in oklch, var(--color-surface) 96%, var(--color-bg));
+}
+
+@media (max-width: 72rem) {
+  .studio {
+    grid-template-columns: 1fr;
+  }
+
+  .controls {
+    position: static;
+  }
+}
+
+@media (max-width: 44rem) {
+  .previewHead {
+    flex-direction: column;
+    align-items: start;
+  }
+}

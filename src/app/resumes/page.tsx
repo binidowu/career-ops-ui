@@ -1,58 +1,67 @@
-import { getOpportunities } from "@/lib/api/career-ops";
+import ResumeStudio from "@/components/resumes/ResumeStudio";
+import {
+  getCvDocument,
+  getOpportunities,
+  getOpportunity,
+  getProfile,
+  getWorkspaceSignals,
+} from "@/lib/api/career-ops";
 
 export default async function ResumesPage() {
-  const opportunities = await getOpportunities();
-  const withReports = opportunities.filter((opportunity) => opportunity.reportPath);
-  const withPdf = opportunities.filter((opportunity) => opportunity.hasPdf);
+  const [opportunities, profile, workspace, cv] = await Promise.all([
+    getOpportunities(),
+    getProfile(),
+    getWorkspaceSignals(),
+    getCvDocument(),
+  ]);
+
+  const resumeReady = opportunities
+    .filter((opportunity) => opportunity.reportPath)
+    .sort((left, right) => {
+      const scoreDifference = (right.score ?? 0) - (left.score ?? 0);
+
+      if (scoreDifference !== 0) {
+        return scoreDifference;
+      }
+
+      return right.date.localeCompare(left.date);
+    });
+
+  const initialDetail = resumeReady[0]
+    ? await getOpportunity(resumeReady[0].id)
+    : { opportunity: null, evaluation: null };
 
   return (
     <article className="app-page">
       <header className="page-head">
         <div className="page-copy">
           <p className="eyebrow">Resume studio</p>
-          <h1>A focused workshop for tailoring, not a wizard.</h1>
+          <h1>A focused tailoring desk with the preview and export path in one place.</h1>
           <p className="lede">
-            The route is reserved for a direct-manipulation layout: controls on
-            the left, live preview on the right, and export actions that stay
-            close to the working draft.
+            Choose a report-backed opportunity, keep only the strongest keywords
+            in view, then export a clean PDF through the connected career-ops
+            toolchain without leaving the workspace.
           </p>
         </div>
 
         <aside className="page-note">
-          <p className="note-label">Studio flow</p>
+          <p className="note-label">Studio posture</p>
           <ul className="compact-list">
-            <li>Select a source opportunity.</li>
-            <li>Toggle or rewrite target keywords.</li>
-            <li>Generate and export a PDF without leaving the page.</li>
+            <li>CV markdown is the base layer.</li>
+            <li>Evaluation keywords and fit evidence drive the tailoring pass.</li>
+            <li>PDF export uses the existing career-ops renderer when available.</li>
           </ul>
         </aside>
       </header>
 
-      <section className="detail-layout">
-        <div className="detail-panel">
-          <p className="section-label">Preview pane</p>
-          <h2>
-            {withReports.length
-              ? "The route can already see which opportunities are resume-ready."
-              : "Resume studio is connected, but there are no report-backed opportunities yet."}
-          </h2>
-          <p>
-            {withReports.length
-              ? `${withReports.length} tracked role${withReports.length === 1 ? "" : "s"} have report paths, and ${withPdf.length} already show generated PDFs in the tracker.`
-              : "Generate a few evaluations first; resume tailoring will then have source opportunities, keywords, and downstream PDF context to work from."}
-          </p>
-        </div>
-
-        <aside className="detail-rail">
-          <section className="rail-block">
-            <p className="rail-label">Inputs</p>
-            <p>
-              Role selector, keyword toggles, and format choices will bind to
-              the report-backed opportunity set rather than static fixtures.
-            </p>
-          </section>
-        </aside>
-      </section>
+      <ResumeStudio
+        cv={cv}
+        initialEvaluation={initialDetail.evaluation}
+        initialOpportunity={initialDetail.opportunity}
+        opportunities={opportunities}
+        profile={profile}
+        workspace={workspace}
+      />
     </article>
   );
 }

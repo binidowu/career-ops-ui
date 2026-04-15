@@ -10,6 +10,7 @@ import {
   resolveCareerOpsFile,
 } from "@/lib/data";
 import { parseApplicationsMarkdown } from "@/lib/data/parse-applications";
+import { parseCvMarkdown } from "@/lib/data/parse-cv";
 import { parseProfileYaml } from "@/lib/data/parse-profile";
 import { parseReportMarkdown } from "@/lib/data/parse-report";
 import { serializeProfileYaml } from "@/lib/data/serialize-profile";
@@ -27,6 +28,7 @@ import type {
   StateDefinition,
   UserProfile,
 } from "@/lib/types";
+import type { ParsedCvDocument } from "@/lib/data/parse-cv";
 
 interface CacheEntry<T> {
   data: T;
@@ -138,6 +140,16 @@ export async function getProfileTemplate(): Promise<UserProfile> {
         timezone: "",
       },
     } satisfies UserProfile;
+  });
+}
+
+export async function getCvDocument(): Promise<ParsedCvDocument | null> {
+  noStore();
+  const signature = await getCareerOpsSignature("cv.md");
+
+  return readCached("cv", signature, async () => {
+    const raw = await readCareerOpsTextFile("cv.md");
+    return raw ? parseCvMarkdown(raw) : null;
   });
 }
 
@@ -273,20 +285,23 @@ export async function getDashboardStats(): Promise<DashboardStats> {
 
 export async function getWorkspaceSignals() {
   noStore();
-  const [applicationsPath, hasProfile, hasReportsDirectory] = await Promise.all([
+  const [applicationsPath, hasProfile, hasReportsDirectory, hasCv] = await Promise.all([
     resolveApplicationsPath(),
     careerOpsFileExists("config", "profile.yml"),
     careerOpsFileExists("reports"),
+    careerOpsFileExists("cv.md"),
   ]);
 
   return {
     trackerReady: Boolean(applicationsPath),
     profileReady: hasProfile,
     reportsReady: hasReportsDirectory,
+    cvReady: hasCv,
     careerOpsPath: getCareerOpsPath(),
     trackerPath:
       applicationsPath?.replace(`${getCareerOpsPath()}/`, "") ?? "data/applications.md",
     profilePath: "config/profile.yml",
+    cvPath: "cv.md",
   };
 }
 
