@@ -1,4 +1,5 @@
 .workspace,
+.workspaceRail,
 .selectionDock,
 .boardFrame,
 .board,
@@ -12,7 +13,18 @@
 }
 
 .workspace {
-  gap: var(--space-xl);
+  --compare-ink: var(--color-info);
+  --compare-tint: color-mix(in oklch, var(--color-info) 12%, var(--color-surface));
+  --compare-tint-strong: color-mix(in oklch, var(--color-info) 20%, var(--color-surface));
+  --compare-line: color-mix(in oklch, var(--color-info) 28%, transparent);
+  grid-template-columns: minmax(18rem, 0.8fr) minmax(0, 1.4fr);
+  align-items: start;
+  gap: var(--space-2xl);
+}
+
+.workspaceRail {
+  position: sticky;
+  top: calc(var(--topbar-height) + var(--space-sm));
 }
 
 .selectionDock,
@@ -23,9 +35,10 @@
   background:
     linear-gradient(
       180deg,
-      color-mix(in oklch, var(--color-surface) 97%, var(--color-bg)),
-      color-mix(in oklch, var(--color-surface) 93%, var(--color-bg))
+      color-mix(in oklch, var(--compare-tint) 76%, var(--color-bg)),
+      color-mix(in oklch, var(--color-surface) 86%, var(--compare-tint))
     );
+  border-color: var(--compare-line);
 }
 
 .selectionHeader {
@@ -37,19 +50,25 @@
 
 .selectionMeta {
   max-width: none;
-  color: var(--color-text-tertiary);
+  color: var(--compare-ink);
   font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
 }
 
 .selectorGrid {
-  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  grid-template-columns: 1fr;
 }
 
 .selectorCard {
   padding: var(--space-lg);
   border: 1px solid var(--color-border-subtle);
   border-radius: var(--radius-lg);
-  background-color: color-mix(in oklch, var(--color-surface) 98%, var(--color-bg));
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in oklch, var(--compare-tint) 52%, var(--color-bg)),
+      color-mix(in oklch, var(--color-surface) 92%, var(--compare-tint))
+    );
   text-align: left;
   transition:
     transform var(--duration-fast) var(--ease-out),
@@ -59,13 +78,19 @@
 
 .selectorCard:hover:not(:disabled),
 .selectorCard[data-selected="true"] {
-  border-color: color-mix(in oklch, var(--color-focus) 40%, transparent);
-  background-color: color-mix(in oklch, var(--color-accent-subtle) 42%, var(--color-surface));
+  border-color: color-mix(in oklch, var(--compare-ink) 40%, transparent);
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in oklch, var(--compare-tint-strong) 82%, var(--color-bg)),
+      color-mix(in oklch, var(--color-surface) 82%, var(--compare-tint-strong))
+    );
   transform: translateY(-1px);
 }
 
 .selectorCard:disabled {
   opacity: 0.7;
+  cursor: progress;
 }
 
 .selectorTop {
@@ -93,16 +118,34 @@
 }
 
 .selectorScore {
-  border: 1px solid var(--color-border-subtle);
-  background-color: color-mix(in oklch, var(--color-surface) 90%, var(--color-bg));
+  border: 1px solid var(--compare-line);
+  background-color: color-mix(in oklch, var(--compare-tint) 76%, var(--color-surface));
+  color: var(--compare-ink);
+}
+
+.selectorCard:focus-visible,
+.columnHeader a:focus-visible {
+  outline: 2px solid color-mix(in oklch, var(--compare-ink) 72%, var(--color-focus));
+  outline-offset: 2px;
+}
+
+.selectorCard:active {
+  transform: translateY(0);
 }
 
 .contextStrip {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
   gap: var(--space-md);
   color: var(--color-text-secondary);
   font-size: var(--text-sm);
+  padding-block: var(--space-md);
+  border-block: 1px solid var(--compare-line);
+  background:
+    linear-gradient(
+      90deg,
+      color-mix(in oklch, var(--compare-tint) 48%, transparent),
+      transparent 70%
+    );
 }
 
 .boardFrame {
@@ -137,8 +180,8 @@
   background:
     linear-gradient(
       180deg,
-      color-mix(in oklch, var(--color-bg) 92%, var(--color-surface)),
-      color-mix(in oklch, var(--color-surface) 92%, var(--color-bg))
+      color-mix(in oklch, var(--compare-tint-strong) 78%, var(--color-bg)),
+      color-mix(in oklch, var(--color-surface) 84%, var(--compare-tint))
     );
 }
 
@@ -149,6 +192,20 @@
   border: 1px solid var(--color-border-subtle);
   border-radius: var(--radius-lg);
   background-color: color-mix(in oklch, var(--color-surface) 98%, var(--color-bg));
+}
+
+.columnHeader {
+  border-color: var(--compare-line);
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in oklch, var(--compare-tint) 66%, var(--color-bg)),
+      color-mix(in oklch, var(--color-surface) 90%, var(--compare-tint))
+    );
+}
+
+.cellLabel {
+  border-color: color-mix(in oklch, var(--compare-line) 82%, var(--color-border-subtle));
 }
 
 .columnHeader {
@@ -163,6 +220,12 @@
 .columnHeader a {
   color: var(--color-text-secondary);
   font-size: var(--text-sm);
+  text-decoration-thickness: 0.08em;
+  text-underline-offset: 0.16em;
+}
+
+.columnHeader a:hover {
+  color: var(--compare-ink);
 }
 
 .columnTitle {
@@ -176,8 +239,32 @@
 
 .badge {
   justify-self: start;
-  border: 1px solid color-mix(in oklch, var(--color-accent) 30%, transparent);
-  background-color: color-mix(in oklch, var(--color-accent-subtle) 62%, var(--color-surface));
+  border: 1px solid var(--compare-line);
+  background-color: color-mix(in oklch, var(--compare-tint) 72%, var(--color-surface));
+  color: var(--compare-ink);
+}
+
+.badge[data-kind="best-fit"] {
+  border-color: color-mix(in oklch, var(--color-success) 34%, transparent);
+  background-color: color-mix(in oklch, var(--color-success) 18%, var(--color-surface));
+  color: var(--color-text);
+}
+
+.badge[data-kind="best-pay"] {
+  border-color: color-mix(in oklch, var(--color-accent) 34%, transparent);
+  background-color: color-mix(in oklch, var(--color-accent-subtle) 72%, var(--color-surface));
+  color: var(--color-text);
+}
+
+.badge[data-kind="stretch-pick"] {
+  border-color: color-mix(in oklch, var(--color-focus) 32%, transparent);
+  background-color: color-mix(in oklch, var(--color-focus) 16%, var(--color-surface));
+  color: var(--color-text);
+}
+
+.badge[data-kind="fastest-process"] {
+  border-color: color-mix(in oklch, var(--compare-ink) 34%, transparent);
+  background-color: color-mix(in oklch, var(--compare-tint-strong) 78%, var(--color-surface));
 }
 
 .cellLabel {
@@ -192,14 +279,22 @@
   color: var(--color-text);
   font-size: var(--text-sm);
   line-height: var(--leading-normal);
+  border-color: color-mix(in oklch, var(--compare-line) 56%, var(--color-border-subtle));
 }
 
 @media (max-width: 68rem) {
+  .workspace {
+    grid-template-columns: 1fr;
+  }
+
+  .workspaceRail {
+    position: static;
+  }
+
   .selectionHeader {
     flex-direction: column;
     align-items: start;
   }
-
 }
 
 @media (max-width: 44rem) {

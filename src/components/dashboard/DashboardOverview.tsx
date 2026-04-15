@@ -195,6 +195,8 @@ export default function DashboardOverview({
     .filter(([, count]) => count > 0)
     .sort((left, right) => right[1] - left[1]);
   const strongestRole = stats.topScoring[0] ?? attentionQueue[0] ?? null;
+  const leadOpportunity = attentionQueue[0] ?? null;
+  const supportingQueue = attentionQueue.slice(1);
 
   if (!hasOpportunities) {
     return (
@@ -389,37 +391,41 @@ export default function DashboardOverview({
               <h2>Roles most likely to deserve the next deliberate move.</h2>
             </div>
 
-            <div className={styles.stack}>
-              {attentionQueue.map((opportunity) => (
+            {leadOpportunity ? (
+              <div className={styles.queueSplit}>
                 <Link
-                  className={styles.queueItem}
-                  href={`/pipeline/${opportunity.id}`}
-                  key={opportunity.id}
+                  className={styles.queueLead}
+                  href={`/pipeline/${leadOpportunity.id}`}
                 >
                   <div className={styles.queueHeading}>
                     <div>
+                      <p className={styles.kickerLine}>Primary next move</p>
                       <strong>
-                        {opportunity.company} · {opportunity.role}
+                        {leadOpportunity.company} · {leadOpportunity.role}
                       </strong>
                       <p>
-                        {formatAgeLabel(opportunity.date)}
-                        {opportunity.archetype ? ` · ${opportunity.archetype}` : ""}
+                        {formatAgeLabel(leadOpportunity.date)}
+                        {leadOpportunity.archetype
+                          ? ` · ${leadOpportunity.archetype}`
+                          : ""}
                       </p>
                     </div>
 
                     <div className={styles.queueMeta}>
-                      <span className={styles.scoreBadge}>Score {formatScore(opportunity)}</span>
+                      <span className={styles.scoreBadge}>
+                        Score {formatScore(leadOpportunity)}
+                      </span>
                       <span
                         className={styles.statusPill}
-                        data-tone={statusTone(opportunity.status)}
+                        data-tone={statusTone(leadOpportunity.status)}
                       >
-                        {opportunity.status}
+                        {leadOpportunity.status}
                       </span>
                     </div>
                   </div>
 
                   <div className={styles.badgeRow}>
-                    {getAttentionReasons(opportunity).map((reason) => (
+                    {getAttentionReasons(leadOpportunity).map((reason) => (
                       <span className={styles.reasonBadge} key={reason}>
                         {reason}
                       </span>
@@ -427,11 +433,55 @@ export default function DashboardOverview({
                   </div>
 
                   <p>
-                    {opportunity.notes || opportunity.summary || "No note captured yet."}
+                    {leadOpportunity.notes ||
+                      leadOpportunity.summary ||
+                      "No note captured yet."}
                   </p>
                 </Link>
-              ))}
-            </div>
+
+                <div className={styles.stack}>
+                  {supportingQueue.map((opportunity) => (
+                    <Link
+                      className={styles.queueItem}
+                      href={`/pipeline/${opportunity.id}`}
+                      key={opportunity.id}
+                    >
+                      <div className={styles.queueHeading}>
+                        <div>
+                          <strong>
+                            {opportunity.company} · {opportunity.role}
+                          </strong>
+                          <p>
+                            {formatAgeLabel(opportunity.date)}
+                            {opportunity.archetype
+                              ? ` · ${opportunity.archetype}`
+                              : ""}
+                          </p>
+                        </div>
+
+                        <div className={styles.queueMeta}>
+                          <span className={styles.scoreBadge}>
+                            {formatScore(opportunity)}
+                          </span>
+                          <span
+                            className={styles.statusPill}
+                            data-tone={statusTone(opportunity.status)}
+                          >
+                            {opportunity.status}
+                          </span>
+                        </div>
+                      </div>
+
+                      <p>
+                        {opportunity.notes ||
+                          opportunity.summary ||
+                          "No note captured yet."}
+                      </p>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            ) : null}
           </section>
 
           <section className={styles.panel}>

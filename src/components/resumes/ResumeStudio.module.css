@@ -8,6 +8,11 @@
 .previewPanel,
 .previewSheet,
 .previewHeader,
+.previewIdentity,
+.previewSignal,
+.previewGrid,
+.previewMain,
+.previewSide,
 .previewSection,
 .entryStack,
 .entryCard {
@@ -16,7 +21,11 @@
 }
 
 .studio {
-  grid-template-columns: minmax(19rem, 0.9fr) minmax(0, 1.25fr);
+  --resume-ink: var(--color-accent-strong);
+  --resume-tint: color-mix(in oklch, var(--color-accent) 14%, var(--color-surface));
+  --resume-tint-strong: color-mix(in oklch, var(--color-accent) 24%, var(--color-surface));
+  --resume-line: color-mix(in oklch, var(--color-accent) 28%, transparent);
+  grid-template-columns: minmax(18rem, 0.75fr) minmax(0, 1.45fr);
   align-items: start;
 }
 
@@ -33,9 +42,10 @@
   background:
     linear-gradient(
       180deg,
-      color-mix(in oklch, var(--color-surface) 96%, var(--color-bg)),
-      color-mix(in oklch, var(--color-surface) 92%, var(--color-bg))
+      color-mix(in oklch, var(--resume-tint) 76%, var(--color-bg)),
+      color-mix(in oklch, var(--color-surface) 86%, var(--resume-tint))
     );
+  border-color: var(--resume-line);
 }
 
 .controlSection {
@@ -66,19 +76,30 @@
   padding: var(--space-lg);
   border: 1px solid var(--color-border-subtle);
   border-radius: var(--radius-lg);
-  background-color: color-mix(in oklch, var(--color-surface) 98%, var(--color-bg));
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in oklch, var(--resume-tint) 52%, var(--color-bg)),
+      color-mix(in oklch, var(--color-surface) 92%, var(--resume-tint))
+    );
   text-align: left;
 }
 
 .roleCard[data-active="true"],
 .roleCard:hover:not(:disabled) {
-  border-color: color-mix(in oklch, var(--color-focus) 40%, transparent);
-  background-color: color-mix(in oklch, var(--color-accent-subtle) 46%, var(--color-surface));
+  border-color: color-mix(in oklch, var(--resume-ink) 40%, transparent);
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in oklch, var(--resume-tint-strong) 82%, var(--color-bg)),
+      color-mix(in oklch, var(--color-surface) 82%, var(--resume-tint-strong))
+    );
   transform: translateY(-1px);
 }
 
 .roleCard:disabled {
   opacity: 0.7;
+  cursor: progress;
 }
 
 .roleCard p,
@@ -94,11 +115,18 @@
   gap: var(--space-sm);
 }
 
+.panelText {
+  color: var(--color-text-secondary);
+  font-size: var(--text-sm);
+  max-width: 34rem;
+}
+
 .keyword,
 .previewChip {
   display: inline-flex;
   align-items: center;
-  min-height: 2rem;
+  justify-content: center;
+  min-height: 2.5rem;
   padding: 0 var(--space-md);
   border: 1px solid var(--color-border-subtle);
   border-radius: var(--radius-full);
@@ -108,8 +136,23 @@
 
 .keyword[data-active="true"],
 .keyword:hover {
-  border-color: color-mix(in oklch, var(--color-focus) 34%, transparent);
-  background-color: color-mix(in oklch, var(--color-accent-subtle) 56%, var(--color-surface));
+  border-color: color-mix(in oklch, var(--resume-ink) 34%, transparent);
+  background-color: color-mix(in oklch, var(--resume-tint-strong) 78%, var(--color-surface));
+  color: var(--color-text);
+}
+
+.roleCard:focus-visible,
+.keyword:focus-visible,
+.exportButton:focus-visible,
+.select:focus-visible {
+  outline: 2px solid color-mix(in oklch, var(--resume-ink) 72%, var(--color-focus));
+  outline-offset: 2px;
+}
+
+.roleCard:active,
+.keyword:active,
+.exportButton:active {
+  transform: translateY(0);
 }
 
 .field {
@@ -125,9 +168,9 @@
 .select {
   min-height: 2.875rem;
   padding: 0 var(--space-md);
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--resume-line);
   border-radius: var(--radius-md);
-  background-color: var(--color-bg);
+  background-color: color-mix(in oklch, var(--resume-tint) 34%, var(--color-bg));
 }
 
 .metaBlock {
@@ -164,13 +207,44 @@
 
 .previewSheet {
   padding: clamp(var(--space-xl), 3vw, var(--space-2xl));
-  border: 1px solid var(--color-border-subtle);
+  border: 1px solid var(--resume-line);
   border-radius: var(--radius-lg);
-  background-color: var(--color-bg);
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in oklch, var(--color-bg) 88%, var(--resume-tint)),
+      color-mix(in oklch, var(--color-surface) 96%, var(--resume-tint))
+    );
 }
 
 .previewHeader h3 {
   font-size: var(--text-xl);
+}
+
+.previewHeader {
+  grid-template-columns: minmax(0, 1.3fr) minmax(14rem, 0.7fr);
+  align-items: start;
+}
+
+.previewSignal {
+  padding-left: var(--space-lg);
+  border-left: 1px solid var(--resume-line);
+  color: var(--resume-ink);
+}
+
+.previewSignal strong,
+.previewSignal span {
+  max-width: none;
+}
+
+.previewSignal span {
+  color: var(--color-text-secondary);
+  font-size: var(--text-sm);
+}
+
+.previewGrid {
+  grid-template-columns: minmax(0, 1.15fr) minmax(16rem, 0.85fr);
+  gap: var(--space-2xl);
 }
 
 .contactRow {
@@ -189,7 +263,7 @@
   font-size: var(--text-sm);
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--color-text-tertiary);
+  color: var(--resume-ink);
 }
 
 .previewList {
@@ -200,9 +274,20 @@
 
 .entryCard {
   padding: var(--space-lg);
-  border: 1px solid var(--color-border-subtle);
+  border: 1px solid color-mix(in oklch, var(--resume-line) 72%, var(--color-border-subtle));
   border-radius: var(--radius-lg);
-  background-color: color-mix(in oklch, var(--color-surface) 96%, var(--color-bg));
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in oklch, var(--resume-tint) 48%, var(--color-bg)),
+      color-mix(in oklch, var(--color-surface) 94%, var(--resume-tint))
+    );
+}
+
+.previewChip {
+  border-color: var(--resume-line);
+  background-color: color-mix(in oklch, var(--resume-tint-strong) 70%, var(--color-surface));
+  min-height: 2rem;
 }
 
 @media (max-width: 72rem) {
@@ -212,6 +297,18 @@
 
   .controls {
     position: static;
+  }
+
+  .previewHeader,
+  .previewGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .previewSignal {
+    padding-left: 0;
+    border-left: 0;
+    padding-top: var(--space-md);
+    border-top: 1px solid var(--color-border-subtle);
   }
 }
 

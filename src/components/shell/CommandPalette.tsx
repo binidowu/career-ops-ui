@@ -79,9 +79,9 @@ export default function CommandPalette({
 
     if (selected.disabled) {
       onNotify({
-        title: `${selected.label} stays disabled for now`,
+        title: `${selected.label} is not available yet`,
         description:
-          "That route is part of the planned information architecture, but the workflow itself is still waiting on a later build step.",
+          "That space is listed in the app, but there is no working flow behind it in this build yet.",
         tone: "neutral",
         dismissAfter: 4000,
       });
@@ -166,7 +166,7 @@ export default function CommandPalette({
     >
       <div className={styles.panel}>
         <header className={styles.header}>
-          <p className={styles.label}>Command palette</p>
+          <p className={styles.label}>Quick jump</p>
           <button className={styles.close} onClick={onClose} type="button">
             Esc
           </button>
@@ -180,7 +180,7 @@ export default function CommandPalette({
               setActiveIndex(0);
             }}
             onKeyDown={handleInputKeyDown}
-            placeholder="Search routes, opportunities, and actions"
+            placeholder="Search pages, companies, or next actions"
             ref={inputRef}
             type="text"
             value={query}
@@ -224,9 +224,9 @@ export default function CommandPalette({
             ))
           ) : (
             <section className={styles.empty}>
-              <p>No matches yet.</p>
+              <p>No results yet.</p>
               <p>
-                Try a company name, a route like “pipeline”, or an action like
+                Try a company name, a page like “pipeline”, or an action like
                 “resume”.
               </p>
             </section>

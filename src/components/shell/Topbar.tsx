@@ -28,9 +28,9 @@ export default function Topbar({ onNotify, onOpenPalette }: TopbarProps) {
 
   function handleUnavailable(label: string) {
     onNotify({
-      title: `${label} is staged for a later pass`,
+      title: `${label} is not available yet`,
       description:
-        "The global shell is live now; the scan workflow arrives once the data layer and actions are wired in.",
+        "That section is on the roadmap, but this build does not include a working flow for it yet.",
       tone: "neutral",
       dismissAfter: 4000,
     });
@@ -81,15 +81,15 @@ export default function Topbar({ onNotify, onOpenPalette }: TopbarProps) {
             onClick={onOpenPalette}
             type="button"
           >
-            <span>Command</span>
+            <span>Jump to</span>
             <kbd>⌘K</kbd>
           </button>
 
           <div className={styles.profile} role="status">
             <span className={styles.profileMonogram}>BO</span>
             <span className={styles.profileCopy}>
-              <strong>Local workspace</strong>
-              <small>Local draft</small>
+              <strong>Workspace ready</strong>
+              <small>Editing local files</small>
             </span>
           </div>
 

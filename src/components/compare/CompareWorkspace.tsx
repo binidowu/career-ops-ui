@@ -221,7 +221,7 @@ export default function CompareWorkspace({
       notify({
         title: "Comparison caps at five roles",
         description:
-          "Remove one of the current selections before adding another dossier to the board.",
+          "Remove one of the current selections before adding another role to the board.",
         dismissAfter: 4000,
       });
       return;
@@ -240,57 +240,25 @@ export default function CompareWorkspace({
       notify({
         title: "Could not load that role",
         description:
-          "The comparison board could not fetch dossier details for the selected opportunity.",
+          "The comparison board could not load the selected role details.",
       });
     }
   }
 
   return (
     <section className={styles.workspace}>
-      <section className={styles.selectionDock}>
-        <div className={styles.selectionHeader}>
-          <div>
-            <p className="section-label">Selection deck</p>
-            <h2>Choose two to five scored roles to compare.</h2>
+      <div className={styles.workspaceRail}>
+        <section className={styles.selectionDock}>
+          <div className={styles.selectionHeader}>
+            <div>
+              <p className="section-label">Role picker</p>
+              <h2>Choose two to five scored roles to compare.</h2>
+            </div>
+            <p className={styles.selectionMeta}>
+              {selectedEntries.length} selected
+            </p>
           </div>
-          <p className={styles.selectionMeta}>
-            {selectedEntries.length} selected
-          </p>
-        </div>
 
-        <div className={styles.selectorGrid}>
-          {opportunities.map((opportunity) => {
-            const isSelected = selectedIds.includes(opportunity.id);
-
-            return (
-              <button
-                className={styles.selectorCard}
-                data-selected={isSelected}
-                disabled={pendingId === opportunity.id}
-                key={opportunity.id}
-                onClick={() => void toggleSelection(opportunity.id)}
-                type="button"
-              >
-                <div className={styles.selectorTop}>
-                  <strong>
-                    {opportunity.company} · {opportunity.role}
-                  </strong>
-                  <span className={styles.selectorScore}>
-                    {formatScore(opportunity)}
-                  </span>
-                </div>
-                <p>
-                  {opportunity.status}
-                  {opportunity.archetype ? ` · ${opportunity.archetype}` : ""}
-                </p>
-              </button>
-            );
-          })}
-        </div>
-      </section>
-
-      {selectedEntries.length >= 2 ? (
-        <>
           <div className={styles.contextStrip}>
             <span>{selectedEntries.length} roles in play</span>
             {badgeWinners.find((badge) => badge.label === "Best Fit") ? (
@@ -315,7 +283,41 @@ export default function CompareWorkspace({
             ) : null}
           </div>
 
-          <section className={styles.boardFrame}>
+          <div className={styles.selectorGrid}>
+            {opportunities.map((opportunity) => {
+              const isSelected = selectedIds.includes(opportunity.id);
+
+              return (
+                <button
+                  aria-pressed={isSelected}
+                  className={styles.selectorCard}
+                  data-selected={isSelected}
+                  disabled={pendingId === opportunity.id}
+                  key={opportunity.id}
+                  onClick={() => void toggleSelection(opportunity.id)}
+                  type="button"
+                >
+                  <div className={styles.selectorTop}>
+                    <strong>
+                      {opportunity.company} · {opportunity.role}
+                    </strong>
+                    <span className={styles.selectorScore}>
+                      {formatScore(opportunity)}
+                    </span>
+                  </div>
+                  <p>
+                    {opportunity.status}
+                    {opportunity.archetype ? ` · ${opportunity.archetype}` : ""}
+                  </p>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+      </div>
+
+      {selectedEntries.length >= 2 ? (
+        <section className={styles.boardFrame}>
             <div className={styles.boardScroller}>
               <div className={styles.board}>
                 <div className={`${styles.column} ${styles.labelColumn}`}>
@@ -355,14 +357,18 @@ export default function CompareWorkspace({
 
                         <div className={styles.badgeStack}>
                           {badges.map((badge) => (
-                            <span className={styles.badge} key={badge}>
+                            <span
+                              className={styles.badge}
+                              data-kind={badge.toLowerCase().replace(/\s+/g, "-")}
+                              key={badge}
+                            >
                               {badge}
                             </span>
                           ))}
                         </div>
 
                         <Link href={`/pipeline/${entry.opportunity.id}`}>
-                          Open full dossier
+                          Open full record
                         </Link>
                       </div>
 
@@ -417,7 +423,6 @@ export default function CompareWorkspace({
               </div>
             </div>
           </section>
-        </>
       ) : (
         <section className="empty-state">
           <p className="section-label">Choose roles to compare</p>

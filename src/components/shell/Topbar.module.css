@@ -61,6 +61,9 @@
   font-size: var(--text-sm);
   font-weight: var(--weight-medium);
   cursor: pointer;
+  transition:
+    color var(--duration-fast) var(--ease-out),
+    background-color var(--duration-fast) var(--ease-out);
 }
 
 .navItem::after {
@@ -88,6 +91,14 @@
 
 .navItem:hover {
   color: var(--color-text);
+}
+
+.navItem:focus-visible,
+.paletteTrigger:focus-visible,
+.menuToggle:focus-visible,
+.mobileItem:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
 }
 
 .navItem small {
@@ -119,6 +130,17 @@
   padding: 0 var(--space-md);
   color: var(--color-text-secondary);
   font-size: var(--text-sm);
+  transition:
+    border-color var(--duration-fast) var(--ease-out),
+    background-color var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
+}
+
+.paletteTrigger:hover,
+.menuToggle:hover {
+  border-color: var(--color-line-strong);
+  background-color: color-mix(in oklch, var(--color-surface) 72%, var(--color-bg));
+  color: var(--color-text);
 }
 
 .paletteTrigger kbd {
@@ -191,6 +213,13 @@
   background: none;
   text-align: left;
   color: var(--color-text);
+  transition:
+    color var(--duration-fast) var(--ease-out),
+    background-color var(--duration-fast) var(--ease-out);
+}
+
+.mobileItem:hover {
+  color: var(--color-accent-strong);
 }
 
 .mobileItem small {
