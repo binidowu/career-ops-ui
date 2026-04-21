@@ -13,15 +13,16 @@
   margin: 0 auto;
   padding: 0 var(--page-gutter);
   display: grid;
-  grid-template-columns: minmax(0, 18rem) minmax(0, 1fr) auto;
+  grid-template-columns: minmax(13.5rem, 21rem) minmax(0, 1fr) auto;
   align-items: center;
   gap: var(--space-lg);
 }
 
 .identity {
   display: grid;
-  gap: 2px;
+  gap: 4px;
   align-content: center;
+  padding-block: var(--space-sm);
 }
 
 .wordmark {
@@ -36,7 +37,8 @@
   font-size: var(--text-xs);
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  max-width: none;
+  line-height: 1.45;
+  max-width: 28ch;
 }
 
 .navDesktop {

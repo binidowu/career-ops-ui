@@ -107,6 +107,11 @@ export interface InterviewPrepItem {
   result: string;
 }
 
+export interface EvaluationSection {
+  heading: string;
+  body: string;
+}
+
 /** Full evaluation report for an opportunity */
 export interface Evaluation {
   /** The opportunity this evaluation belongs to */
@@ -161,6 +166,8 @@ export interface Evaluation {
   keywords: string[];
   /** When the evaluation was generated */
   generatedAt: string;
+  /** Ordered report sections as parsed from the source markdown */
+  sections: EvaluationSection[];
 }
 
 /** User profile from config/profile.yml */

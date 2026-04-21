@@ -201,9 +201,13 @@ export default function PipelineWorkspace({
           </div>
 
           <div className={styles.summary}>
-            <span className="chip">Visible: {filteredOpportunities.length}</span>
-            <span className="chip">
-              Selected: {selectedCount}
+            <span className={styles.summaryStat}>
+              <span>Visible</span>
+              <strong className="tabular-nums">{filteredOpportunities.length}</strong>
+            </span>
+            <span className={styles.summaryStat}>
+              <span>Selected</span>
+              <strong className="tabular-nums">{selectedCount}</strong>
             </span>
           </div>
         </div>
@@ -299,12 +303,16 @@ export default function PipelineWorkspace({
                   </div>
 
                   <p className={`${styles.score} tabular-nums`}>
-                    {typeof opportunity.score === "number"
-                      ? opportunity.score.toFixed(1)
-                      : opportunity.scoreRaw || "N/A"}
+                    <span className={styles.scorePill}>
+                      {typeof opportunity.score === "number"
+                        ? opportunity.score.toFixed(1)
+                        : opportunity.scoreRaw || "N/A"}
+                    </span>
                   </p>
 
-                  <p className={styles.status}>{opportunity.status}</p>
+                  <p className={styles.status}>
+                    <span className={styles.statusPill}>{opportunity.status}</span>
+                  </p>
 
                   <div className={styles.metaBlock}>
                     <small>{opportunity.date || "Unknown date"}</small>

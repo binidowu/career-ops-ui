@@ -12,6 +12,11 @@ export default async function PipelinePage() {
     getStates(),
     getWorkspaceSignals(),
   ]);
+  const reportCount = opportunities.filter((opportunity) => opportunity.reportPath).length;
+  const averageScore = opportunities.length
+    ? opportunities.reduce((total, opportunity) => total + (opportunity.score ?? 0), 0) /
+      opportunities.length
+    : null;
 
   return (
     <article className="app-page">
@@ -27,11 +32,14 @@ export default async function PipelinePage() {
         </div>
 
         <aside className="page-note">
-          <p className="note-label">Planned interactions</p>
+          <p className="note-label">Live tracker</p>
           <ul className="compact-list">
-            <li>Dense rows with sort and status controls.</li>
-            <li>Right-side detail drawer that preserves table context.</li>
-            <li>Bulk actions and compare handoff for selected roles.</li>
+            <li>{opportunities.length} tracked roles in this workspace.</li>
+            <li>{reportCount} linked reports currently available.</li>
+            <li>
+              Average score:{" "}
+              {typeof averageScore === "number" ? averageScore.toFixed(1) : "N/A"}
+            </li>
           </ul>
         </aside>
       </header>

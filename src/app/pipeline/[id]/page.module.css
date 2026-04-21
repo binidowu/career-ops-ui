@@ -1,0 +1,188 @@
+.page {
+  gap: var(--space-2xl);
+}
+
+.heroMeta,
+.sourceList,
+.signalGrid,
+.signalCard,
+.sectionHead,
+.sectionBody,
+.reportSection,
+.blockStack,
+.tableWrap,
+.keywordList,
+.outputStack {
+  display: grid;
+  gap: var(--space-md);
+}
+
+.heroMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+
+.scorePill,
+.statusPill,
+.metaPill,
+.keyword {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.25rem;
+  padding: 0 var(--space-md);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-full);
+  font-size: var(--text-sm);
+}
+
+.scorePill {
+  border-color: color-mix(in oklch, var(--color-info) 30%, transparent);
+  background-color: color-mix(in oklch, var(--color-info) 14%, var(--color-surface));
+}
+
+.statusPill {
+  border-color: color-mix(in oklch, var(--color-accent) 30%, transparent);
+  background-color: color-mix(in oklch, var(--color-accent-subtle) 64%, var(--color-surface));
+}
+
+.metaPill,
+.keyword {
+  background-color: color-mix(in oklch, var(--color-surface) 96%, var(--color-bg));
+}
+
+.sourceNote {
+  align-content: start;
+}
+
+.sourceList {
+  padding: 0;
+  list-style: none;
+}
+
+.sourceList li {
+  display: grid;
+  gap: var(--space-xs);
+  padding-bottom: var(--space-md);
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.sourceList li:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.sourceList span,
+.signalCard dt {
+  color: var(--color-text-tertiary);
+  font-size: var(--text-xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.externalLink {
+  color: var(--color-accent);
+  font-weight: var(--weight-medium);
+}
+
+.overviewPanel {
+  gap: var(--space-lg);
+}
+
+.signalGrid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.signalCard {
+  gap: var(--space-sm);
+  padding: var(--space-lg);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-lg);
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in oklch, var(--color-surface) 98%, var(--color-bg)),
+      color-mix(in oklch, var(--color-surface) 92%, var(--color-bg))
+    );
+}
+
+.signalCard dd {
+  margin: 0;
+  color: var(--color-text);
+}
+
+.reportSection {
+  gap: var(--space-lg);
+}
+
+.sectionHead {
+  gap: var(--space-sm);
+}
+
+.sectionBody {
+  gap: var(--space-lg);
+}
+
+.blockStack {
+  gap: var(--space-sm);
+}
+
+.blockHeading {
+  font-size: var(--text-base);
+}
+
+.reportList {
+  display: grid;
+  gap: var(--space-sm);
+  padding-left: 1.1rem;
+}
+
+.tableWrap {
+  gap: var(--space-sm);
+  overflow-x: auto;
+}
+
+.reportTable {
+  width: 100%;
+  min-width: 36rem;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.reportTable th,
+.reportTable td {
+  padding: var(--space-md);
+  border-bottom: 1px solid var(--color-border-subtle);
+  vertical-align: top;
+}
+
+.reportTable th {
+  color: var(--color-text-tertiary);
+  font-size: var(--text-xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.reportTable td {
+  color: var(--color-text-secondary);
+}
+
+.statusBlock {
+  gap: var(--space-lg);
+}
+
+.keywordList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+
+.outputStack {
+  gap: var(--space-lg);
+}
+
+@media (max-width: 68rem) {
+  .signalGrid {
+    grid-template-columns: 1fr;
+  }
+}

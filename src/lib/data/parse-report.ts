@@ -4,6 +4,7 @@ import {
   type CompensationDatum,
   type CvMatchItem,
   type Evaluation,
+  type EvaluationSection,
   type InterviewPrepItem,
   type PersonalizationItem,
   scoreToGrade,
@@ -17,12 +18,22 @@ function extractMetadataValue(markdown: string, label: string) {
   return expression.exec(markdown)?.[1]?.trim() ?? null;
 }
 
-function extractSection(markdown: string, heading: string) {
-  const expression = new RegExp(
-    `^##\\s+${heading.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*$([\\s\\S]*?)(?=^##\\s+|\\Z)`,
-    "im",
-  );
-  return expression.exec(markdown)?.[1]?.trim() ?? "";
+function extractSections(markdown: string): EvaluationSection[] {
+  const expression = /^##\s+(.+?)\s*$([\s\S]*?)(?=^##\s+|\Z)/gim;
+  const sections: EvaluationSection[] = [];
+
+  for (const match of markdown.matchAll(expression)) {
+    const heading = match[1]?.trim();
+    const body = match[2]?.trim() ?? "";
+
+    if (!heading) {
+      continue;
+    }
+
+    sections.push({ heading, body });
+  }
+
+  return sections;
 }
 
 function splitParagraphs(section: string) {
@@ -84,6 +95,40 @@ function summarizeParagraphs(paragraphs: string[]) {
   return paragraphs.join("\n\n").trim();
 }
 
+function sectionLetter(heading: string) {
+  const match = /^\s*([A-Z])(?:\s*[)\-—:]|\b)/i.exec(heading);
+  return match?.[1]?.toUpperCase() ?? null;
+}
+
+function stripMarkdownMarkers(value: string) {
+  return value
+    .replace(/\*\*(.+?)\*\*/g, "$1")
+    .replace(/^>\s+/gm, "")
+    .replace(/^[*-]\s+/gm, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function extractSummaryCandidate(section: string) {
+  return splitParagraphs(section)
+    .map((paragraph) => paragraph.trim())
+    .find((paragraph) => {
+      if (!paragraph) {
+        return false;
+      }
+
+      if (paragraph.startsWith("|")) {
+        return false;
+      }
+
+      if (/^\*\*[\d.]+\/5\*\*$/.test(paragraph)) {
+        return false;
+      }
+
+      return true;
+    });
+}
+
 function extractOpportunityNumber(reportPath: string | null) {
   if (!reportPath) {
     return null;
@@ -98,6 +143,12 @@ export function parseReportMarkdown(
   markdown: string,
   reportPath: string | null,
 ): Evaluation {
+  const sections = extractSections(markdown);
+  const sectionsByLetter = new Map(
+    sections
+      .map((section) => [sectionLetter(section.heading), section] as const)
+      .filter((entry): entry is [string, EvaluationSection] => Boolean(entry[0])),
+  );
   const score = Number(extractMetadataValue(markdown, "Score")?.match(/[\d.]+/)?.[0] ?? 0);
   const archetype =
     extractMetadataValue(markdown, "Archetype") ??
@@ -108,13 +159,14 @@ export function parseReportMarkdown(
   const pdfPath = extractMetadataValue(markdown, "PDF");
   const batchId = extractMetadataValue(markdown, "Batch ID");
 
-  const sectionA = extractSection(markdown, "A) Role Summary");
-  const sectionB = extractSection(markdown, "B) CV Match");
-  const sectionC = extractSection(markdown, "C) Level and Strategy");
-  const sectionD = extractSection(markdown, "D) Comp and Demand");
-  const sectionE = extractSection(markdown, "E) Personalization Plan");
-  const sectionF = extractSection(markdown, "F) Interview Plan");
-  const keywordsSection = extractSection(markdown, "Keywords Extracted");
+  const sectionA = sectionsByLetter.get("A")?.body ?? "";
+  const sectionB = sectionsByLetter.get("B")?.body ?? "";
+  const sectionC = sectionsByLetter.get("C")?.body ?? "";
+  const sectionD = sectionsByLetter.get("D")?.body ?? "";
+  const sectionE = sectionsByLetter.get("E")?.body ?? "";
+  const sectionF = sectionsByLetter.get("F")?.body ?? "";
+  const keywordsSection =
+    sections.find((section) => /^keywords\b/i.test(section.heading))?.body ?? "";
 
   const roleSummaryRows = parseMarkdownTable(sectionA);
   const roleSummary = roleSummaryRows.reduce<Record<string, string>>((record, row) => {
@@ -144,9 +196,10 @@ export function parseReportMarkdown(
 
   const sectionCParagraphs = splitParagraphs(sectionC);
   const detectedLevel =
-    /\*\*Detected level:\*\*\s*(.+)$/im.exec(sectionC)?.[1]?.trim() ?? null;
+    /\*\*(?:Detected|Role) level:\*\*\s*(.+)$/im.exec(sectionC)?.[1]?.trim() ??
+    null;
   const candidateLevel =
-    /\*\*Candidate's natural level:\*\*\s*(.+)$/im.exec(sectionC)?.[1]?.trim() ??
+    /\*\*Candidate(?:'s natural)? level:\*\*\s*(.+)$/im.exec(sectionC)?.[1]?.trim() ??
     null;
 
   const compensationItems = parseMarkdownTable(sectionD).map<CompensationDatum>((row) => ({
@@ -179,9 +232,11 @@ export function parseReportMarkdown(
     .filter(Boolean);
 
   const summary =
-    roleSummary["TL;DR"] ??
-    roleSummary["TL;DR:"] ??
-    roleSummaryRows[0]?.Value ??
+    roleSummary["TL;DR"] ||
+    roleSummary["TL;DR:"] ||
+    roleSummaryRows[0]?.Value ||
+    stripMarkdownMarkers(extractSummaryCandidate(sectionA) ?? "") ||
+    stripMarkdownMarkers(extractSummaryCandidate(sectionB) ?? "") ||
     "Evaluation available.";
 
   return {
@@ -209,5 +264,6 @@ export function parseReportMarkdown(
     interviewItems,
     keywords,
     generatedAt: date ?? "",
+    sections,
   };
 }

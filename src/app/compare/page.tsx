@@ -1,6 +1,8 @@
 import CompareWorkspace from "@/components/compare/CompareWorkspace";
 import { getOpportunities, getOpportunity } from "@/lib/api/career-ops";
 
+import styles from "./page.module.css";
+
 function normalizeSelectedIds(
   rawValue: string | string[] | undefined,
   validIds: Set<string>,
@@ -58,12 +60,12 @@ export default async function ComparePage({
 
   return (
     <article className="app-page">
-      <header className="page-copy">
+      <header className={`page-copy ${styles.header}`}>
         <p className="eyebrow">Compare</p>
-        <h1>Side-by-side decision support for the roles worth slowing down for.</h1>
-        <p className="lede">
-          Choose a small set of scored opportunities, keep the criteria visible,
-          and compare the actual signals that matter before making the next move.
+        <h1>Compare the shortlist.</h1>
+        <p className={`lede ${styles.lede}`}>
+          Choose a few scored roles, then use the decision matrix to see which
+          one deserves the next deliberate move.
         </p>
       </header>
 

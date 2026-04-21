@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { startTransition, useState } from "react";
+import { startTransition, useState, type CSSProperties, Fragment } from "react";
 
 import { useToast } from "@/components/common/ToastContext";
 import type { Evaluation, Opportunity, OpportunityStatus } from "@/lib/types";
@@ -77,7 +77,7 @@ function summarizeKeywords(evaluation: Evaluation | null) {
     return "Keywords unavailable";
   }
 
-  return evaluation.keywords.slice(0, 4).join(" · ");
+  return evaluation.keywords.slice(0, 6).join(" · ");
 }
 
 function summarizeStrategy(evaluation: Evaluation | null) {
@@ -85,7 +85,11 @@ function summarizeStrategy(evaluation: Evaluation | null) {
     return "Strategy details pending";
   }
 
-  return evaluation.seniorityStrategy.replace(/\s+/g, " ").trim();
+  return evaluation.seniorityStrategy
+    .replace(/\|.*\|/g, "")
+    .replace(/\*\*(.+?)\*\*/g, "$1")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function summarizeNextContext(entry: CompareEntry) {
@@ -97,6 +101,50 @@ function summarizeNextContext(entry: CompareEntry) {
   );
 }
 
+function summarizeLocation(entry: CompareEntry) {
+  return entry.opportunity.remote || "Location pending";
+}
+
+function rankForNextMove(entry: CompareEntry) {
+  let rank = entry.opportunity.score ?? 0;
+
+  rank += STATUS_ORDER[entry.opportunity.status] * 0.65;
+
+  if (entry.evaluation?.cvMatchItems.length) {
+    rank += Math.min(entry.evaluation.cvMatchItems.length / 4, 1);
+  }
+
+  if (entry.evaluation?.gapItems.length) {
+    rank -= Math.min(entry.evaluation.gapItems.length / 5, 1.25);
+  }
+
+  return rank;
+}
+
+function getNextStep(entry: CompareEntry) {
+  if (entry.opportunity.status === "Offer") {
+    return "Decide whether to take the offer or negotiate.";
+  }
+
+  if (entry.opportunity.status === "Interview") {
+    return "Prep stories and tighten the interview narrative.";
+  }
+
+  if (entry.opportunity.status === "Applied" || entry.opportunity.status === "Responded") {
+    return "Keep this warm with follow-up timing and research.";
+  }
+
+  if ((entry.opportunity.score ?? 0) >= 4) {
+    return "Tailor the resume and prepare a focused application push.";
+  }
+
+  if ((entry.evaluation?.gapItems.length ?? 0) >= 3) {
+    return "Only pursue this if the upside is worth closing the gaps.";
+  }
+
+  return "Keep this as a secondary option while higher-fit roles move first.";
+}
+
 function getBadgeWinners(entries: CompareEntry[]) {
   const winners: BadgeWinner[] = [];
 
@@ -105,7 +153,7 @@ function getBadgeWinners(entries: CompareEntry[]) {
     .sort((left, right) => (right.opportunity.score ?? 0) - (left.opportunity.score ?? 0))[0];
 
   if (byScore) {
-    winners.push({ id: byScore.opportunity.id, label: "Best Fit" });
+    winners.push({ id: byScore.opportunity.id, label: "Best fit" });
   }
 
   const byCompensation = [...entries]
@@ -117,7 +165,7 @@ function getBadgeWinners(entries: CompareEntry[]) {
     .sort((left, right) => right.peak - left.peak)[0];
 
   if (byCompensation) {
-    winners.push({ id: byCompensation.id, label: "Best Pay" });
+    winners.push({ id: byCompensation.id, label: "Best pay" });
   }
 
   const byStretch = [...entries]
@@ -136,7 +184,7 @@ function getBadgeWinners(entries: CompareEntry[]) {
     })[0];
 
   if (byStretch) {
-    winners.push({ id: byStretch.id, label: "Stretch Pick" });
+    winners.push({ id: byStretch.id, label: "Stretch pick" });
   }
 
   const byProcess = [...entries]
@@ -146,7 +194,7 @@ function getBadgeWinners(entries: CompareEntry[]) {
     )[0];
 
   if (byProcess) {
-    winners.push({ id: byProcess.opportunity.id, label: "Fastest Process" });
+    winners.push({ id: byProcess.opportunity.id, label: "Furthest along" });
   }
 
   return winners;
@@ -174,6 +222,15 @@ export default function CompareWorkspace({
     .map((id) => entriesById[id])
     .filter((entry): entry is CompareEntry => Boolean(entry));
   const badgeWinners = getBadgeWinners(selectedEntries);
+  const nextMoveQueue = [...selectedEntries].sort(
+    (left, right) => rankForNextMove(right) - rankForNextMove(left),
+  );
+  const leadEntry = nextMoveQueue[0] ?? null;
+  const totalGapCount = selectedEntries.reduce(
+    (total, entry) => total + (entry.evaluation?.gapItems.length ?? 0),
+    0,
+  );
+  const comparedCompensation = selectedEntries.filter((entry) => entry.opportunity.compensation);
 
   async function ensureEntry(id: string) {
     if (entriesById[id]) {
@@ -245,184 +302,329 @@ export default function CompareWorkspace({
     }
   }
 
+  const matrixStyle: CSSProperties = {
+    gridTemplateColumns: `minmax(12rem, 13rem) repeat(${Math.max(selectedEntries.length, 1)}, minmax(16rem, 18rem))`,
+  };
+
+  const comparisonGroups = [
+    {
+      label: "Core fit",
+      description: "How naturally the role fits the current search thesis.",
+      rows: [
+        {
+          label: "Overall fit",
+          render: (entry: CompareEntry) => (
+            <strong className={`${styles.metricValue} tabular-nums`}>
+              {formatScore(entry.opportunity)}
+            </strong>
+          ),
+        },
+        {
+          label: "Status",
+          render: (entry: CompareEntry) => entry.opportunity.status,
+        },
+        {
+          label: "Archetype",
+          render: (entry: CompareEntry) =>
+            entry.opportunity.archetype ?? "Pending report detail",
+        },
+        {
+          label: "Candidate level",
+          render: (entry: CompareEntry) =>
+            entry.evaluation?.candidateLevel ?? "Unavailable",
+        },
+        {
+          label: "Detected level",
+          render: (entry: CompareEntry) =>
+            entry.evaluation?.detectedLevel ?? "Unavailable",
+        },
+      ],
+    },
+    {
+      label: "Role conditions",
+      description: "The practical shape of the job and the tradeoffs it brings.",
+      rows: [
+        {
+          label: "Remote signal",
+          render: (entry: CompareEntry) => entry.opportunity.remote ?? "No signal yet",
+        },
+        {
+          label: "Compensation",
+          render: (entry: CompareEntry) =>
+            summarizeCompensation(entry.opportunity.compensation),
+        },
+        {
+          label: "Keywords",
+          render: (entry: CompareEntry) => summarizeKeywords(entry.evaluation),
+        },
+      ],
+    },
+    {
+      label: "Evidence stack",
+      description: "What the parsed report gives you to work with right now.",
+      rows: [
+        {
+          label: "CV alignment",
+          render: (entry: CompareEntry) =>
+            entry.evaluation
+              ? `${entry.evaluation.cvMatchItems.length} matched rows`
+              : "Report pending",
+        },
+        {
+          label: "Gap count",
+          render: (entry: CompareEntry) =>
+            entry.evaluation
+              ? `${entry.evaluation.gapItems.length} gaps`
+              : "Report pending",
+        },
+        {
+          label: "Interview stories",
+          render: (entry: CompareEntry) =>
+            entry.evaluation
+              ? `${entry.evaluation.interviewItems.length} stories`
+              : "Report pending",
+        },
+      ],
+    },
+    {
+      label: "Decision read",
+      description: "The operating view: what to do next and why.",
+      rows: [
+        {
+          label: "Strategy",
+          render: (entry: CompareEntry) => summarizeStrategy(entry.evaluation),
+        },
+        {
+          label: "Current note",
+          render: (entry: CompareEntry) => summarizeNextContext(entry),
+        },
+      ],
+    },
+  ];
+
   return (
     <section className={styles.workspace}>
-      <div className={styles.workspaceRail}>
-        <section className={styles.selectionDock}>
-          <div className={styles.selectionHeader}>
-            <div>
-              <p className="section-label">Role picker</p>
-              <h2>Choose two to five scored roles to compare.</h2>
-            </div>
-            <p className={styles.selectionMeta}>
-              {selectedEntries.length} selected
-            </p>
+      <section className={styles.selectionDock}>
+        <div className={styles.selectionHeader}>
+          <div>
+            <p className="section-label">Role set</p>
+            <h2>Pick the shortlist, then read the matrix below.</h2>
           </div>
+          <p className={styles.selectionMeta}>{selectedEntries.length} selected</p>
+        </div>
 
-          <div className={styles.contextStrip}>
-            <span>{selectedEntries.length} roles in play</span>
-            {badgeWinners.find((badge) => badge.label === "Best Fit") ? (
-              <span>
-                Best fit:{" "}
-                {selectedEntries.find(
-                  (entry) =>
-                    entry.opportunity.id ===
-                    badgeWinners.find((badge) => badge.label === "Best Fit")?.id,
-                )?.opportunity.company ?? "Unavailable"}
-              </span>
-            ) : null}
-            {badgeWinners.find((badge) => badge.label === "Fastest Process") ? (
-              <span>
-                Furthest along:{" "}
-                {selectedEntries.find(
-                  (entry) =>
-                    entry.opportunity.id ===
-                    badgeWinners.find((badge) => badge.label === "Fastest Process")?.id,
-                )?.opportunity.company ?? "Unavailable"}
-              </span>
-            ) : null}
-          </div>
+        <div className={styles.contextStrip}>
+          <span>{selectedEntries.length} roles in play</span>
+          {badgeWinners.find((badge) => badge.label === "Best fit") ? (
+            <span>
+              Best fit:{" "}
+              {selectedEntries.find(
+                (entry) =>
+                  entry.opportunity.id ===
+                  badgeWinners.find((badge) => badge.label === "Best fit")?.id,
+              )?.opportunity.company ?? "Unavailable"}
+            </span>
+          ) : null}
+          {badgeWinners.find((badge) => badge.label === "Furthest along") ? (
+            <span>
+              Furthest along:{" "}
+              {selectedEntries.find(
+                (entry) =>
+                  entry.opportunity.id ===
+                  badgeWinners.find((badge) => badge.label === "Furthest along")?.id,
+              )?.opportunity.company ?? "Unavailable"}
+            </span>
+          ) : null}
+        </div>
 
-          <div className={styles.selectorGrid}>
-            {opportunities.map((opportunity) => {
-              const isSelected = selectedIds.includes(opportunity.id);
+        <div className={styles.selectorGrid}>
+          {opportunities.map((opportunity) => {
+            const isSelected = selectedIds.includes(opportunity.id);
 
-              return (
-                <button
-                  aria-pressed={isSelected}
-                  className={styles.selectorCard}
-                  data-selected={isSelected}
-                  disabled={pendingId === opportunity.id}
-                  key={opportunity.id}
-                  onClick={() => void toggleSelection(opportunity.id)}
-                  type="button"
-                >
-                  <div className={styles.selectorTop}>
-                    <strong>
-                      {opportunity.company} · {opportunity.role}
-                    </strong>
-                    <span className={styles.selectorScore}>
-                      {formatScore(opportunity)}
-                    </span>
-                  </div>
-                  <p>
-                    {opportunity.status}
-                    {opportunity.archetype ? ` · ${opportunity.archetype}` : ""}
-                  </p>
-                </button>
-              );
-            })}
-          </div>
-        </section>
-      </div>
+            return (
+              <button
+                aria-pressed={isSelected}
+                className={styles.selectorCard}
+                data-selected={isSelected}
+                disabled={pendingId === opportunity.id}
+                key={opportunity.id}
+                onClick={() => void toggleSelection(opportunity.id)}
+                type="button"
+              >
+                <div className={styles.selectorTop}>
+                  <strong>
+                    {opportunity.company} · {opportunity.role}
+                  </strong>
+                  <span className={styles.selectorScore}>
+                    {formatScore(opportunity)}
+                  </span>
+                </div>
+                <p>
+                  {opportunity.status}
+                  {opportunity.archetype ? ` · ${opportunity.archetype}` : ""}
+                </p>
+              </button>
+            );
+          })}
+        </div>
+      </section>
 
       {selectedEntries.length >= 2 ? (
         <section className={styles.boardFrame}>
-            <div className={styles.boardScroller}>
-              <div className={styles.board}>
-                <div className={`${styles.column} ${styles.labelColumn}`}>
-                  <div className={styles.columnHeader}>
-                    <p className="section-label">Criteria</p>
-                    <h2>Decision lens</h2>
-                  </div>
-                  <div className={styles.cellLabel}>Overall fit</div>
-                  <div className={styles.cellLabel}>Status</div>
-                  <div className={styles.cellLabel}>Archetype</div>
-                  <div className={styles.cellLabel}>Remote signal</div>
-                  <div className={styles.cellLabel}>Compensation</div>
-                  <div className={styles.cellLabel}>Detected level</div>
-                  <div className={styles.cellLabel}>Natural level</div>
-                  <div className={styles.cellLabel}>CV alignment</div>
-                  <div className={styles.cellLabel}>Gap count</div>
-                  <div className={styles.cellLabel}>Interview stories</div>
-                  <div className={styles.cellLabel}>Keywords</div>
-                  <div className={styles.cellLabel}>Strategy</div>
-                  <div className={styles.cellLabel}>Current note</div>
-                </div>
-
-                {selectedEntries.map((entry) => {
-                  const badges = badgeWinners
-                    .filter((badge) => badge.id === entry.opportunity.id)
-                    .map((badge) => badge.label);
-
-                  return (
-                    <div className={styles.column} key={entry.opportunity.id}>
-                      <div className={styles.columnHeader}>
-                        <div className={styles.columnTitle}>
-                          <strong>
-                            {entry.opportunity.company} · {entry.opportunity.role}
-                          </strong>
-                          <p>{entry.opportunity.date}</p>
-                        </div>
-
-                        <div className={styles.badgeStack}>
-                          {badges.map((badge) => (
-                            <span
-                              className={styles.badge}
-                              data-kind={badge.toLowerCase().replace(/\s+/g, "-")}
-                              key={badge}
-                            >
-                              {badge}
-                            </span>
-                          ))}
-                        </div>
-
-                        <Link href={`/pipeline/${entry.opportunity.id}`}>
-                          Open full record
-                        </Link>
-                      </div>
-
-                      <div className={styles.valueCell}>
-                        <strong className="tabular-nums">
-                          {formatScore(entry.opportunity)}
-                        </strong>
-                      </div>
-                      <div className={styles.valueCell}>{entry.opportunity.status}</div>
-                      <div className={styles.valueCell}>
-                        {entry.opportunity.archetype ?? "Pending report detail"}
-                      </div>
-                      <div className={styles.valueCell}>
-                        {entry.opportunity.remote ?? "No signal yet"}
-                      </div>
-                      <div className={styles.valueCell}>
-                        {summarizeCompensation(entry.opportunity.compensation)}
-                      </div>
-                      <div className={styles.valueCell}>
-                        {entry.evaluation?.detectedLevel ?? "Unavailable"}
-                      </div>
-                      <div className={styles.valueCell}>
-                        {entry.evaluation?.candidateLevel ?? "Unavailable"}
-                      </div>
-                      <div className={styles.valueCell}>
-                        {entry.evaluation
-                          ? `${entry.evaluation.cvMatchItems.length} matched rows`
-                          : "Report pending"}
-                      </div>
-                      <div className={styles.valueCell}>
-                        {entry.evaluation
-                          ? `${entry.evaluation.gapItems.length} gaps`
-                          : "Report pending"}
-                      </div>
-                      <div className={styles.valueCell}>
-                        {entry.evaluation
-                          ? `${entry.evaluation.interviewItems.length} stories`
-                          : "Report pending"}
-                      </div>
-                      <div className={styles.valueCell}>
-                        {summarizeKeywords(entry.evaluation)}
-                      </div>
-                      <div className={styles.valueCell}>
-                        {summarizeStrategy(entry.evaluation)}
-                      </div>
-                      <div className={styles.valueCell}>
-                        {summarizeNextContext(entry)}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+          <div className={styles.boardTop}>
+            <div className={styles.boardHead}>
+              <p className="section-label">Comparison matrix</p>
+              <h2>Decision matrix</h2>
+              <p>
+                Hold the criteria fixed, scan the strongest signals, and decide
+                which role earns the next move.
+              </p>
             </div>
-          </section>
+
+            <div className={styles.boardActions}>
+              <Link href="/pipeline">Open pipeline</Link>
+              <Link href="/resumes">Tailor resume</Link>
+            </div>
+          </div>
+
+          <div className={styles.boardScroller}>
+            <div className={styles.matrix} style={matrixStyle}>
+              <div className={`${styles.matrixCell} ${styles.matrixIntro}`}>
+                <p className="section-label">Criteria</p>
+                <h2>Decision lens</h2>
+                <p>
+                  Compare the signals that change whether a role is worth
+                  advancing.
+                </p>
+              </div>
+
+              {selectedEntries.map((entry) => {
+                const badges = badgeWinners
+                  .filter((badge) => badge.id === entry.opportunity.id)
+                  .map((badge) => badge.label);
+
+                return (
+                  <div className={`${styles.matrixCell} ${styles.recordHead}`} key={entry.opportunity.id}>
+                    <div className={styles.recordMeta}>
+                      <span className={styles.recordScore}>{formatScore(entry.opportunity)}</span>
+                      <span className={styles.recordStatus}>{entry.opportunity.status}</span>
+                    </div>
+
+                    <div className={styles.recordTitle}>
+                      <strong>
+                        {entry.opportunity.company} · {entry.opportunity.role}
+                      </strong>
+                      <p>{entry.opportunity.date}</p>
+                    </div>
+
+                    <div className={styles.recordTags}>
+                      <span>{summarizeLocation(entry)}</span>
+                      {entry.opportunity.archetype ? (
+                        <span>{entry.opportunity.archetype}</span>
+                      ) : null}
+                    </div>
+
+                    {badges.length ? (
+                      <div className={styles.badgeStack}>
+                        {badges.map((badge) => (
+                          <span
+                            className={styles.badge}
+                            data-kind={badge.toLowerCase().replace(/\s+/g, "-")}
+                            key={badge}
+                          >
+                            {badge}
+                          </span>
+                        ))}
+                      </div>
+                    ) : null}
+
+                    <Link href={`/pipeline/${entry.opportunity.id}`}>
+                      Open full record
+                    </Link>
+                  </div>
+                );
+              })}
+
+              {comparisonGroups.map((group) => (
+                <Fragment key={group.label}>
+                  <div className={`${styles.matrixCell} ${styles.groupIntroCell}`}>
+                    <p className={styles.groupLabel}>{group.label}</p>
+                    <p>{group.description}</p>
+                  </div>
+                  <div
+                    className={`${styles.matrixCell} ${styles.groupBand}`}
+                    style={{ gridColumn: `span ${selectedEntries.length}` }}
+                  >
+                    {group.description}
+                  </div>
+
+                  {group.rows.map((row) => (
+                    <Fragment key={`${group.label}-${row.label}`}>
+                      <div className={`${styles.matrixCell} ${styles.criteriaCell}`}>
+                        {row.label}
+                      </div>
+                      {selectedEntries.map((entry) => (
+                        <div
+                          className={`${styles.matrixCell} ${styles.valueCell}`}
+                          key={`${group.label}-${row.label}-${entry.opportunity.id}`}
+                        >
+                          {row.render(entry)}
+                        </div>
+                      ))}
+                    </Fragment>
+                  ))}
+                </Fragment>
+              ))}
+            </div>
+          </div>
+
+          <div className={styles.insightGrid}>
+            <section className={styles.insightCard}>
+              <p className="section-label">Recommended next move</p>
+              {leadEntry ? (
+                <>
+                  <h3>
+                    {leadEntry.opportunity.company} · {leadEntry.opportunity.role}
+                  </h3>
+                  <p>{getNextStep(leadEntry)}</p>
+                  <Link href={`/pipeline/${leadEntry.opportunity.id}`}>
+                    Open full record
+                  </Link>
+                </>
+              ) : null}
+            </section>
+
+            <section className={styles.insightCard}>
+              <p className="section-label">Comp and risk</p>
+              <h3>
+                {comparedCompensation.length
+                  ? `${comparedCompensation.length} roles expose real comp data`
+                  : "Compensation is still fuzzy across this set"}
+              </h3>
+              <p>
+                Total reported gap count across this selection:{" "}
+                <strong>{totalGapCount}</strong>
+              </p>
+            </section>
+
+            <section className={styles.insightCard}>
+              <p className="section-label">Action queue</p>
+              <ol className={styles.actionList}>
+                {nextMoveQueue.slice(0, 3).map((entry, index) => (
+                  <li key={entry.opportunity.id}>
+                    <span>{String(index + 1).padStart(2, "0")}</span>
+                    <div>
+                      <strong>
+                        {entry.opportunity.company} · {entry.opportunity.role}
+                      </strong>
+                      <p>{getNextStep(entry)}</p>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            </section>
+          </div>
+        </section>
       ) : (
         <section className="empty-state">
           <p className="section-label">Choose roles to compare</p>
