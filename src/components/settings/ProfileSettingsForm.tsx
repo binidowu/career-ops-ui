@@ -13,15 +13,12 @@ interface ProfileSettingsFormProps {
   initialProfile: UserProfile;
 }
 
-function listToMultiline(values: string[]) {
-  return values.join("\n");
+function listToLine(values: string[]) {
+  return values.join(", ");
 }
 
-function multilineToList(value: string) {
-  return value
-    .split(/\n|,/)
-    .map((entry) => entry.trim())
-    .filter(Boolean);
+function lineToList(value: string) {
+  return value.split(/,|\n/).map((e) => e.trim()).filter(Boolean);
 }
 
 export default function ProfileSettingsForm({
@@ -30,16 +27,16 @@ export default function ProfileSettingsForm({
 }: ProfileSettingsFormProps) {
   const router = useRouter();
   const notify = useToast();
-
   const [saving, setSaving] = useState(false);
+
   const [form, setForm] = useState(() => ({
     fullName: initialProfile.candidate.fullName,
     email: initialProfile.candidate.email,
     location: initialProfile.candidate.location,
     headline: initialProfile.narrative.headline,
     exitStory: initialProfile.narrative.exitStory,
-    primaryRoles: listToMultiline(initialProfile.targetRoles.primary),
-    superpowers: listToMultiline(initialProfile.narrative.superpowers),
+    primaryRoles: listToLine(initialProfile.targetRoles.primary),
+    superpowers: listToLine(initialProfile.narrative.superpowers),
     targetRange: initialProfile.compensation.targetRange,
     currency: initialProfile.compensation.currency,
     minimum: initialProfile.compensation.minimum,
@@ -48,27 +45,37 @@ export default function ProfileSettingsForm({
     timezone: initialProfile.location.timezone,
   }));
 
-  const dirty = useMemo(() => {
-    return JSON.stringify(form) !== JSON.stringify({
-      fullName: initialProfile.candidate.fullName,
-      email: initialProfile.candidate.email,
-      location: initialProfile.candidate.location,
-      headline: initialProfile.narrative.headline,
-      exitStory: initialProfile.narrative.exitStory,
-      primaryRoles: listToMultiline(initialProfile.targetRoles.primary),
-      superpowers: listToMultiline(initialProfile.narrative.superpowers),
-      targetRange: initialProfile.compensation.targetRange,
-      currency: initialProfile.compensation.currency,
-      minimum: initialProfile.compensation.minimum,
-      country: initialProfile.location.country,
-      city: initialProfile.location.city,
-      timezone: initialProfile.location.timezone,
-    });
-  }, [form, initialProfile]);
+  const [weights, setWeights] = useState({
+    careerGrowth: 80,
+    techStack: 95,
+    workLife: 60,
+  });
+
+  const initial = useMemo(() => ({
+    fullName: initialProfile.candidate.fullName,
+    email: initialProfile.candidate.email,
+    location: initialProfile.candidate.location,
+    headline: initialProfile.narrative.headline,
+    exitStory: initialProfile.narrative.exitStory,
+    primaryRoles: listToLine(initialProfile.targetRoles.primary),
+    superpowers: listToLine(initialProfile.narrative.superpowers),
+    targetRange: initialProfile.compensation.targetRange,
+    currency: initialProfile.compensation.currency,
+    minimum: initialProfile.compensation.minimum,
+    country: initialProfile.location.country,
+    city: initialProfile.location.city,
+    timezone: initialProfile.location.timezone,
+  }), [initialProfile]);
+
+  const dirty = JSON.stringify(form) !== JSON.stringify(initial);
+
+  function field(key: keyof typeof form) {
+    return (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+      setForm((c) => ({ ...c, [key]: e.target.value }));
+  }
 
   async function handleSave() {
     setSaving(true);
-
     const nextProfile: UserProfile = {
       ...initialProfile,
       candidate: {
@@ -79,13 +86,13 @@ export default function ProfileSettingsForm({
       },
       targetRoles: {
         ...initialProfile.targetRoles,
-        primary: multilineToList(form.primaryRoles),
+        primary: lineToList(form.primaryRoles),
       },
       narrative: {
         ...initialProfile.narrative,
         headline: form.headline.trim(),
         exitStory: form.exitStory.trim(),
-        superpowers: multilineToList(form.superpowers),
+        superpowers: lineToList(form.superpowers),
       },
       compensation: {
         ...initialProfile.compensation,
@@ -104,32 +111,21 @@ export default function ProfileSettingsForm({
     try {
       const response = await fetch("/api/profile", {
         method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ profile: nextProfile }),
       });
-
-      const data = (await response.json()) as {
-        error?: string;
-      };
-
-      if (!response.ok) {
-        throw new Error(data.error ?? "Unable to save profile.");
-      }
-
+      const data = (await response.json()) as { error?: string };
+      if (!response.ok) throw new Error(data.error ?? "Unable to save profile.");
       notify({
-        title: hasExistingProfile ? "Profile updated" : "Profile created",
-        description:
-          "The Career-Ops profile source file has been written and the settings page has been refreshed.",
+        title: hasExistingProfile ? "Configuration saved" : "Configuration created",
+        description: "Your Career-Ops profile has been updated.",
         dismissAfter: 4000,
       });
       router.refresh();
     } catch (error) {
       notify({
-        title: "Profile save failed",
-        description:
-          error instanceof Error ? error.message : "Unable to write profile.yml.",
+        title: "Save failed",
+        description: error instanceof Error ? error.message : "Unable to write profile.",
         tone: "error",
         dismissAfter: null,
       });
@@ -140,195 +136,191 @@ export default function ProfileSettingsForm({
 
   return (
     <div className={styles.form}>
+      {/* CAREER POSITIONING */}
       <section className={styles.section}>
-        <div className={styles.sectionHead}>
-          <p className={styles.label}>Candidate profile</p>
-          <h2>Identity and contact context</h2>
-        </div>
+        <h2 className={styles.sectionHeading}>Career Positioning</h2>
+        <div className={styles.sectionBody}>
+          <div className={styles.fieldGroup}>
+            <label className={styles.field}>
+              <span className={styles.fieldLabel}>Target Roles</span>
+              <input
+                className={styles.control}
+                onChange={field("primaryRoles")}
+                placeholder="Senior Backend Engineer, Systems Architect"
+                value={form.primaryRoles}
+              />
+              <span className={styles.fieldHint}>Comma separated list of primary job titles.</span>
+            </label>
 
-        <div className={styles.grid}>
-          <label className={styles.field}>
-            <span>Full name</span>
-            <input
-              className={styles.control}
-              onChange={(event) =>
-                setForm((current) => ({ ...current, fullName: event.target.value }))
-              }
-              value={form.fullName}
-            />
-          </label>
+            <label className={styles.field}>
+              <span className={styles.fieldLabel}>Target Geographies</span>
+              <input
+                className={styles.control}
+                onChange={field("city")}
+                placeholder="San Francisco, CA; Remote (US)"
+                value={form.city}
+              />
+            </label>
 
-          <label className={styles.field}>
-            <span>Email</span>
-            <input
-              className={styles.control}
-              onChange={(event) =>
-                setForm((current) => ({ ...current, email: event.target.value }))
-              }
-              value={form.email}
-            />
-          </label>
-
-          <label className={styles.field}>
-            <span>Display location</span>
-            <input
-              className={styles.control}
-              onChange={(event) =>
-                setForm((current) => ({ ...current, location: event.target.value }))
-              }
-              value={form.location}
-            />
-          </label>
+            <div className={styles.twoCol}>
+              <label className={styles.field}>
+                <span className={styles.fieldLabel}>Full Name</span>
+                <input className={styles.control} onChange={field("fullName")} value={form.fullName} />
+              </label>
+              <label className={styles.field}>
+                <span className={styles.fieldLabel}>Email</span>
+                <input className={styles.control} onChange={field("email")} value={form.email} />
+              </label>
+            </div>
+          </div>
         </div>
       </section>
 
+      <div className={styles.divider} />
+
+      {/* NARRATIVE */}
       <section className={styles.section}>
-        <div className={styles.sectionHead}>
-          <p className={styles.label}>Narrative</p>
-          <h2>Headline and role targeting</h2>
-        </div>
+        <h2 className={styles.sectionHeading}>Narrative &amp; Identity</h2>
+        <div className={styles.sectionBody}>
+          <div className={styles.fieldGroup}>
+            <label className={styles.field}>
+              <span className={styles.fieldLabel}>Headline</span>
+              <input
+                className={styles.control}
+                onChange={field("headline")}
+                placeholder="Senior Technical Lead &amp; Systems Architect"
+                value={form.headline}
+              />
+            </label>
 
-        <label className={styles.field}>
-          <span>Headline</span>
-          <input
-            className={styles.control}
-            onChange={(event) =>
-              setForm((current) => ({ ...current, headline: event.target.value }))
-            }
-            value={form.headline}
-          />
-        </label>
+            <label className={styles.field}>
+              <span className={styles.fieldLabel}>Exit Story</span>
+              <textarea
+                className={styles.textarea}
+                onChange={field("exitStory")}
+                placeholder="Why you're looking, what you're optimizing for…"
+                rows={3}
+                value={form.exitStory}
+              />
+            </label>
 
-        <label className={styles.field}>
-          <span>Exit story</span>
-          <textarea
-            className={styles.textarea}
-            onChange={(event) =>
-              setForm((current) => ({ ...current, exitStory: event.target.value }))
-            }
-            rows={4}
-            value={form.exitStory}
-          />
-        </label>
-
-        <label className={styles.field}>
-          <span>Primary roles</span>
-          <textarea
-            className={styles.textarea}
-            onChange={(event) =>
-              setForm((current) => ({ ...current, primaryRoles: event.target.value }))
-            }
-            placeholder="One role per line"
-            rows={4}
-            value={form.primaryRoles}
-          />
-        </label>
-
-        <label className={styles.field}>
-          <span>Superpowers</span>
-          <textarea
-            className={styles.textarea}
-            onChange={(event) =>
-              setForm((current) => ({ ...current, superpowers: event.target.value }))
-            }
-            placeholder="One proof point or capability per line"
-            rows={4}
-            value={form.superpowers}
-          />
-        </label>
-      </section>
-
-      <section className={styles.section}>
-        <div className={styles.sectionHead}>
-          <p className={styles.label}>Logistics</p>
-          <h2>Compensation and location defaults</h2>
-        </div>
-
-        <div className={styles.grid}>
-          <label className={styles.field}>
-            <span>Target range</span>
-            <input
-              className={styles.control}
-              onChange={(event) =>
-                setForm((current) => ({ ...current, targetRange: event.target.value }))
-              }
-              value={form.targetRange}
-            />
-          </label>
-
-          <label className={styles.field}>
-            <span>Currency</span>
-            <input
-              className={styles.control}
-              onChange={(event) =>
-                setForm((current) => ({ ...current, currency: event.target.value }))
-              }
-              value={form.currency}
-            />
-          </label>
-
-          <label className={styles.field}>
-            <span>Minimum</span>
-            <input
-              className={styles.control}
-              onChange={(event) =>
-                setForm((current) => ({ ...current, minimum: event.target.value }))
-              }
-              value={form.minimum}
-            />
-          </label>
-
-          <label className={styles.field}>
-            <span>Country</span>
-            <input
-              className={styles.control}
-              onChange={(event) =>
-                setForm((current) => ({ ...current, country: event.target.value }))
-              }
-              value={form.country}
-            />
-          </label>
-
-          <label className={styles.field}>
-            <span>City</span>
-            <input
-              className={styles.control}
-              onChange={(event) =>
-                setForm((current) => ({ ...current, city: event.target.value }))
-              }
-              value={form.city}
-            />
-          </label>
-
-          <label className={styles.field}>
-            <span>Timezone</span>
-            <input
-              className={styles.control}
-              onChange={(event) =>
-                setForm((current) => ({ ...current, timezone: event.target.value }))
-              }
-              value={form.timezone}
-            />
-          </label>
+            <label className={styles.field}>
+              <span className={styles.fieldLabel}>Core Superpowers</span>
+              <textarea
+                className={styles.textarea}
+                onChange={field("superpowers")}
+                placeholder="Distributed systems, cross-functional leadership, scaling infrastructure…"
+                rows={3}
+                value={form.superpowers}
+              />
+              <span className={styles.fieldHint}>Comma separated list of key capabilities.</span>
+            </label>
+          </div>
         </div>
       </section>
 
+      <div className={styles.divider} />
+
+      {/* COMPENSATION */}
+      <section className={styles.section}>
+        <h2 className={styles.sectionHeading}>Compensation Targets</h2>
+        <div className={styles.sectionBody}>
+          <div className={styles.threeCol}>
+            <label className={styles.field}>
+              <span className={styles.fieldLabel}>Target Range</span>
+              <input
+                className={styles.control}
+                onChange={field("targetRange")}
+                placeholder="$180k – $220k"
+                value={form.targetRange}
+              />
+            </label>
+            <label className={styles.field}>
+              <span className={styles.fieldLabel}>Currency</span>
+              <input
+                className={styles.control}
+                onChange={field("currency")}
+                placeholder="USD"
+                value={form.currency}
+              />
+            </label>
+            <label className={styles.field}>
+              <span className={styles.fieldLabel}>Minimum</span>
+              <input
+                className={styles.control}
+                onChange={field("minimum")}
+                placeholder="$160k"
+                value={form.minimum}
+              />
+            </label>
+          </div>
+        </div>
+      </section>
+
+      <div className={styles.divider} />
+
+      {/* SCORING DIMENSION WEIGHTS */}
+      <section className={styles.section}>
+        <h2 className={styles.sectionHeading}>Scoring Dimension Weights</h2>
+        <div className={styles.sectionBody}>
+          <div className={styles.weightGroup}>
+            <div className={styles.weightRow}>
+              <span className={styles.weightLabel}>Career Growth Potential</span>
+              <span className={styles.weightValue}>{weights.careerGrowth}%</span>
+              <input
+                className={styles.slider}
+                max={100}
+                min={0}
+                onChange={(e) => setWeights((w) => ({ ...w, careerGrowth: Number(e.target.value) }))}
+                type="range"
+                value={weights.careerGrowth}
+              />
+            </div>
+            <div className={styles.weightRow}>
+              <span className={styles.weightLabel}>Tech-Stack Alignment</span>
+              <span className={styles.weightValue}>{weights.techStack}%</span>
+              <input
+                className={styles.slider}
+                max={100}
+                min={0}
+                onChange={(e) => setWeights((w) => ({ ...w, techStack: Number(e.target.value) }))}
+                type="range"
+                value={weights.techStack}
+              />
+            </div>
+            <div className={styles.weightRow}>
+              <span className={styles.weightLabel}>Work-Life Balance (WLB)</span>
+              <span className={styles.weightValue}>{weights.workLife}%</span>
+              <input
+                className={styles.slider}
+                max={100}
+                min={0}
+                onChange={(e) => setWeights((w) => ({ ...w, workLife: Number(e.target.value) }))}
+                type="range"
+                value={weights.workLife}
+              />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* FOOTER */}
       <div className={styles.footer}>
-        <p className={styles.helper}>
-          {dirty
-            ? "You have unsaved changes."
-            : hasExistingProfile
-              ? "This form reflects the current profile.yml file."
-              : "Saving will create config/profile.yml in the connected workspace."}
-        </p>
-
         <button
-          className={styles.save}
+          className={styles.btnDiscard}
+          disabled={!dirty}
+          onClick={() => setForm(initial)}
+          type="button"
+        >
+          Discard Changes
+        </button>
+        <button
+          className={styles.btnSave}
           disabled={saving || !dirty}
           onClick={() => void handleSave()}
           type="button"
         >
-          {saving ? "Saving…" : hasExistingProfile ? "Save profile" : "Create profile"}
+          {saving ? "Saving…" : "Save Configuration"}
         </button>
       </div>
     </div>

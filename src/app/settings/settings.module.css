@@ -1,0 +1,23 @@
+.page {
+  gap: var(--space-3xl);
+  max-width: calc(860px + (var(--page-gutter) * 2));
+}
+
+.pageHead {
+  display: grid;
+  gap: var(--space-sm);
+  padding-bottom: var(--space-xl);
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.pageHead h1 {
+  font-size: clamp(var(--text-xl), 4vw, 2.4rem);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-tight);
+}
+
+.subtitle {
+  max-width: none;
+  font-size: var(--text-base);
+  color: var(--color-text-secondary);
+}

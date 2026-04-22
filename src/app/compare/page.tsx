@@ -59,14 +59,16 @@ export default async function ComparePage({
   ).filter((entry) => entry !== null);
 
   return (
-    <article className="app-page">
-      <header className={`page-copy ${styles.header}`}>
-        <p className="eyebrow">Compare</p>
-        <h1>Compare the shortlist.</h1>
-        <p className={`lede ${styles.lede}`}>
-          Choose a few scored roles, then use the decision matrix to see which
-          one deserves the next deliberate move.
-        </p>
+    <article className={`app-page ${styles.page}`}>
+      <header className={styles.header}>
+        <h1>Side-by-Side Prioritization</h1>
+        <div className={styles.headerMeta}>
+          <span className={styles.protocol}>Active Protocol: CMP-88-V2 // Last Sync: Live</span>
+          <div className={styles.headerActions}>
+            <button className={styles.btnOutline} type="button">Export .CSV</button>
+            <button className={styles.btnSolid} type="button">Lock Selection</button>
+          </div>
+        </div>
       </header>
 
       <CompareWorkspace

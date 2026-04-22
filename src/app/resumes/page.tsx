@@ -7,6 +7,8 @@ import {
   getWorkspaceSignals,
 } from "@/lib/api/career-ops";
 
+import styles from "./resumes.module.css";
+
 export default async function ResumesPage() {
   const [opportunities, profile, workspace, cv] = await Promise.all([
     getOpportunities(),
@@ -16,15 +18,10 @@ export default async function ResumesPage() {
   ]);
 
   const resumeReady = opportunities
-    .filter((opportunity) => opportunity.reportPath)
-    .sort((left, right) => {
-      const scoreDifference = (right.score ?? 0) - (left.score ?? 0);
-
-      if (scoreDifference !== 0) {
-        return scoreDifference;
-      }
-
-      return right.date.localeCompare(left.date);
+    .filter((o) => o.reportPath)
+    .sort((a, b) => {
+      const diff = (b.score ?? 0) - (a.score ?? 0);
+      return diff !== 0 ? diff : b.date.localeCompare(a.date);
     });
 
   const initialDetail = resumeReady[0]
@@ -32,15 +29,12 @@ export default async function ResumesPage() {
     : { opportunity: null, evaluation: null };
 
   return (
-    <article className="app-page">
-      <header className="page-copy">
-        <p className="eyebrow">Resume studio</p>
-        <h1>A focused tailoring desk with the preview and export path in one place.</h1>
-        <p className="lede">
-          Choose a report-backed opportunity, trim the evidence down to the
-          strongest terms, and export a clean PDF through the connected
-          career-ops toolchain.
-        </p>
+    <article className={`app-page ${styles.page}`}>
+      <header className={styles.pageHead}>
+        <div>
+          <h1>The Asset Laboratory</h1>
+          <p className={styles.subtitle}>Refined Resume Studio V2.1</p>
+        </div>
       </header>
 
       <ResumeStudio

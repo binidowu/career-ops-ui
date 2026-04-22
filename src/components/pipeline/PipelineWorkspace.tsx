@@ -17,19 +17,40 @@ interface PipelineWorkspaceProps {
 
 function compareValues(left: Opportunity, right: Opportunity, sortKey: SortKey) {
   switch (sortKey) {
-    case "company":
-      return left.company.localeCompare(right.company);
-    case "role":
-      return left.role.localeCompare(right.role);
-    case "status":
-      return left.status.localeCompare(right.status);
-    case "date":
-      return left.date.localeCompare(right.date);
-    case "score":
-      return (left.score ?? -1) - (right.score ?? -1);
-    default:
-      return 0;
+    case "company": return left.company.localeCompare(right.company);
+    case "role": return left.role.localeCompare(right.role);
+    case "status": return left.status.localeCompare(right.status);
+    case "date": return left.date.localeCompare(right.date);
+    case "score": return (left.score ?? -1) - (right.score ?? -1);
+    default: return 0;
   }
+}
+
+function scoreToGrade(score: number | null | undefined): string {
+  if (score == null) return "—";
+  const pct = score * 20;
+  if (pct >= 90) return "A+";
+  if (pct >= 85) return "A";
+  if (pct >= 80) return "B+";
+  if (pct >= 75) return "B";
+  if (pct >= 70) return "C+";
+  if (pct >= 60) return "C";
+  return "D";
+}
+
+function scoreToDisplay(opportunity: Opportunity): string {
+  if (typeof opportunity.score === "number") {
+    return String(Math.round(opportunity.score * 20));
+  }
+  return opportunity.scoreRaw || "—";
+}
+
+function statusTone(status: string): string {
+  if (status === "Offer") return "success";
+  if (status === "Interview" || status === "Responded") return "accent";
+  if (status === "Applied") return "neutral";
+  if (status === "Rejected" || status === "Discarded" || status === "SKIP") return "quiet";
+  return "default";
 }
 
 export default function PipelineWorkspace({
@@ -40,110 +61,45 @@ export default function PipelineWorkspace({
   const router = useRouter();
 
   const [activeId, setActiveId] = useState<string | null>(null);
-  const [query, setQuery] = useState("");
-  const [selectedStatus, setSelectedStatus] = useState("All statuses");
-  const [selectedArchetype, setSelectedArchetype] = useState("All archetypes");
+  const [selectedStatus, setSelectedStatus] = useState("All Active");
+  const [scoreMin, setScoreMin] = useState("");
+  const [scoreMax, setScoreMax] = useState("");
+  const [archetypeQuery, setArchetypeQuery] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("score");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const deferredQuery = useDeferredValue(query);
-
-  const archetypeOptions = useMemo(
-    () =>
-      [
-        "All archetypes",
-        ...new Set(
-          opportunities
-            .map((opportunity) => opportunity.archetype)
-            .filter((value): value is string => Boolean(value)),
-        ),
-      ],
-    [opportunities],
-  );
+  const deferredArchetype = useDeferredValue(archetypeQuery);
 
   const filteredOpportunities = useMemo(() => {
-    const normalizedQuery = deferredQuery.trim().toLowerCase();
+    const minScore = scoreMin ? Number(scoreMin) : null;
+    const maxScore = scoreMax ? Number(scoreMax) : null;
+    const archetypeLower = deferredArchetype.trim().toLowerCase();
 
     return [...opportunities]
-      .filter((opportunity) => {
-        if (
-          selectedStatus !== "All statuses" &&
-          opportunity.status !== selectedStatus
-        ) {
-          return false;
+      .filter((o) => {
+        if (selectedStatus !== "All Active" && o.status !== selectedStatus) return false;
+
+        if (minScore !== null && typeof o.score === "number") {
+          if (o.score * 20 < minScore) return false;
+        }
+        if (maxScore !== null && typeof o.score === "number") {
+          if (o.score * 20 > maxScore) return false;
         }
 
-        if (
-          selectedArchetype !== "All archetypes" &&
-          opportunity.archetype !== selectedArchetype
-        ) {
-          return false;
-        }
+        if (archetypeLower && !o.archetype?.toLowerCase().includes(archetypeLower)) return false;
 
-        if (!normalizedQuery) {
-          return true;
-        }
-
-        const haystack = [
-          opportunity.company,
-          opportunity.role,
-          opportunity.status,
-          opportunity.summary ?? "",
-          opportunity.notes,
-          opportunity.archetype ?? "",
-        ]
-          .join(" ")
-          .toLowerCase();
-
-        return normalizedQuery
-          .split(/\s+/)
-          .every((token) => haystack.includes(token));
+        return true;
       })
-      .sort((left, right) => {
-        const result = compareValues(left, right, sortKey);
+      .sort((a, b) => {
+        const result = compareValues(a, b, sortKey);
         return sortDirection === "asc" ? result : result * -1;
       });
-  }, [
-    deferredQuery,
-    opportunities,
-    selectedArchetype,
-    selectedStatus,
-    sortDirection,
-    sortKey,
-  ]);
-
-  const selectedCount = selectedIds.length;
+  }, [deferredArchetype, opportunities, selectedStatus, scoreMin, scoreMax, sortDirection, sortKey]);
 
   function toggleSelection(id: string) {
     setSelectedIds((current) =>
-      current.includes(id)
-        ? current.filter((entry) => entry !== id)
-        : [...current, id],
+      current.includes(id) ? current.filter((e) => e !== id) : [...current, id],
     );
-  }
-
-  function toggleSelectAll() {
-    if (
-      filteredOpportunities.length > 0 &&
-      filteredOpportunities.every((opportunity) =>
-        selectedIds.includes(opportunity.id),
-      )
-    ) {
-      setSelectedIds((current) =>
-        current.filter(
-          (id) =>
-            !filteredOpportunities.some((opportunity) => opportunity.id === id),
-        ),
-      );
-      return;
-    }
-
-    setSelectedIds((current) => [
-      ...new Set([
-        ...current,
-        ...filteredOpportunities.map((opportunity) => opportunity.id),
-      ]),
-    ]);
   }
 
   function changeSort(nextKey: SortKey) {
@@ -151,115 +107,97 @@ export default function PipelineWorkspace({
       setSortDirection((current) => (current === "asc" ? "desc" : "asc"));
       return;
     }
-
     setSortKey(nextKey);
     setSortDirection(nextKey === "score" || nextKey === "date" ? "desc" : "asc");
   }
 
+  function handleReset() {
+    setSelectedStatus("All Active");
+    setScoreMin("");
+    setScoreMax("");
+    setArchetypeQuery("");
+  }
+
+  const selectedCount = selectedIds.length;
+
   return (
     <>
       <section className={styles.workspace}>
-        <div className={styles.toolbar}>
-          <label className={styles.search}>
-            <span className="visually-hidden">Search opportunities</span>
+        {/* FILTER BAR */}
+        <div className={styles.filterBar}>
+          <label className={styles.filterGroup}>
+            <span className={styles.filterLabel}>Status</span>
+            <select
+              className={styles.filterSelect}
+              onChange={(e) => setSelectedStatus(e.target.value)}
+              value={selectedStatus}
+            >
+              <option value="All Active">All Active</option>
+              {statusOptions.map((option) => (
+                <option key={option} value={option}>{option}</option>
+              ))}
+            </select>
+          </label>
+
+          <div className={styles.filterGroup}>
+            <span className={styles.filterLabel}>Score Range</span>
+            <div className={styles.rangeInputs}>
+              <input
+                className={styles.rangeInput}
+                max="100"
+                min="0"
+                onChange={(e) => setScoreMin(e.target.value)}
+                placeholder="Min"
+                type="number"
+                value={scoreMin}
+              />
+              <span className={styles.rangeSep}>–</span>
+              <input
+                className={styles.rangeInput}
+                max="100"
+                min="0"
+                onChange={(e) => setScoreMax(e.target.value)}
+                placeholder="Max"
+                type="number"
+                value={scoreMax}
+              />
+            </div>
+          </div>
+
+          <label className={styles.filterGroup}>
+            <span className={styles.filterLabel}>Archetype</span>
             <input
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search company, role, archetype, or note"
-              value={query}
+              className={styles.filterInput}
+              onChange={(e) => setArchetypeQuery(e.target.value)}
+              placeholder="e.g. Builder, Scaler"
+              type="text"
+              value={archetypeQuery}
             />
           </label>
 
-          <div className={styles.filters}>
-            <label className={styles.filter}>
-              <span>Status</span>
-              <select
-                onChange={(event) => setSelectedStatus(event.target.value)}
-                value={selectedStatus}
-              >
-                <option>All statuses</option>
-                {statusOptions.map((option) => (
-                  <option key={option} value={option}>
-                    {option}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label className={styles.filter}>
-              <span>Archetype</span>
-              <select
-                onChange={(event) => setSelectedArchetype(event.target.value)}
-                value={selectedArchetype}
-              >
-                {archetypeOptions.map((option) => (
-                  <option key={option} value={option}>
-                    {option}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-
-          <div className={styles.summary}>
-            <span className={styles.summaryStat}>
-              <span>Visible</span>
-              <strong className="tabular-nums">{filteredOpportunities.length}</strong>
-            </span>
-            <span className={styles.summaryStat}>
-              <span>Selected</span>
-              <strong className="tabular-nums">{selectedCount}</strong>
-            </span>
-          </div>
+          <button className={styles.resetBtn} onClick={handleReset} type="button">
+            Reset
+          </button>
         </div>
 
+        {/* TABLE */}
         {filteredOpportunities.length ? (
           <div className={styles.tableFrame}>
             <div className={styles.tableHead}>
-              <label className={styles.checkboxLabel}>
-                <input
-                  checked={
-                    filteredOpportunities.length > 0 &&
-                    filteredOpportunities.every((opportunity) =>
-                      selectedIds.includes(opportunity.id),
-                    )
-                  }
-                  onChange={() => toggleSelectAll()}
-                  type="checkbox"
-                />
-                <span className="visually-hidden">Select all visible rows</span>
-              </label>
-
-              <button
-                className={styles.sortButton}
-                onClick={() => changeSort("role")}
-                type="button"
-              >
+              <button className={styles.sortBtn} onClick={() => changeSort("role")} type="button">
                 Role
               </button>
-
-              <button
-                className={styles.sortButton}
-                onClick={() => changeSort("score")}
-                type="button"
-              >
+              <button className={styles.sortBtn} onClick={() => changeSort("company")} type="button">
+                Company
+              </button>
+              <button className={styles.sortBtn} onClick={() => changeSort("score")} type="button">
                 Score
               </button>
-
-              <button
-                className={styles.sortButton}
-                onClick={() => changeSort("status")}
-                type="button"
-              >
+              <span className={styles.colHeader}>Grade</span>
+              <button className={styles.sortBtn} onClick={() => changeSort("status")} type="button">
                 Status
               </button>
-
-              <button
-                className={styles.sortButton}
-                onClick={() => changeSort("date")}
-                type="button"
-              >
-                Date
-              </button>
+              <span className={styles.colHeader}>Location</span>
             </div>
 
             <div className={styles.tableBody}>
@@ -269,19 +207,16 @@ export default function PipelineWorkspace({
                   data-active={opportunity.id === activeId}
                   key={opportunity.id}
                   onClick={() => setActiveId(opportunity.id)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter" || event.key === " ") {
-                      event.preventDefault();
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
                       setActiveId(opportunity.id);
                     }
                   }}
                   role="button"
                   tabIndex={0}
                 >
-                  <label
-                    className={styles.checkboxLabel}
-                    onClick={(event) => event.stopPropagation()}
-                  >
+                  <label className={styles.checkboxLabel} onClick={(e) => e.stopPropagation()}>
                     <input
                       checked={selectedIds.includes(opportunity.id)}
                       onChange={() => toggleSelection(opportunity.id)}
@@ -292,31 +227,38 @@ export default function PipelineWorkspace({
                     </span>
                   </label>
 
-                  <div className={styles.roleBlock}>
-                    <strong>
-                      {opportunity.company} · {opportunity.role}
-                    </strong>
-                    <small>
-                      {opportunity.archetype ?? "Archetype pending"} ·{" "}
-                      {opportunity.remote ?? "Location pending"}
-                    </small>
+                  <div className={styles.roleCell}>
+                    <strong>{opportunity.role}</strong>
                   </div>
 
-                  <p className={`${styles.score} tabular-nums`}>
-                    <span className={styles.scorePill}>
-                      {typeof opportunity.score === "number"
-                        ? opportunity.score.toFixed(1)
-                        : opportunity.scoreRaw || "N/A"}
+                  <div className={styles.companyCell}>
+                    {opportunity.company}
+                  </div>
+
+                  <div className={styles.scoreCell}>
+                    {scoreToDisplay(opportunity)}
+                  </div>
+
+                  <div className={styles.gradeCell}>
+                    <span
+                      className={styles.gradeBadge}
+                      data-grade={scoreToGrade(opportunity.score)[0]}
+                    >
+                      {scoreToGrade(opportunity.score)}
                     </span>
-                  </p>
+                  </div>
 
-                  <p className={styles.status}>
-                    <span className={styles.statusPill}>{opportunity.status}</span>
-                  </p>
+                  <div className={styles.statusCell}>
+                    <span
+                      className={styles.statusPill}
+                      data-tone={statusTone(opportunity.status)}
+                    >
+                      {opportunity.status}
+                    </span>
+                  </div>
 
-                  <div className={styles.metaBlock}>
-                    <small>{opportunity.date || "Unknown date"}</small>
-                    <p>{opportunity.notes || opportunity.summary || "No note captured yet."}</p>
+                  <div className={styles.locationCell}>
+                    {opportunity.remote ?? "—"}
                   </div>
                 </div>
               ))}
@@ -325,31 +267,29 @@ export default function PipelineWorkspace({
         ) : (
           <section className="empty-state">
             <p className="section-label">No roles match the current filters</p>
-            <h2>The pipeline is populated, but this view has been narrowed to zero.</h2>
-            <p>Clear the search or reset one of the filters to bring rows back.</p>
+            <h2>Clear a filter to bring rows back into view.</h2>
+            <p>
+              <button onClick={handleReset} style={{ textDecoration: "underline", background: "none", border: 0, cursor: "pointer", padding: 0, font: "inherit" }} type="button">
+                Reset all filters
+              </button>
+            </p>
           </section>
         )}
       </section>
 
-      {selectedCount ? (
+      {selectedCount > 0 && (
         <div className={styles.selectionBar}>
-          <p>
-            <strong>{selectedCount}</strong> selected
-          </p>
-
+          <p><strong>{selectedCount}</strong> selected</p>
           <div className={styles.selectionActions}>
             <button
               onClick={() =>
                 selectedCount >= 2
                   ? startTransition(() => {
-                      router.push(
-                        `/compare?ids=${selectedIds.slice(0, 5).join(",")}`,
-                      );
+                      router.push(`/compare?ids=${selectedIds.slice(0, 5).join(",")}`);
                     })
                   : notify({
                       title: "Select at least two roles",
-                      description:
-                        "Comparison becomes useful once there are at least two dossiers on the board.",
+                      description: "Comparison requires at least two dossiers.",
                       dismissAfter: 4000,
                     })
               }
@@ -357,18 +297,17 @@ export default function PipelineWorkspace({
             >
               Compare
             </button>
-
             <button onClick={() => setSelectedIds([])} type="button">
-              Clear selection
+              Clear
             </button>
           </div>
         </div>
-      ) : null}
+      )}
 
       <OpportunityDrawer
         opportunity={
           activeId
-            ? opportunities.find((opportunity) => opportunity.id === activeId) ?? null
+            ? opportunities.find((o) => o.id === activeId) ?? null
             : null
         }
         onClose={() => setActiveId(null)}

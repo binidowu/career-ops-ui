@@ -41,11 +41,8 @@ export default function Topbar({ onNotify, onOpenPalette }: TopbarProps) {
       <div className={styles.bar}>
         <div className={styles.identity}>
           <Link className={styles.wordmark} href="/">
-            Career-Ops
+            Career-Ops v2
           </Link>
-          <p className={styles.tagline}>
-            Quiet structure for a deliberate search
-          </p>
         </div>
 
         <nav aria-label="Primary" className={styles.navDesktop}>
@@ -85,13 +82,15 @@ export default function Topbar({ onNotify, onOpenPalette }: TopbarProps) {
             <kbd>⌘K</kbd>
           </button>
 
-          <div className={styles.profile} role="status">
-            <span className={styles.profileMonogram}>BO</span>
-            <span className={styles.profileCopy}>
-              <strong>Workspace ready</strong>
-              <small>Editing local files</small>
-            </span>
-          </div>
+          <button className={styles.iconBtn} aria-label="Notifications" type="button">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <path d="M8 1.5a4.5 4.5 0 0 0-4.5 4.5v2.25L2 10v.5h12V10l-1.5-1.75V6A4.5 4.5 0 0 0 8 1.5ZM6.5 12a1.5 1.5 0 0 0 3 0" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </button>
+
+          <button className={styles.avatar} aria-label="User profile" type="button">
+            BO
+          </button>
 
           <button
             aria-expanded={mobileMenuOpen}

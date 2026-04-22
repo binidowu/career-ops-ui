@@ -32,9 +32,7 @@ export default function OpportunityDrawer({
   const isOpen = Boolean(opportunity);
 
   const onWindowKeyDown = useEffectEvent((event: KeyboardEvent) => {
-    if (event.key === "Escape") {
-      onClose();
-    }
+    if (event.key === "Escape") onClose();
   });
 
   useEffect(() => {
@@ -48,107 +46,127 @@ export default function OpportunityDrawer({
 
     async function loadDetails() {
       setLoading(true);
-
       try {
-        const response = await fetch(
-          `/api/opportunities/${currentOpportunity.id}`,
-          {
+        const response = await fetch(`/api/opportunities/${currentOpportunity.id}`, {
           signal: controller.signal,
-          },
-        );
-
-        if (!response.ok) {
-          throw new Error("Unable to load opportunity details.");
-        }
-
+        });
+        if (!response.ok) throw new Error("Unable to load opportunity details.");
         const payload = (await response.json()) as OpportunityResponse;
         setData(payload);
       } catch {
-        if (controller.signal.aborted) {
-          return;
-        }
-
-        setData({
-          opportunity: currentOpportunity,
-          evaluation: null,
-        });
-      } finally {
         if (!controller.signal.aborted) {
-          setLoading(false);
+          setData({ opportunity: currentOpportunity, evaluation: null });
         }
+      } finally {
+        if (!controller.signal.aborted) setLoading(false);
       }
     }
 
     void loadDetails();
-
     return () => controller.abort();
   }, [isOpen, opportunity]);
 
   useEffect(() => {
-    if (!isOpen) {
-      return;
-    }
-
+    if (!isOpen) return;
     const handleKeyDown = (event: KeyboardEvent) => onWindowKeyDown(event);
     window.addEventListener("keydown", handleKeyDown);
-
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isOpen]);
 
-  if (!isOpen || !activeOpportunity) {
-    return null;
-  }
+  if (!isOpen || !activeOpportunity) return null;
+
+  const scoreDisplay = typeof activeOpportunity.score === "number"
+    ? `${Math.round(activeOpportunity.score * 20)}/100`
+    : activeOpportunity.scoreRaw || "N/A";
+
+  const compBand = activeOpportunity.compensation || "—";
+  const timeline = activeOpportunity.date ? `Added ${activeOpportunity.date}` : "—";
 
   return (
     <>
       <button
-        aria-label="Close opportunity drawer"
+        aria-label="Close drawer"
         className={styles.scrim}
         onClick={onClose}
         type="button"
       />
 
-      <aside aria-label="Opportunity drawer" className={styles.drawer}>
+      <aside aria-label="Quick Preview" className={styles.drawer}>
+        {/* HEADER */}
         <header className={styles.header}>
-          <div className={styles.headCopy}>
-            <p className={styles.eyebrow}>Quick dossier</p>
-            <h2>
-              {activeOpportunity.company} · {activeOpportunity.role}
-            </h2>
-            <p>
-              {evaluation?.summary ??
-                activeOpportunity.summary ??
-                "No report summary has been captured yet."}
-            </p>
+          <div className={styles.headerTop}>
+            <span className={styles.label}>Quick Preview</span>
+            <div className={styles.headerActions}>
+              <Link className={styles.expandBtn} href={`/pipeline/${activeOpportunity.id}`} title="Open full page">
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+                  <path d="M9 1h4v4M13 1l-6 6M6 3H2a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V8" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </Link>
+              <button className={styles.closeBtn} onClick={onClose} type="button">
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-label="Close" aria-hidden="true">
+                  <path d="M1 1l12 12M13 1 1 13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                </svg>
+              </button>
+            </div>
           </div>
 
-          <button className={styles.close} onClick={onClose} type="button">
-            Close
-          </button>
+          <h2 className={styles.drawerTitle}>{activeOpportunity.role}</h2>
+          <p className={styles.drawerCompany}>{activeOpportunity.company}</p>
+
+          <div className={styles.statusRow}>
+            <span className={styles.statusPill} data-tone={activeOpportunity.status.toLowerCase()}>
+              {activeOpportunity.status.toUpperCase()}
+            </span>
+            <span className={styles.idLabel}>
+              ID: {activeOpportunity.id.toUpperCase().slice(0, 8)}
+            </span>
+          </div>
         </header>
 
+        {/* METRICS */}
         <div className={styles.metrics}>
-          <div>
-            <span>Score</span>
-            <strong className="tabular-nums">
-              {typeof activeOpportunity.score === "number"
-                ? activeOpportunity.score.toFixed(1)
-                : activeOpportunity.scoreRaw || "N/A"}
-            </strong>
+          <div className={styles.metricGroup}>
+            <span className={styles.metricLabel}>Fit Score</span>
+            <strong className={styles.metricValue}>{scoreDisplay}</strong>
           </div>
-          <div>
-            <span>Status</span>
-            <strong>{activeOpportunity.status}</strong>
+          <div className={styles.metricGroup}>
+            <span className={styles.metricLabel}>Archetype</span>
+            <strong className={styles.metricValue}>{activeOpportunity.archetype ?? "Pending"}</strong>
           </div>
-          <div>
-            <span>Archetype</span>
-            <strong>{activeOpportunity.archetype ?? "Pending"}</strong>
+          <div className={styles.metricGroup}>
+            <span className={styles.metricLabel}>Comp Band</span>
+            <strong className={styles.metricValue}>{compBand}</strong>
+          </div>
+          <div className={styles.metricGroup}>
+            <span className={styles.metricLabel}>Timeline</span>
+            <strong className={styles.metricValue}>{timeline}</strong>
           </div>
         </div>
 
+        {/* BODY */}
         <div className={styles.body}>
+          {/* LATEST INTELLIGENCE */}
           <section className={styles.block}>
-            <p className={styles.label}>Status and notes</p>
+            <p className={styles.label}>Latest Intelligence</p>
+            {loading ? (
+              <p className={styles.bodyText}>Loading report…</p>
+            ) : (
+              <p className={styles.bodyText}>
+                {evaluation?.summary ??
+                  activeOpportunity.summary ??
+                  (activeOpportunity.notes || "No report summary has been captured yet.")}
+              </p>
+            )}
+            {evaluation && (
+              <p className={styles.logMeta}>
+                {evaluation.cvMatchItems.length} CV matches · {evaluation.gapItems.length} gaps · {evaluation.interviewItems.length} stories
+              </p>
+            )}
+          </section>
+
+          {/* STATUS EDITOR */}
+          <section className={styles.block}>
+            <p className={styles.label}>Status &amp; Notes</p>
             <OpportunityStatusEditor
               initialNotes={activeOpportunity.notes}
               initialStatus={activeOpportunity.status}
@@ -156,53 +174,16 @@ export default function OpportunityDrawer({
               statusOptions={statusOptions}
             />
           </section>
-
-          <section className={styles.block}>
-            <p className={styles.label}>Signals</p>
-            <ul className={styles.list}>
-              <li>Evaluated on {activeOpportunity.date || "unknown date"}</li>
-              <li>{activeOpportunity.remote ?? "Location signal unavailable"}</li>
-              <li>{activeOpportunity.compensation ?? "Comp estimate unavailable"}</li>
-              <li>{activeOpportunity.jobUrl ?? "Original job URL unavailable"}</li>
-            </ul>
-          </section>
-
-          <section className={styles.block}>
-            <p className={styles.label}>Evaluation snapshot</p>
-            {loading ? (
-              <p>Loading the full report…</p>
-            ) : evaluation ? (
-              <div className={styles.evaluation}>
-                <p>
-                  <strong>Detected level:</strong>{" "}
-                  {evaluation.detectedLevel ?? "Unavailable"}
-                </p>
-                <p>
-                  <strong>CV match rows:</strong> {evaluation.cvMatchItems.length}
-                </p>
-                <p>
-                  <strong>Gap rows:</strong> {evaluation.gapItems.length}
-                </p>
-                <p>
-                  <strong>Interview prompts:</strong>{" "}
-                  {evaluation.interviewItems.length}
-                </p>
-              </div>
-            ) : (
-              <p>
-                No parsed report details are available yet for this opportunity.
-              </p>
-            )}
-          </section>
         </div>
 
+        {/* FOOTER ACTIONS */}
         <footer className={styles.footer}>
-          <Link href={`/pipeline/${activeOpportunity.id}`}>Open full page</Link>
-          {activeOpportunity.reportPath ? (
-            <span>{activeOpportunity.reportPath}</span>
-          ) : (
-            <span>No report linked</span>
-          )}
+          <Link className={styles.btnPrimary} href={`/pipeline/${activeOpportunity.id}`}>
+            Advance Stage
+          </Link>
+          <button className={styles.btnOutline} type="button">
+            Request Feedback
+          </button>
         </footer>
       </aside>
     </>

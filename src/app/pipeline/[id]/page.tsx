@@ -14,9 +14,7 @@ function parseMarkdownTable(block: string) {
     .map((line) => line.trim())
     .filter((line) => line.startsWith("|"));
 
-  if (lines.length < 2) {
-    return null;
-  }
+  if (lines.length < 2) return null;
 
   const header = lines[0]
     .replace(/^\|/, "")
@@ -35,9 +33,7 @@ function parseMarkdownTable(block: string) {
     )
     .filter((row) => row.length >= header.length);
 
-  if (!rows.length) {
-    return null;
-  }
+  if (!rows.length) return null;
 
   return { header, rows };
 }
@@ -47,21 +43,14 @@ function renderInlineText(text: string) {
 
   return segments.map((segment, index) => {
     const match = /^\*\*(.+)\*\*$/.exec(segment);
-
-    if (!match) {
-      return <span key={`${segment}-${index}`}>{segment}</span>;
-    }
-
+    if (!match) return <span key={`${segment}-${index}`}>{segment}</span>;
     return <strong key={`${match[1]}-${index}`}>{match[1]}</strong>;
   });
 }
 
 function renderTextBlock(block: string) {
   const trimmed = block.trim();
-
-  if (!trimmed) {
-    return null;
-  }
+  if (!trimmed) return null;
 
   const headingMatch = /^###\s+(.+)\n([\s\S]*)$/m.exec(trimmed);
   const heading = headingMatch?.[1]?.trim() ?? null;
@@ -97,11 +86,7 @@ function renderTextBlock(block: string) {
     );
   }
 
-  const lines = body
-    .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean);
-
+  const lines = body.split("\n").map((line) => line.trim()).filter(Boolean);
   const listLines = lines.filter((line) => /^[-*]\s+/.test(line));
 
   if (listLines.length && listLines.length === lines.length) {
@@ -139,10 +124,10 @@ function renderSection(section: EvaluationSection) {
     .filter(Boolean);
 
   return (
-    <section className={`detail-panel ${styles.reportSection}`} key={section.heading}>
-      <div className={styles.sectionHead}>
-        <p className="section-label">Report section</p>
-        <h2>{section.heading}</h2>
+    <section className={styles.reportSection} key={section.heading}>
+      <div className={styles.cardHead}>
+        <span className={styles.cardLabel}>Analysis</span>
+        <span className={styles.cardTitle}>{section.heading}</span>
       </div>
       <div className={styles.sectionBody}>
         {blocks.map((block, index) => (
@@ -164,78 +149,70 @@ export default async function OpportunityDetailPage({
     getStates(),
   ]);
 
-  if (!opportunity) {
-    notFound();
-  }
+  if (!opportunity) notFound();
 
   const scoreLabel =
     typeof opportunity.score === "number"
-      ? opportunity.score.toFixed(1)
+      ? `${Math.round(opportunity.score * 20)}`
       : opportunity.scoreRaw || "N/A";
+
+  const inquestId = `INQ-${id.slice(-6).toUpperCase()}`;
 
   return (
     <article className={`app-page ${styles.page}`}>
-      <header className="page-head">
-        <div className="page-copy">
-          <p className="eyebrow">Opportunity detail</p>
-          <h1>
-            {opportunity.company} · {opportunity.role}
-          </h1>
-          <p className="lede">
-            {evaluation?.summary ||
-              opportunity.summary ||
-              "This role is linked, but no parsed report summary is available yet."}
-          </p>
+      {/* PAGE HEADER */}
+      <header className={styles.dossierHead}>
+        <p className={styles.breadcrumb}>
+          <Link href="/pipeline">Pipeline</Link>
+          {" // "}
+          Analysis Dossier
+        </p>
 
-          <div className={styles.heroMeta}>
-            <span className={styles.scorePill}>Score {scoreLabel}</span>
-            <span className={styles.statusPill}>{opportunity.status}</span>
-            {opportunity.archetype ? (
-              <span className={styles.metaPill}>{opportunity.archetype}</span>
-            ) : null}
+        <div className={styles.titleRow}>
+          <div className={styles.titleBlock}>
+            <h1>
+              {opportunity.company} · {opportunity.role}
+            </h1>
+            <div className={styles.inquiry}>
+              <span className={styles.inquiryId}>{inquestId} | Evaluated</span>
+              <span className={styles.statusPill}>{opportunity.status}</span>
+              {typeof opportunity.score === "number" ? (
+                <span className={styles.scoreBadge}>Score {scoreLabel}/100</span>
+              ) : null}
+              {opportunity.archetype ? (
+                <span className={styles.statusPill}>{opportunity.archetype}</span>
+              ) : null}
+            </div>
           </div>
-        </div>
 
-        <aside className={`page-note ${styles.sourceNote}`}>
-          <p className="note-label">Linked sources</p>
-          <ul className={styles.sourceList}>
-            <li>
-              <span>Tracker id</span>
-              <code>{id}</code>
-            </li>
-            <li>
-              <span>Report file</span>
-              <strong>{opportunity.reportPath ?? "Missing"}</strong>
-            </li>
-            <li>
-              <span>PDF output</span>
-              <strong>{opportunity.hasPdf ? "Generated" : "Not yet"}</strong>
-            </li>
-            <li>
-              <span>Source link</span>
-              {opportunity.jobUrl ? (
-                <a
-                  className={styles.externalLink}
-                  href={opportunity.jobUrl}
-                  rel="noreferrer"
-                  target="_blank"
-                >
-                  Open posting
-                </a>
-              ) : (
-                <strong>Unavailable</strong>
-              )}
-            </li>
-          </ul>
-        </aside>
+          {opportunity.jobUrl ? (
+            <div className={styles.headerActions}>
+              <a
+                className={styles.btnOutline}
+                href={opportunity.jobUrl}
+                rel="noreferrer"
+                target="_blank"
+              >
+                Open Posting ↗
+              </a>
+            </div>
+          ) : null}
+        </div>
       </header>
 
-      <section className="detail-layout">
-        <div className="detail-stack">
-          <section className={`detail-panel ${styles.overviewPanel}`}>
-            <div className={styles.sectionHead}>
-              <p className="section-label">Role signals</p>
-              <h2>What the report is actually saying.</h2>
+      {/* DOSSIER BODY */}
+      <div className={styles.dossierBody}>
+        {/* MAIN COLUMN */}
+        <div className={styles.mainColumn}>
+          {/* SIGNAL OVERVIEW */}
+          <section className={styles.overviewCard}>
+            <div className={styles.cardHead}>
+              <span className={styles.cardLabel}>Role Signals</span>
+              <span className={styles.cardTitle}>
+                {evaluation
+                  ? "What the report is actually saying"
+                  : "No report parsed yet"}
+              </span>
             </div>
 
             {evaluation ? (
@@ -264,83 +241,108 @@ export default async function OpportunityDetailPage({
                 </div>
               </dl>
             ) : (
-              <p>
-                A tracker row exists for this role, but there is no parsed report
-                content yet. As soon as a report lands in <code>reports/</code>,
-                this page will render the sections here.
-              </p>
+              <div className={styles.sectionBody}>
+                <p>
+                  A tracker row exists for this role, but there is no parsed report content yet.
+                  As soon as a report lands in <code>reports/</code>, this page will render the
+                  sections here.
+                </p>
+              </div>
             )}
           </section>
 
+          {/* REPORT SECTIONS */}
           {evaluation?.sections.length ? (
             evaluation.sections.map((section) => renderSection(section))
-          ) : (
-            <section className="detail-panel">
-              <p className="section-label">Report content</p>
-              <h2>No full report has been parsed yet.</h2>
-              <p>
-                This deep link still works for status updates and notes, but the
-                report body is not available for this opportunity right now.
-              </p>
-            </section>
-          )}
+          ) : null}
         </div>
 
-        <aside className="detail-rail">
-          <section className={`rail-block ${styles.statusBlock}`}>
-            <p className="rail-label">Status</p>
-            <strong>{opportunity.status}</strong>
-            <OpportunityStatusEditor
-              initialNotes={opportunity.notes}
-              initialStatus={opportunity.status}
-              opportunityId={opportunity.id}
-              statusOptions={states.map((state) => state.label).filter(
-                (label) => label !== "Unknown",
-              )}
-            />
-          </section>
-
-          {evaluation?.keywords.length ? (
-            <section className={`rail-block ${styles.keywordBlock}`}>
-              <p className="rail-label">Keywords</p>
-              <div className={styles.keywordList}>
-                {evaluation.keywords.map((keyword) => (
-                  <span className={styles.keyword} key={keyword}>
-                    {keyword}
-                  </span>
-                ))}
-              </div>
-            </section>
-          ) : null}
-
-          <section className={`rail-block ${styles.outputBlock}`}>
-            <p className="rail-label">Outputs</p>
-            <div className={styles.outputStack}>
-              {opportunity.reportPath ? (
-                <p>
-                  Report linked in tracker:
-                  <br />
-                  <code>{opportunity.reportPath}</code>
-                </p>
-              ) : (
-                <p>No report path is linked in the tracker yet.</p>
-              )}
-
-              {evaluation?.pdfPath && evaluation.pdfPath !== "❌" ? (
-                <p>
-                  Generated PDF:
-                  <br />
-                  <code>{evaluation.pdfPath}</code>
-                </p>
-              ) : null}
-
-              <p>
-                <Link href="/pipeline">Back to pipeline</Link>
-              </p>
+        {/* RAIL */}
+        <aside className={styles.rail}>
+          {/* STATUS EDITOR */}
+          <div className={styles.railCard}>
+            <div className={styles.cardHead}>
+              <span className={styles.cardLabel}>Status</span>
+              <span className={styles.cardTitle}>{opportunity.status}</span>
             </div>
-          </section>
+            <div className={styles.railBody}>
+              <OpportunityStatusEditor
+                initialNotes={opportunity.notes}
+                initialStatus={opportunity.status}
+                opportunityId={opportunity.id}
+                statusOptions={states
+                  .map((state) => state.label)
+                  .filter((label) => label !== "Unknown")}
+              />
+            </div>
+          </div>
+
+          {/* METADATA */}
+          <div className={styles.railCard}>
+            <div className={styles.cardHead}>
+              <span className={styles.cardLabel}>Linked Sources</span>
+            </div>
+            <div className={styles.railBody}>
+              <div className={styles.metaList}>
+                <div className={styles.metaRow}>
+                  <span className={styles.metaKey}>Tracker ID</span>
+                  <span className={styles.metaVal}>{id}</span>
+                </div>
+                <div className={styles.metaRow}>
+                  <span className={styles.metaKey}>Report</span>
+                  <span className={styles.metaVal}>{opportunity.reportPath ?? "Missing"}</span>
+                </div>
+                <div className={styles.metaRow}>
+                  <span className={styles.metaKey}>PDF</span>
+                  <span className={styles.metaVal}>{opportunity.hasPdf ? "Generated" : "Not yet"}</span>
+                </div>
+                {opportunity.jobUrl ? (
+                  <div className={styles.metaRow}>
+                    <span className={styles.metaKey}>Source</span>
+                    <a
+                      className={styles.externalLink}
+                      href={opportunity.jobUrl}
+                      rel="noreferrer"
+                      target="_blank"
+                    >
+                      Open posting ↗
+                    </a>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          </div>
+
+          {/* KEYWORDS */}
+          {evaluation?.keywords.length ? (
+            <div className={styles.railCard}>
+              <div className={styles.cardHead}>
+                <span className={styles.cardLabel}>Keywords</span>
+                <span className={styles.cardTitle}>{evaluation.keywords.length} terms</span>
+              </div>
+              <div className={styles.railBody}>
+                <div className={styles.keywordList}>
+                  {evaluation.keywords.map((keyword) => (
+                    <span className={styles.keyword} key={keyword}>
+                      {keyword}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+          ) : null}
         </aside>
-      </section>
+      </div>
+
+      {/* FOOTER ACTIONS */}
+      <footer className={styles.dossierFooter}>
+        <button className={styles.btnOutline} type="button">
+          Request Revision
+        </button>
+        <button className={styles.btnPrimary} type="button">
+          Approve &amp; Advance
+        </button>
+      </footer>
     </article>
   );
 }

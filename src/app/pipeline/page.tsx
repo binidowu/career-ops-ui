@@ -6,42 +6,20 @@ import {
   getWorkspaceSignals,
 } from "@/lib/api/career-ops";
 
+import styles from "./pipeline.module.css";
+
 export default async function PipelinePage() {
   const [opportunities, states, workspace] = await Promise.all([
     getOpportunities(),
     getStates(),
     getWorkspaceSignals(),
   ]);
-  const reportCount = opportunities.filter((opportunity) => opportunity.reportPath).length;
-  const averageScore = opportunities.length
-    ? opportunities.reduce((total, opportunity) => total + (opportunity.score ?? 0), 0) /
-      opportunities.length
-    : null;
 
   return (
-    <article className="app-page">
-      <header className="page-head">
-        <div className="page-copy">
-          <p className="eyebrow">Pipeline</p>
-          <h1>The operating table for active opportunities.</h1>
-          <p className="lede">
-            This route now runs as a working tracker: sticky filters, sortable
-            columns, bulk selection, and a right-side dossier drawer layered on
-            top of the live career-ops data model.
-          </p>
-        </div>
-
-        <aside className="page-note">
-          <p className="note-label">Live tracker</p>
-          <ul className="compact-list">
-            <li>{opportunities.length} tracked roles in this workspace.</li>
-            <li>{reportCount} linked reports currently available.</li>
-            <li>
-              Average score:{" "}
-              {typeof averageScore === "number" ? averageScore.toFixed(1) : "N/A"}
-            </li>
-          </ul>
-        </aside>
+    <article className={`app-page ${styles.page}`}>
+      <header className={styles.pageHead}>
+        <p className={styles.breadcrumb}>Workspace // Active</p>
+        <h1>The Operating Table</h1>
       </header>
 
       {opportunities.length ? (

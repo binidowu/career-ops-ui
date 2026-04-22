@@ -23,7 +23,7 @@
 
   /* ---- Brand ---- */
   --hue-brand: 260;
-  --hue-accent: 75;
+  --hue-accent: 45; /* Burnt Copper / Rust */
 
   /* ---- Neutrals (light mode) ---- */
   --color-bg:         light-dark(oklch(0.985 0.005 var(--hue-brand)), oklch(0.145 0.01 var(--hue-brand)));
@@ -38,15 +38,15 @@
   --color-text-secondary: light-dark(oklch(0.42 0.012 var(--hue-brand)), oklch(0.68 0.01 var(--hue-brand)));
   --color-text-tertiary:  light-dark(oklch(0.55 0.01 var(--hue-brand)),  oklch(0.52 0.008 var(--hue-brand)));
 
-  /* ---- Accent (warm amber — primary actions) ---- */
-  --color-accent:     light-dark(oklch(0.55 0.14 var(--hue-accent)),  oklch(0.72 0.14 var(--hue-accent)));
-  --color-accent-hover: light-dark(oklch(0.48 0.14 var(--hue-accent)), oklch(0.78 0.12 var(--hue-accent)));
-  --color-accent-subtle: light-dark(oklch(0.94 0.04 var(--hue-accent)), oklch(0.22 0.04 var(--hue-accent)));
-  --color-accent-text: light-dark(oklch(0.99 0.005 var(--hue-accent)), oklch(0.15 0.02 var(--hue-accent)));
-  --color-accent-strong: light-dark(oklch(0.46 0.12 var(--hue-accent)), oklch(0.78 0.12 var(--hue-accent)));
+  /* ---- Accent (Burnt Copper - primary actions) ---- */
+  --color-accent:     light-dark(oklch(0.58 0.14 var(--hue-accent)),  oklch(0.68 0.14 var(--hue-accent)));
+  --color-accent-hover: light-dark(oklch(0.50 0.14 var(--hue-accent)), oklch(0.75 0.12 var(--hue-accent)));
+  --color-accent-subtle: light-dark(oklch(0.94 0.05 var(--hue-accent)), oklch(0.20 0.05 var(--hue-accent)));
+  --color-accent-text: light-dark(oklch(0.99 0.005 var(--hue-accent)), oklch(0.12 0.02 var(--hue-accent)));
+  --color-accent-strong: light-dark(oklch(0.50 0.14 var(--hue-accent)), oklch(0.72 0.14 var(--hue-accent)));
 
   /* ---- Focus indicator ---- */
-  --color-focus: light-dark(oklch(0.50 0.14 var(--hue-brand)), oklch(0.70 0.12 var(--hue-brand)));
+  --color-focus: light-dark(oklch(0.50 0.14 var(--hue-accent)), oklch(0.70 0.12 var(--hue-accent)));
 
   /* ---- Semantic: Grades (A-F) ---- 
      Each grade has a distinct lightness + chroma so they remain
@@ -72,18 +72,18 @@
      Typography
      
      Font pairing selected via impeccable font procedure:
-     - Display: Satoshi (geometric sans with personality — editorial, confident)
-     - Body: General Sans (clean, tabular figures, excellent readability)
-     Both from Pangram Pangram / Fontshare (free for web).
+     - Display/Heading: Literata (sophisticated digital-first serif)
+     - Body: Albert Sans (precise, legible geometric sans)
+     Both from Google Fonts.
      
      Neither appears on the reflex-fonts-to-reject list.
-     Brand words: measured, precise, editorial.
+     Brand words: measured, versatile, precise, editorial.
      ============================================================ */
 
-  /* Font families — loaded via @font-face or Google Fonts link in layout */
-  --font-display: 'Satoshi', system-ui, sans-serif;
-  --font-body: 'General Sans', system-ui, sans-serif;
-  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+  /* Font families — loaded via next/font in layout.tsx */
+  --font-display: var(--font-literata), 'Georgia', serif;
+  --font-body: var(--font-albert-sans), system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, monospace;
 
   /* Type scale: fixed rem, 1.25 ratio (Major Third)
      5 steps with strong contrast between levels */

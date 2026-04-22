@@ -13,32 +13,22 @@
   margin: 0 auto;
   padding: 0 var(--page-gutter);
   display: grid;
-  grid-template-columns: minmax(13.5rem, 21rem) minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: var(--space-lg);
 }
 
 .identity {
-  display: grid;
-  gap: 4px;
-  align-content: center;
-  padding-block: var(--space-sm);
+  display: flex;
+  align-items: center;
 }
 
 .wordmark {
   font-family: var(--font-display);
-  font-size: var(--text-lg);
-  font-weight: var(--weight-semibold);
+  font-size: var(--text-base);
+  font-weight: var(--weight-bold);
   letter-spacing: var(--tracking-tight);
-}
-
-.tagline {
-  color: var(--color-text-secondary);
-  font-size: var(--text-xs);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  line-height: 1.45;
-  max-width: 28ch;
+  white-space: nowrap;
 }
 
 .navDesktop {
@@ -60,8 +50,10 @@
   border: 0;
   background: none;
   color: var(--color-text-secondary);
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
   font-weight: var(--weight-medium);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
   cursor: pointer;
   transition:
     color var(--duration-fast) var(--ease-out),
@@ -119,10 +111,10 @@
 
 .paletteTrigger,
 .menuToggle {
-  min-height: 44px;
-  border: 1px solid var(--color-border-subtle);
+  min-height: 36px;
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
-  background-color: var(--color-surface);
+  background-color: transparent;
 }
 
 .paletteTrigger {
@@ -131,23 +123,23 @@
   gap: var(--space-sm);
   padding: 0 var(--space-md);
   color: var(--color-text-secondary);
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
   transition:
     border-color var(--duration-fast) var(--ease-out),
-    background-color var(--duration-fast) var(--ease-out),
     color var(--duration-fast) var(--ease-out);
 }
 
 .paletteTrigger:hover,
 .menuToggle:hover {
   border-color: var(--color-line-strong);
-  background-color: color-mix(in oklch, var(--color-surface) 72%, var(--color-bg));
   color: var(--color-text);
 }
 
 .paletteTrigger kbd {
-  min-width: 2.5rem;
-  padding: 4px 6px;
+  min-width: 2.2rem;
+  padding: 3px 5px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   background-color: var(--color-surface-2);
@@ -156,38 +148,39 @@
   font-family: var(--font-body);
 }
 
-.profile {
-  display: grid;
-  grid-auto-flow: column;
-  align-items: center;
-  gap: var(--space-sm);
-  padding: 0 var(--space-xs) 0 var(--space-sm);
-}
-
-.profileMonogram {
+.iconBtn {
   display: grid;
   place-items: center;
   width: 2rem;
   height: 2rem;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: none;
+  color: var(--color-text-secondary);
+  transition: color var(--duration-fast) var(--ease-out);
+}
+
+.iconBtn:hover {
+  color: var(--color-text);
+}
+
+.avatar {
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border: 1px solid var(--color-border);
   border-radius: 50%;
   background-color: var(--color-surface-2);
+  color: var(--color-text);
   font-size: var(--text-xs);
   font-weight: var(--weight-semibold);
+  cursor: pointer;
+  transition: border-color var(--duration-fast) var(--ease-out);
 }
 
-.profileCopy {
-  display: grid;
-  text-align: left;
-}
-
-.profileCopy strong {
-  font-size: var(--text-sm);
-  font-weight: var(--weight-medium);
-}
-
-.profileCopy small {
-  color: var(--color-text-tertiary);
-  font-size: var(--text-xs);
+.avatar:hover {
+  border-color: var(--color-line-strong);
 }
 
 .menuToggle {

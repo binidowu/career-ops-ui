@@ -34,17 +34,6 @@ body {
   line-height: var(--leading-normal);
   color: var(--color-text);
   background-color: var(--color-bg);
-  background-image:
-    radial-gradient(
-      circle at top left,
-      color-mix(in oklch, var(--color-accent-subtle) 54%, transparent),
-      transparent 30%
-    ),
-    linear-gradient(
-      180deg,
-      color-mix(in oklch, var(--color-surface) 65%, transparent),
-      transparent 22%
-    );
 }
 
 ::selection {
