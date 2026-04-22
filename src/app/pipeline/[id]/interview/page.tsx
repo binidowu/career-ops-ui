@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { getOpportunity } from "@/lib/api/career-ops";
+import StoryBankEditor from "@/components/interview/StoryBankEditor";
+import { getInterviewPrepWorkspace, getOpportunity } from "@/lib/api/career-ops";
 
 import styles from "./page.module.css";
 
@@ -43,6 +44,18 @@ function splitInterviewSummary(value: string) {
     .filter(Boolean);
 }
 
+function renderReportParagraphs(content: string) {
+  const body = content
+    .replace(/^#\s+.+$/m, "")
+    .trim();
+
+  return body
+    .split(/\n\s*\n/)
+    .map((block) => block.trim())
+    .filter(Boolean)
+    .slice(0, 10);
+}
+
 export default async function OpportunityInterviewPrepPage({
   params,
 }: {
@@ -52,6 +65,11 @@ export default async function OpportunityInterviewPrepPage({
   const { opportunity, evaluation } = await getOpportunity(id);
 
   if (!opportunity) notFound();
+
+  const prepWorkspace = await getInterviewPrepWorkspace({
+    company: opportunity.company,
+    role: opportunity.role,
+  });
 
   const hasPrep = Boolean(
     evaluation && (evaluation.interviewItems.length || evaluation.interviewPrep.trim()),
@@ -64,6 +82,9 @@ export default async function OpportunityInterviewPrepPage({
       })
     : [];
   const prepSummary = evaluation ? splitInterviewSummary(evaluation.interviewPrep) : [];
+  const matchedReportParagraphs = prepWorkspace.matchedReport
+    ? renderReportParagraphs(prepWorkspace.matchedReport.content)
+    : [];
 
   return (
     <article className={`app-page ${styles.page}`}>
@@ -152,6 +173,33 @@ export default async function OpportunityInterviewPrepPage({
               </div>
             </section>
 
+            <section className={styles.card}>
+              <div className={styles.cardHead}>
+                <span className={styles.cardLabel}>Company-specific intel</span>
+                <span className={styles.cardTitle}>
+                  {prepWorkspace.matchedReport ? prepWorkspace.matchedReport.title : "Research report not generated yet"}
+                </span>
+              </div>
+              <div className={styles.cardBody}>
+                {prepWorkspace.matchedReport ? (
+                  matchedReportParagraphs.map((paragraph) => (
+                    <p key={paragraph}>{paragraph.replace(/\n+/g, " ")}</p>
+                  ))
+                ) : (
+                  <>
+                    <p>
+                      No company-specific interview intel report exists in <code>interview-prep/</code>
+                      {" "}for this role yet.
+                    </p>
+                    <p>
+                      The backend mode definition exists, but there is not currently a standalone
+                      script we can safely trigger from the UI the way we do for scans or doctor.
+                    </p>
+                  </>
+                )}
+              </div>
+            </section>
+
             {evaluation.interviewItems.length ? (
               <section className={styles.card}>
                 <div className={styles.cardHead}>
@@ -205,6 +253,11 @@ export default async function OpportunityInterviewPrepPage({
                 )}
               </div>
             </section>
+
+            <StoryBankEditor
+              initialContent={prepWorkspace.storyBankContent}
+              path={prepWorkspace.storyBankPath}
+            />
           </div>
 
           <aside className={styles.rail}>
@@ -261,6 +314,27 @@ export default async function OpportunityInterviewPrepPage({
                 </div>
               </section>
             ) : null}
+
+            <section className={styles.railCard}>
+              <div className={styles.cardHead}>
+                <span className={styles.cardLabel}>Prep assets</span>
+                <span className={styles.cardTitle}>{prepWorkspace.reports.length} report{prepWorkspace.reports.length === 1 ? "" : "s"}</span>
+              </div>
+              <div className={styles.railBody}>
+                <div className={styles.statRow}>
+                  <span>Story bank</span>
+                  <strong>{prepWorkspace.storyBankContent.trim() ? "Ready" : "Empty"}</strong>
+                </div>
+                <div className={styles.statRow}>
+                  <span>Matched intel report</span>
+                  <strong>{prepWorkspace.matchedReport ? "Found" : "Missing"}</strong>
+                </div>
+                <div className={styles.statRow}>
+                  <span>Available prep docs</span>
+                  <strong>{prepWorkspace.reports.length}</strong>
+                </div>
+              </div>
+            </section>
           </aside>
         </div>
       )}

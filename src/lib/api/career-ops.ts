@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { extname } from "node:path";
+import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
+import { basename, extname } from "node:path";
 import { promisify } from "node:util";
 import { unstable_noStore as noStore } from "next/cache";
 
@@ -38,6 +38,8 @@ import type {
   ResumeSource,
   ScanRunResult,
   StateDefinition,
+  InterviewPrepWorkspace,
+  InterviewPrepDocument,
   SystemCheckId,
   SystemCheckResult,
   UserProfile,
@@ -152,6 +154,32 @@ function buildVariantLabel(variant: ResumeDraftVariant) {
     default:
       return "Balanced emphasis";
   }
+}
+
+function slugifyPrepTarget(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/['’]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+function createInterviewPrepMatchScore(reportPath: string, company: string, role: string) {
+  const reportSlug = slugifyPrepTarget(basename(reportPath, ".md"));
+  const companyTokens = slugifyPrepTarget(company).split("-").filter((token) => token.length >= 3);
+  const roleTokens = slugifyPrepTarget(role).split("-").filter((token) => token.length >= 3);
+
+  let score = 0;
+
+  for (const token of companyTokens) {
+    if (reportSlug.includes(token)) score += 3;
+  }
+
+  for (const token of roleTokens) {
+    if (reportSlug.includes(token)) score += 2;
+  }
+
+  return score;
 }
 
 function stripAnsi(value: string) {
@@ -821,6 +849,85 @@ export async function runSystemCheck(input: {
 
   const output = normalizeCommandOutput(stdout, stderr);
   return parseSystemCheckResult(command, output, exitCode, { urlsChecked });
+}
+
+export async function getInterviewPrepWorkspace(input: {
+  company: string;
+  role: string;
+}): Promise<InterviewPrepWorkspace> {
+  noStore();
+
+  const dirSignature = await getCareerOpsSignature("interview-prep");
+  const storyBankPath = "interview-prep/story-bank.md";
+
+  return readCached<InterviewPrepWorkspace>(`interview-prep:${input.company}:${input.role}`, dirSignature, async () => {
+    const storyBankContent = (await readCareerOpsTextFile("interview-prep", "story-bank.md")) ?? "";
+    const directoryPath = resolveCareerOpsFile("interview-prep");
+    const files = await readdir(directoryPath).catch(() => [] as string[]);
+
+    const reportCandidates = await Promise.all(
+      files
+        .filter((file) => file.endsWith(".md") && file !== "story-bank.md")
+        .map(async (file) => {
+          const content = await readCareerOpsTextFile("interview-prep", file);
+          if (!content) return null;
+
+          const relativePath = `interview-prep/${file}`;
+          const titleMatch = /^#\s+(.+)$/m.exec(content);
+
+          return {
+            path: relativePath,
+            title: titleMatch?.[1]?.trim() ?? basename(file, ".md"),
+            content,
+            matched: false,
+          } satisfies InterviewPrepDocument;
+        }),
+    );
+
+    const reports: InterviewPrepDocument[] = reportCandidates.filter(
+      (report): report is NonNullable<typeof report> => report !== null,
+    );
+
+    const matchedReport =
+      [...reports]
+        .map((report) => ({
+          report,
+          score: createInterviewPrepMatchScore(report.path, input.company, input.role),
+        }))
+        .filter((entry) => entry.score > 0)
+        .sort((left, right) => right.score - left.score)[0]?.report ?? null;
+
+    const nextReports: InterviewPrepDocument[] = reports.map((report) => ({
+      ...report,
+      matched: matchedReport?.path === report.path,
+    }));
+
+    return {
+      storyBankContent,
+      storyBankPath,
+      reports: nextReports,
+      matchedReport: nextReports.find((report) => report.matched) ?? null,
+    };
+  });
+}
+
+export async function saveInterviewPrepStoryBank(content: string) {
+  noStore();
+
+  const nextContent = content.trim();
+  if (!nextContent) {
+    throw new Error("Story bank content cannot be empty.");
+  }
+
+  const directory = resolveCareerOpsFile("interview-prep");
+  await mkdir(directory, { recursive: true });
+  await writeFile(resolveCareerOpsFile("interview-prep", "story-bank.md"), `${nextContent}\n`, "utf8");
+  clearCache(["interview-prep:"]);
+
+  return {
+    path: "interview-prep/story-bank.md",
+    content: `${nextContent}\n`,
+  };
 }
 
 function sanitizeResumeSourceId(value: string) {

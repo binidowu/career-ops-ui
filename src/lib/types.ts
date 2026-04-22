@@ -167,6 +167,20 @@ export interface SystemCheckResult {
   title: string;
 }
 
+export interface InterviewPrepDocument {
+  content: string;
+  matched: boolean;
+  path: string;
+  title: string;
+}
+
+export interface InterviewPrepWorkspace {
+  matchedReport: InterviewPrepDocument | null;
+  reports: InterviewPrepDocument[];
+  storyBankContent: string;
+  storyBankPath: string;
+}
+
 /** Full evaluation report for an opportunity */
 export interface Evaluation {
   /** The opportunity this evaluation belongs to */

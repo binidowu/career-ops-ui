@@ -64,6 +64,8 @@ The backend currently contains four broad classes of capability:
   - Dedicated per-role interview prep workspace
   - STAR story map from parsed evaluation data
   - Rehearsal checklist and risk-area surfacing
+  - Browser editing for `interview-prep/story-bank.md`
+  - Existing interview-prep reports surfaced when present
 - Discovery / intake
   - URL paste queue via `/api/pipeline`
   - Backend scanner trigger via `/api/scan`
@@ -79,6 +81,8 @@ The backend currently contains four broad classes of capability:
   - Functional parity exists, but visual refinement is still in progress.
 - Resume editing controls
   - Regeneration is connected; editing ergonomics still need a dedicated polish pass to ensure each control maps cleanly to backend behavior and updates the preview consistently.
+- Interview prep generation
+  - The UI can now read and edit the backend interview-prep workspace, but fresh company-specific interview intel generation is still not directly callable because the backend exposes it as a mode definition, not a standalone script or API.
 
 ### Still backend-only
 
@@ -122,21 +126,23 @@ The backend currently contains four broad classes of capability:
   - `sync-check`
   - `liveness`
 - Added a dedicated interview prep route for each tracked role so prep is no longer buried inside the raw evaluation report.
+- Added browser editing for the backend interview story bank and surfaced existing `interview-prep/*.md` reports when they already exist.
 
 ## Recommended Next Parity Queue
 
-1. Expose apply / outreach / interview-prep flows as first-class UI workspaces.
-2. Decide which mutating maintenance flows are safe enough for the browser.
+1. Expose apply and outreach / research flows as first-class UI workspaces.
+2. Decide whether to add a dedicated backend script/API for generating company-specific interview intel so the frontend can trigger it directly.
+3. Decide which mutating maintenance flows are safe enough for the browser.
    - `normalize`
    - `dedup`
    - `merge`
    - `update`
    - `rollback`
-3. Strengthen Resume Studio end-to-end.
+4. Strengthen Resume Studio end-to-end.
    - Make preview edits deterministic.
    - Add clearer regenerate variants and source selection feedback.
    - Tighten the backend drafting contract so the UI can trust the response shape.
-4. Add auth and protected routes so parity work is happening inside the eventual real application shell, not an open local workspace.
+5. Add auth and protected routes so parity work is happening inside the eventual real application shell, not an open local workspace.
 
 ## Definition of Done Tracking
 
