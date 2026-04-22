@@ -143,6 +143,30 @@ export interface ScanRunResult {
   output: string;
 }
 
+export type SystemCheckId = "doctor" | "verify" | "sync-check" | "liveness";
+export type SystemCheckStatus = "pass" | "warn" | "fail";
+
+export interface SystemCheckResult {
+  checkId: SystemCheckId;
+  counts: {
+    active?: number;
+    errors?: number;
+    expired?: number;
+    failures?: number;
+    passes?: number;
+    uncertain?: number;
+    urlsChecked?: number;
+    warnings?: number;
+  };
+  description: string;
+  details: string[];
+  exitCode: number;
+  output: string;
+  status: SystemCheckStatus;
+  summary: string;
+  title: string;
+}
+
 /** Full evaluation report for an opportunity */
 export interface Evaluation {
   /** The opportunity this evaluation belongs to */

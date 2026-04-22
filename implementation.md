@@ -55,6 +55,11 @@ The backend currently contains four broad classes of capability:
 - Settings / profile
   - Profile editing
   - Multiple resume source registration
+- Operations / verification
+  - Browser-triggered workspace doctor
+  - Browser-triggered pipeline verify
+  - Browser-triggered resume sync check
+  - Browser-triggered job link liveness check over tracked URLs
 - Discovery / intake
   - URL paste queue via `/api/pipeline`
   - Backend scanner trigger via `/api/scan`
@@ -76,15 +81,12 @@ The backend currently contains four broad classes of capability:
 - Apply assistant workflows
 - Contact / outreach workflows
 - Interview prep orchestration beyond static report sections
-- Batch jobs and maintenance commands
-  - `doctor`
-  - `verify`
+- Mutating maintenance commands
   - `normalize`
   - `dedup`
   - `merge`
   - `update`
   - `rollback`
-  - `liveness`
 - Research / training / project evaluation modes that are still terminal-driven
 - Authentication / multi-user protection
 
@@ -95,7 +97,7 @@ The backend currently contains four broad classes of capability:
   - the selected resume source lacks depth,
   - the backend drafting prompt is not extracting enough structured material.
 - Some backend scripts return operator-oriented stdout rather than structured JSON. The UI can call them, but long-term parity is stronger when the backend exposes stable machine-readable responses.
-- The UI currently surfaces the main pipeline inbox and scanner outputs, but operator-health commands are not yet visible in a browser workflow.
+- The UI now surfaces safe read-only health checks, but mutating maintenance commands still remain terminal-only by design.
 
 ## What Shipped In This Parity Pass
 
@@ -110,13 +112,21 @@ The backend currently contains four broad classes of capability:
   - run the real backend scanner,
   - see pending inbox state without touching the terminal.
 - Added a dedicated `Scans` page and enabled it in navigation / command palette.
+- Added a Settings operations panel that runs safe backend health checks from the browser:
+  - `doctor`
+  - `verify`
+  - `sync-check`
+  - `liveness`
 
 ## Recommended Next Parity Queue
 
-1. Build an operator page for backend maintenance and health commands.
-   - Expose `doctor`, `verify`, `sync-check`, and `liveness`.
-   - Return structured status cards instead of raw stdout only.
-2. Expose apply / outreach / interview-prep flows as first-class UI workspaces.
+1. Expose apply / outreach / interview-prep flows as first-class UI workspaces.
+2. Decide which mutating maintenance flows are safe enough for the browser.
+   - `normalize`
+   - `dedup`
+   - `merge`
+   - `update`
+   - `rollback`
 3. Strengthen Resume Studio end-to-end.
    - Make preview edits deterministic.
    - Add clearer regenerate variants and source selection feedback.

@@ -1,5 +1,12 @@
+import OperationsPanel from "@/components/settings/OperationsPanel";
 import ProfileSettingsForm from "@/components/settings/ProfileSettingsForm";
-import { getProfile } from "@/lib/api/career-ops";
+import {
+  getDashboardStats,
+  getOpportunities,
+  getPipelineInbox,
+  getProfile,
+  getWorkspaceSignals,
+} from "@/lib/api/career-ops";
 import type { UserProfile } from "@/lib/types";
 
 import styles from "./settings.module.css";
@@ -16,21 +23,40 @@ function createBlankProfile(): UserProfile {
 }
 
 export default async function SettingsPage() {
-  const profile = await getProfile();
+  const [profile, stats, workspace, opportunities, pipelineInbox] = await Promise.all([
+    getProfile(),
+    getDashboardStats(),
+    getWorkspaceSignals(),
+    getOpportunities(),
+    getPipelineInbox(),
+  ]);
   const editableProfile = profile ?? createBlankProfile();
+  const urlsAvailableForLiveness = opportunities.filter((opportunity) => opportunity.jobUrl).length;
 
   return (
     <article className={`app-page ${styles.page}`}>
       <header className={styles.pageHead}>
         <h1>Career-Ops Configuration Hub</h1>
         <p className={styles.subtitle}>
-          Calibrate the AI with your career context, target roles, and preferred scoring weights.
+          Calibrate the AI with your career context, target roles, preferred scoring weights, and
+          backend verification flows.
         </p>
       </header>
 
       <ProfileSettingsForm
         hasExistingProfile={Boolean(profile)}
         initialProfile={editableProfile}
+      />
+
+      <OperationsPanel
+        snapshot={{
+          pendingQueue: pipelineInbox.pending.length,
+          reportCount: stats.reportCount,
+          resumeSourceCount: workspace.resumeSourceCount,
+          trackedRoles: stats.totalEvaluated,
+          urlsAvailableForLiveness,
+          workspacePath: workspace.careerOpsPath,
+        }}
       />
     </article>
   );

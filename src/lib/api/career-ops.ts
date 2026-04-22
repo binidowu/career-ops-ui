@@ -38,6 +38,8 @@ import type {
   ResumeSource,
   ScanRunResult,
   StateDefinition,
+  SystemCheckId,
+  SystemCheckResult,
   UserProfile,
 } from "@/lib/types";
 import type { ParsedCvDocument } from "@/lib/data/parse-cv";
@@ -49,6 +51,31 @@ interface CacheEntry<T> {
 
 const cache = new Map<string, CacheEntry<unknown>>();
 const execFileAsync = promisify(execFile);
+
+const SYSTEM_CHECKS: Record<
+  SystemCheckId,
+  {
+    description: string;
+    title: string;
+  }
+> = {
+  doctor: {
+    title: "Workspace doctor",
+    description: "Validate local prerequisites such as profile, resumes, fonts, and required directories.",
+  },
+  verify: {
+    title: "Pipeline verify",
+    description: "Check tracker integrity, report links, score formats, duplicates, and pending tracker additions.",
+  },
+  "sync-check": {
+    title: "Resume sync check",
+    description: "Verify that profile, resume sources, and prompt inputs are consistent before generation.",
+  },
+  liveness: {
+    title: "Job link liveness",
+    description: "Test whether tracked opportunity URLs still resolve to live job postings.",
+  },
+};
 
 interface BackendResumeDraftPayload {
   resumeSource: {
@@ -124,6 +151,148 @@ function buildVariantLabel(variant: ResumeDraftVariant) {
       return "Execution emphasis";
     default:
       return "Balanced emphasis";
+  }
+}
+
+function stripAnsi(value: string) {
+  return value.replace(/\x1B\[[0-9;]*m/g, "");
+}
+
+function normalizeCommandOutput(stdout = "", stderr = "") {
+  return stripAnsi(`${stdout}${stderr ? `\n${stderr}` : ""}`).trim();
+}
+
+function createSystemCheckResult(
+  checkId: SystemCheckId,
+  input: Partial<SystemCheckResult>,
+): SystemCheckResult {
+  return {
+    checkId,
+    title: SYSTEM_CHECKS[checkId].title,
+    description: SYSTEM_CHECKS[checkId].description,
+    status: input.status ?? "pass",
+    summary: input.summary ?? "",
+    details: input.details ?? [],
+    counts: input.counts ?? {},
+    exitCode: input.exitCode ?? 0,
+    output: input.output ?? "",
+  };
+}
+
+function parseDoctorResult(output: string, exitCode: number): SystemCheckResult {
+  const passes = (output.match(/^✓\s/mg) ?? []).length;
+  const failures = (output.match(/^✗\s/mg) ?? []).length;
+  const details = output
+    .split("\n")
+    .filter((line) => /^(✓|✗)\s/.test(line.trim()))
+    .map((line) => line.trim());
+
+  return createSystemCheckResult("doctor", {
+    status: failures > 0 || exitCode !== 0 ? "fail" : "pass",
+    summary:
+      failures > 0
+        ? `${failures} prerequisite${failures === 1 ? "" : "s"} still need attention.`
+        : `All ${passes} workspace prerequisite checks passed.`,
+    details,
+    counts: { failures, passes },
+    exitCode,
+    output,
+  });
+}
+
+function parseVerifyResult(output: string, exitCode: number): SystemCheckResult {
+  const errors = Number(output.match(/Pipeline Health:\s+(\d+)\s+errors/)?.[1] ?? "") || 0;
+  const warnings =
+    Number(output.match(/Pipeline Health:\s+\d+\s+errors,\s+(\d+)\s+warnings/)?.[1] ?? "") || 0;
+  const details = output
+    .split("\n")
+    .filter((line) => /^(✅|⚠️|❌)\s/.test(line.trim()))
+    .map((line) => line.trim());
+
+  return createSystemCheckResult("verify", {
+    status: errors > 0 || exitCode !== 0 ? "fail" : warnings > 0 ? "warn" : "pass",
+    summary:
+      errors > 0
+        ? `${errors} pipeline integrity error${errors === 1 ? "" : "s"} detected.`
+        : warnings > 0
+          ? `${warnings} warning${warnings === 1 ? "" : "s"} found, but the tracker is still usable.`
+          : "Pipeline integrity is clean.",
+    details,
+    counts: { errors, warnings },
+    exitCode,
+    output,
+  });
+}
+
+function parseSyncCheckResult(output: string, exitCode: number): SystemCheckResult {
+  const errors = Number(output.match(/ERRORS\s+\((\d+)\)/)?.[1] ?? "") || 0;
+  const warnings = Number(output.match(/WARNINGS\s+\((\d+)\)/)?.[1] ?? "") || 0;
+  const details = output
+    .split("\n")
+    .filter((line) => /^(ERROR:|WARN:|All checks passed\.)/.test(line.trim()))
+    .map((line) => line.trim());
+
+  return createSystemCheckResult("sync-check", {
+    status: errors > 0 || exitCode !== 0 ? "fail" : warnings > 0 ? "warn" : "pass",
+    summary:
+      errors > 0
+        ? `${errors} resume or profile sync error${errors === 1 ? "" : "s"} detected.`
+        : warnings > 0
+          ? `${warnings} warning${warnings === 1 ? "" : "s"} found in resume/profile consistency.`
+          : "Resume sources and profile inputs are in sync.",
+    details,
+    counts: { errors, warnings },
+    exitCode,
+    output,
+  });
+}
+
+function parseLivenessResult(output: string, exitCode: number, urlsChecked: number): SystemCheckResult {
+  const active = Number(output.match(/Results:\s+(\d+)\s+active/)?.[1] ?? "") || 0;
+  const expired = Number(output.match(/Results:\s+\d+\s+active\s+(\d+)\s+expired/)?.[1] ?? "") || 0;
+  const uncertain = Number(output.match(/Results:\s+\d+\s+active\s+\d+\s+expired\s+(\d+)\s+uncertain/)?.[1] ?? "") || 0;
+  const details = output
+    .split("\n")
+    .filter((line) => /^(✅|❌|⚠️)\s/.test(line.trim()))
+    .map((line) => line.trim());
+
+  return createSystemCheckResult("liveness", {
+    status: expired > 0 ? "fail" : uncertain > 0 ? "warn" : exitCode !== 0 ? "fail" : "pass",
+    summary:
+      expired > 0
+        ? `${expired} tracked job link${expired === 1 ? "" : "s"} appear to be expired.`
+        : uncertain > 0
+          ? `${uncertain} tracked link${uncertain === 1 ? "" : "s"} could not be classified confidently.`
+          : `All ${active} tracked job link${active === 1 ? "" : "s"} appear active.`,
+    details,
+    counts: { active, expired, uncertain, urlsChecked },
+    exitCode,
+    output,
+  });
+}
+
+function parseSystemCheckResult(
+  checkId: SystemCheckId,
+  output: string,
+  exitCode: number,
+  options?: { urlsChecked?: number },
+): SystemCheckResult {
+  switch (checkId) {
+    case "doctor":
+      return parseDoctorResult(output, exitCode);
+    case "verify":
+      return parseVerifyResult(output, exitCode);
+    case "sync-check":
+      return parseSyncCheckResult(output, exitCode);
+    case "liveness":
+      return parseLivenessResult(output, exitCode, options?.urlsChecked ?? 0);
+    default:
+      return createSystemCheckResult(checkId, {
+        status: exitCode === 0 ? "pass" : "fail",
+        summary: exitCode === 0 ? "Check completed." : "Check failed.",
+        exitCode,
+        output,
+      });
   }
 }
 
@@ -569,6 +738,89 @@ export async function runPortalScan(input?: {
       error instanceof Error ? error.message : "Unable to run the backend portal scanner.",
     );
   }
+}
+
+export async function runSystemCheck(input: {
+  checkId: SystemCheckId;
+}): Promise<SystemCheckResult> {
+  noStore();
+
+  const command = input.checkId;
+
+  if (!(command in SYSTEM_CHECKS)) {
+    throw new Error("Unknown system check.");
+  }
+
+  let args: string[];
+  let urlsChecked = 0;
+
+  switch (command) {
+    case "doctor":
+      args = [resolveCareerOpsFile("doctor.mjs")];
+      break;
+    case "verify":
+      args = [resolveCareerOpsFile("verify-pipeline.mjs")];
+      break;
+    case "sync-check":
+      args = [resolveCareerOpsFile("cv-sync-check.mjs")];
+      break;
+    case "liveness": {
+      const opportunities = await getOpportunities();
+      const urls = [...new Set(
+        opportunities
+          .map((opportunity) => opportunity.jobUrl?.trim())
+          .filter((value): value is string => Boolean(value)),
+      )];
+      urlsChecked = urls.length;
+
+      if (!urls.length) {
+        return createSystemCheckResult("liveness", {
+          status: "warn",
+          summary: "No tracked job URLs are available yet for a liveness check.",
+          details: [
+            "Add opportunities with report URLs first so the liveness checker has something to test.",
+          ],
+          counts: { urlsChecked: 0 },
+          output: "No URLs available from tracked opportunities.",
+          exitCode: 0,
+        });
+      }
+
+      args = [resolveCareerOpsFile("check-liveness.mjs"), ...urls];
+      break;
+    }
+    default:
+      throw new Error("Unknown system check.");
+  }
+
+  let stdout = "";
+  let stderr = "";
+  let exitCode = 0;
+
+  try {
+    const result = await execFileAsync("node", args, {
+      cwd: getCareerOpsPath(),
+      maxBuffer: 1024 * 1024 * 10,
+    });
+    stdout = result.stdout;
+    stderr = result.stderr;
+  } catch (error) {
+    if (typeof error === "object" && error !== null) {
+      const executionError = error as {
+        code?: number | string;
+        stderr?: string;
+        stdout?: string;
+      };
+      stdout = executionError.stdout ?? "";
+      stderr = executionError.stderr ?? "";
+      exitCode = typeof executionError.code === "number" ? executionError.code : 1;
+    } else {
+      throw new Error("Unable to execute the backend system check.");
+    }
+  }
+
+  const output = normalizeCommandOutput(stdout, stderr);
+  return parseSystemCheckResult(command, output, exitCode, { urlsChecked });
 }
 
 function sanitizeResumeSourceId(value: string) {

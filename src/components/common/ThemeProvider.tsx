@@ -10,21 +10,29 @@ const ThemeContext = createContext<{
 }>({ theme: "light", setTheme: () => {} });
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>("light");
+  const [theme, setThemeState] = useState<Theme>(() => {
+    if (typeof window === "undefined") {
+      return "light";
+    }
+
+    const stored = localStorage.getItem("career-ops-theme");
+    return stored === "light" || stored === "dark" || stored === "system"
+      ? stored
+      : "light";
+  });
 
   useEffect(() => {
-    const stored = localStorage.getItem("career-ops-theme") as Theme | null;
-    if (stored) setThemeState(stored);
-  }, []);
+    if (theme === "system") {
+      document.documentElement.removeAttribute("data-theme");
+      return;
+    }
+
+    document.documentElement.setAttribute("data-theme", theme);
+  }, [theme]);
 
   function setTheme(next: Theme) {
     setThemeState(next);
     localStorage.setItem("career-ops-theme", next);
-    if (next === "system") {
-      document.documentElement.removeAttribute("data-theme");
-    } else {
-      document.documentElement.setAttribute("data-theme", next);
-    }
   }
 
   return (
