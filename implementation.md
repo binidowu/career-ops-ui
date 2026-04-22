@@ -130,6 +130,7 @@ The backend currently contains four broad classes of capability:
 - Added a dedicated interview prep route for each tracked role so prep is no longer buried inside the raw evaluation report.
 - Added browser editing for the backend interview story bank and surfaced existing `interview-prep/*.md` reports when they already exist.
 - Added a backend interview intel generator script and a frontend trigger so users can generate a fresh `interview-prep/*.md` brief directly from the browser.
+- Upgraded the interview intel generator so browser-triggered drafts now pull from the evaluation report, `cv.md`, `config/profile.yml`, and the story bank instead of emitting a thin placeholder-style summary.
 
 ## Recommended Next Parity Queue
 

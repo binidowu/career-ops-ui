@@ -61,6 +61,41 @@ function getNextVariant(current: ResumeDraftVariant): ResumeDraftVariant {
   return "balanced";
 }
 
+/* ── Override persistence helpers ── */
+
+const OVERRIDES_PREFIX = "resume-overrides-";
+
+interface StoredOverrides {
+  headlineOverride: string;
+  summaryOverride: string;
+  expBulletOverrides: Record<number, string[]>;
+}
+
+function loadStoredOverrides(opportunityId: string): StoredOverrides {
+  if (typeof window === "undefined") {
+    return { headlineOverride: "", summaryOverride: "", expBulletOverrides: {} };
+  }
+  try {
+    const raw = localStorage.getItem(`${OVERRIDES_PREFIX}${opportunityId}`);
+    if (!raw) return { headlineOverride: "", summaryOverride: "", expBulletOverrides: {} };
+    return JSON.parse(raw) as StoredOverrides;
+  } catch {
+    return { headlineOverride: "", summaryOverride: "", expBulletOverrides: {} };
+  }
+}
+
+function saveStoredOverrides(opportunityId: string, overrides: StoredOverrides) {
+  try {
+    localStorage.setItem(`${OVERRIDES_PREFIX}${opportunityId}`, JSON.stringify(overrides));
+  } catch { /* quota errors are non-fatal */ }
+}
+
+function clearStoredOverrides(opportunityId: string) {
+  try {
+    localStorage.removeItem(`${OVERRIDES_PREFIX}${opportunityId}`);
+  } catch { /* ignore */ }
+}
+
 function bulletMatches(text: string, keywords: string[]): boolean {
   if (!keywords.length) return false;
   const lower = text.toLowerCase();
@@ -117,8 +152,12 @@ export default function ResumeStudio({
   const [debouncedTone, setDebouncedTone] = useState(50);
   const toneDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [variant, setVariant] = useState<ResumeDraftVariant>("balanced");
-  const [headlineOverride, setHeadlineOverride] = useState("");
-  const [summaryOverride, setSummaryOverride] = useState("");
+  const [headlineOverride, setHeadlineOverride] = useState(() =>
+    initialOpportunity ? loadStoredOverrides(initialOpportunity.id).headlineOverride : "",
+  );
+  const [summaryOverride, setSummaryOverride] = useState(() =>
+    initialOpportunity ? loadStoredOverrides(initialOpportunity.id).summaryOverride : "",
+  );
   const [loadingId, setLoadingId] = useState<string | null>(null);
   const [draftLoading, setDraftLoading] = useState(false);
   const [draft, setDraft] = useState<ResumeDraft | null>(null);
@@ -135,7 +174,10 @@ export default function ResumeStudio({
   /* Inline editing state */
   const [editing, setEditing] = useState<string | null>(null);
   const [editBuffer, setEditBuffer] = useState("");
-  const [expBulletOverrides, setExpBulletOverrides] = useState<Record<number, string[]>>({});
+  const [expBulletOverrides, setExpBulletOverrides] = useState<Record<number, string[]>>(() =>
+    initialOpportunity ? loadStoredOverrides(initialOpportunity.id).expBulletOverrides : {},
+  );
+  const [lastGeneratedSourceId, setLastGeneratedSourceId] = useState<string | null>(null);
   const editHandleRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
 
   async function handleSelectOpportunity(id: string) {
@@ -152,11 +194,13 @@ export default function ResumeStudio({
         opportunity: Opportunity;
       };
 
+      const stored = loadStoredOverrides(payload.opportunity.id);
       setVariant("balanced");
-      setHeadlineOverride("");
-      setSummaryOverride("");
-      setExpBulletOverrides({});
+      setHeadlineOverride(stored.headlineOverride);
+      setSummaryOverride(stored.summaryOverride);
+      setExpBulletOverrides(stored.expBulletOverrides);
       setEditing(null);
+      setLastGeneratedSourceId(null);
       setSelectedOpportunity(payload.opportunity);
       setSelectedEvaluation(payload.evaluation);
     } catch (error) {
@@ -173,6 +217,7 @@ export default function ResumeStudio({
 
   function handleReset() {
     if (toneDebounceRef.current) clearTimeout(toneDebounceRef.current);
+    if (selectedOpportunity) clearStoredOverrides(selectedOpportunity.id);
     setSelectedResumeSourceId(getDefaultResumeSourceId(profile));
     setSelectedKeywords(draft?.focusKeywords ?? []);
     setTone(50);
@@ -188,9 +233,6 @@ export default function ResumeStudio({
   function handleRegenerate() {
     const nextVariant = getNextVariant(variant);
     manualRefreshPendingRef.current = true;
-    setHeadlineOverride("");
-    setSummaryOverride("");
-    setExpBulletOverrides({});
     setEditing(null);
     setVariant(nextVariant);
     setDraftRefreshKey((current) => current + 1);
@@ -237,6 +279,7 @@ export default function ResumeStudio({
 
         setDraft(data.draft);
         setDraftResumeSource(data.resumeSource ?? null);
+        setLastGeneratedSourceId(selectedResumeSourceId || null);
         setSelectedKeywords(data.draft.focusKeywords);
         setLastGeneratedAt(
           new Date().toLocaleTimeString([], {
@@ -250,7 +293,7 @@ export default function ResumeStudio({
           manualRefreshPendingRef.current = false;
           notify({
             title: "Draft regenerated",
-            description: `Fetched a fresh ${data.draft.variantLabel.toLowerCase()} draft${data.resumeSource?.label ? ` from ${data.resumeSource.label}` : ""}. Manual headline, summary, and bullet edits were reset.`,
+            description: `Fresh ${data.draft.variantLabel.toLowerCase()} draft${data.resumeSource?.label ? ` from ${data.resumeSource.label}` : ""}. Your inline edits are preserved — use Reset Baseline to clear them.`,
             dismissAfter: 4000,
           });
         }
@@ -298,14 +341,32 @@ export default function ResumeStudio({
 
   function saveEdit(key: string) {
     const text = editBuffer.trim();
+    if (!selectedOpportunity) { closeEditor(key); return; }
+
     if (key === "summary") {
       setSummaryOverride(text);
+      saveStoredOverrides(selectedOpportunity.id, {
+        headlineOverride,
+        summaryOverride: text,
+        expBulletOverrides,
+      });
     } else if (key === "headline") {
       setHeadlineOverride(text);
+      saveStoredOverrides(selectedOpportunity.id, {
+        headlineOverride: text,
+        summaryOverride,
+        expBulletOverrides,
+      });
     } else if (key.startsWith("experience-")) {
       const idx = parseInt(key.replace("experience-", ""), 10);
       if (!Number.isNaN(idx)) {
-        setExpBulletOverrides((prev) => ({ ...prev, [idx]: parseBulletsFromText(text) }));
+        const next = { ...expBulletOverrides, [idx]: parseBulletsFromText(text) };
+        setExpBulletOverrides(next);
+        saveStoredOverrides(selectedOpportunity.id, {
+          headlineOverride,
+          summaryOverride,
+          expBulletOverrides: next,
+        });
       }
     }
     closeEditor(key);

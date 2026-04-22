@@ -39,6 +39,11 @@ export const NAV_ITEMS: NavItem[] = [
     description: "Tailor and export resumes",
   },
   {
+    href: "/apply",
+    label: "Apply",
+    description: "Apply pipeline, cover letters, and outreach drafts",
+  },
+  {
     href: "/scans",
     label: "Scans",
     description: "Queue pasted links and run backend scanners",
@@ -80,6 +85,14 @@ export const COMMAND_ITEMS: CommandItem[] = [
     description: "Go straight to tailoring and PDF export",
     href: "/resumes",
     keywords: ["resume", "tailor", "pdf"],
+  },
+  {
+    id: "action-apply",
+    group: "Actions",
+    label: "Open Apply Pipeline",
+    description: "Draft cover letters, write outreach, and track submissions",
+    href: "/apply",
+    keywords: ["apply", "cover letter", "outreach", "submit", "application"],
   },
   {
     id: "action-scan",
