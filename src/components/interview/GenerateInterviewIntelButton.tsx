@@ -64,7 +64,13 @@ export default function GenerateInterviewIntelButton({
       onClick={() => void handleGenerate()}
       type="button"
     >
-      {loading ? "Generating…" : "Generate Fresh Intel"}
+      <span aria-hidden="true" className={styles.mark}>
+        ↻
+      </span>
+      <span className={styles.copy}>
+        <span className={styles.label}>{loading ? "Generating intel" : "Generate fresh intel"}</span>
+        <span className={styles.meta}>Report + story bank</span>
+      </span>
     </button>
   );
 }
