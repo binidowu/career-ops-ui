@@ -175,6 +175,11 @@ export default function CommandPalette({
         <label className={styles.search}>
           <span className="visually-hidden">Search commands</span>
           <input
+            aria-activedescendant={
+              visibleItems.length > 0 ? `command-item-${visibleItems[activeIndex]?.id}` : undefined
+            }
+            aria-controls="command-palette-results"
+            aria-expanded={visibleGroups.length > 0}
             onChange={(event) => {
               setQuery(event.target.value);
               setActiveIndex(0);
@@ -182,12 +187,13 @@ export default function CommandPalette({
             onKeyDown={handleInputKeyDown}
             placeholder="Search pages, companies, or next actions"
             ref={inputRef}
+            role="combobox"
             type="text"
             value={query}
           />
         </label>
 
-        <div className={styles.results}>
+        <div className={styles.results} id="command-palette-results" role="listbox">
           {visibleGroups.length ? (
             visibleGroups.map((entry) => (
               <section className={styles.group} key={entry.group}>
@@ -201,10 +207,13 @@ export default function CommandPalette({
 
                     return (
                       <button
+                        aria-selected={index === activeIndex}
                         className={styles.item}
                         data-active={index === activeIndex}
+                        id={`command-item-${item.id}`}
                         key={item.id}
                         onClick={() => selectItem(index)}
+                        role="option"
                         type="button"
                       >
                         <span className={styles.itemLabel}>

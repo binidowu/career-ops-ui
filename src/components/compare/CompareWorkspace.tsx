@@ -269,7 +269,7 @@ function getPrimaryWinnerLabel(badges: string[]): WinnerLabel {
   return "Candidate";
 }
 
-function formatCurrencyLead(entry: CompareEntry | null) {
+function formatCurrencyLead(entry: CompareEntry | null | undefined) {
   if (!entry?.opportunity.compensation) {
     return "No clear comp signal";
   }

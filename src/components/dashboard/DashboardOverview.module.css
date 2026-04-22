@@ -28,6 +28,132 @@
   text-transform: uppercase;
 }
 
+.fieldLabel {
+  color: var(--color-text-tertiary);
+  font-size: var(--text-xs);
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.inputHint {
+  font-size: var(--text-xs);
+  color: var(--color-text-tertiary);
+  max-width: none;
+}
+
+.inputHint code {
+  font-family: var(--font-mono);
+}
+
+/* INTAKE */
+
+.intakeSection {
+  display: grid;
+  gap: var(--space-xl);
+}
+
+.intakeCard {
+  display: grid;
+  gap: var(--space-xl);
+  padding: var(--space-xl);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background-color: var(--color-surface);
+}
+
+.intakeHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-md);
+}
+
+.intakeTitle {
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-tight);
+}
+
+.intakeGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-xl);
+}
+
+.intakePanel {
+  display: grid;
+  gap: var(--space-md);
+}
+
+.intakeTextarea,
+.intakeInput {
+  width: 100%;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  font-size: var(--text-sm);
+  transition: border-color var(--duration-fast) var(--ease-out);
+}
+
+.intakeTextarea {
+  min-height: 10rem;
+  padding: var(--space-md);
+  resize: vertical;
+  line-height: var(--leading-relaxed);
+}
+
+.intakeInput {
+  min-height: 2.75rem;
+  padding: 0 var(--space-md);
+}
+
+.intakeTextarea:focus-visible,
+.intakeInput:focus-visible {
+  outline: none;
+  border-color: var(--color-line-strong);
+}
+
+.intakeActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  flex-wrap: wrap;
+}
+
+.scanResult {
+  display: grid;
+  gap: var(--space-sm);
+}
+
+.scanStats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm) var(--space-lg);
+  font-size: var(--text-xs);
+  color: var(--color-text-secondary);
+}
+
+.scanOutput {
+  max-height: 14rem;
+  overflow: auto;
+  padding: var(--space-md);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background-color: var(--color-bg);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.emptyInline {
+  display: grid;
+  gap: var(--space-xs);
+  padding: var(--space-lg) var(--space-xl);
+  color: var(--color-text-secondary);
+}
+
 /* TOP ROW — lead card + right column */
 
 .topRow {
@@ -222,14 +348,18 @@
 
 .systemIcon[data-status="ok"] {
   background-color: var(--color-success);
+  /* circle — no shape change needed, paired with text "Active"/"Stable" */
 }
 
 .systemIcon[data-status="active"] {
   background-color: var(--color-accent-strong);
+  border-radius: 2px; /* square distinguishes from circle */
 }
 
 .systemIcon[data-status="warn"] {
   background-color: var(--color-warning);
+  border-radius: 1px;
+  transform: rotate(45deg); /* diamond distinguishes from both */
 }
 
 .systemLabel {
@@ -349,12 +479,17 @@
 .queueRoleCell {
   display: grid;
   gap: 2px;
+  min-width: 0;
 }
 
 .queueRoleCell strong {
   font-size: var(--text-sm);
   font-weight: var(--weight-semibold);
   color: var(--color-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
 }
 
 .queueRoleCell span {
@@ -470,6 +605,7 @@
 }
 
 @media (max-width: 72rem) {
+  .intakeGrid,
   .topRow {
     grid-template-columns: 1fr;
   }
@@ -483,6 +619,10 @@
 @media (max-width: 56rem) {
   .leadInner {
     grid-template-columns: 1fr;
+  }
+
+  .intakeHead {
+    flex-direction: column;
   }
 
   .emptyState {

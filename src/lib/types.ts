@@ -112,6 +112,37 @@ export interface EvaluationSection {
   body: string;
 }
 
+export interface ResumeSource {
+  id: string;
+  label: string;
+  path: string;
+  default?: boolean;
+  targetRoles: string[];
+}
+
+export interface PipelineInboxItem {
+  url: string;
+  companyHint: string | null;
+  roleHint: string | null;
+  raw: string;
+  state: "pending" | "processed" | "error";
+  reportNumber: string | null;
+  score: string | null;
+}
+
+export interface ScanRunResult {
+  dryRun: boolean;
+  summary: {
+    companiesScanned: number | null;
+    duplicatesSkipped: number | null;
+    errorsCount: number;
+    filteredRemoved: number | null;
+    newOffersAdded: number | null;
+    totalJobsFound: number | null;
+  };
+  output: string;
+}
+
 /** Full evaluation report for an opportunity */
 export interface Evaluation {
   /** The opportunity this evaluation belongs to */
@@ -223,6 +254,7 @@ export interface UserProfile {
     visaStatus?: string;
     onsiteAvailability?: string;
   };
+  resumeSources?: ResumeSource[];
 }
 
 /** Dashboard statistics */

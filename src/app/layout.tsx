@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Literata, Albert_Sans, JetBrains_Mono } from "next/font/google";
 
 import ShellClient from "@/components/shell/ShellClient";
+import { ThemeProvider } from "@/components/common/ThemeProvider";
 import { getCommandPaletteOpportunities } from "@/lib/api/career-ops";
 import { buildCommandItems } from "@/components/shell/shell-data";
 
@@ -53,8 +54,18 @@ export default async function RootLayout({
 
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        {/* Set theme before first paint to avoid flash */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var t=localStorage.getItem('career-ops-theme')||'light';if(t!=='system')document.documentElement.setAttribute('data-theme',t);}catch(e){}})();`,
+          }}
+        />
+      </head>
       <body className={`${literata.variable} ${albertSans.variable} ${jetbrainsMono.variable}`}>
-        <ShellClient commandItems={commandItems}>{children}</ShellClient>
+        <ThemeProvider>
+          <ShellClient commandItems={commandItems}>{children}</ShellClient>
+        </ThemeProvider>
       </body>
     </html>
   );

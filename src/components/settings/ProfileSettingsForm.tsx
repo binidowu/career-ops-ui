@@ -4,7 +4,8 @@ import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 
 import { useToast } from "@/components/common/ToastContext";
-import type { UserProfile } from "@/lib/types";
+import { useTheme } from "@/components/common/ThemeProvider";
+import type { ResumeSource, UserProfile } from "@/lib/types";
 
 import styles from "./ProfileSettingsForm.module.css";
 
@@ -13,12 +14,74 @@ interface ProfileSettingsFormProps {
   initialProfile: UserProfile;
 }
 
+interface FormState {
+  city: string;
+  country: string;
+  currency: string;
+  email: string;
+  exitStory: string;
+  fullName: string;
+  headline: string;
+  location: string;
+  minimum: string;
+  primaryRoles: string;
+  resumeSources: ResumeSource[];
+  superpowers: string;
+  targetRange: string;
+  timezone: string;
+}
+
 function listToLine(values: string[]) {
   return values.join(", ");
 }
 
 function lineToList(value: string) {
-  return value.split(/,|\n/).map((e) => e.trim()).filter(Boolean);
+  return value
+    .split(/,|\n/)
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+}
+
+function cloneResumeSources(sources: ResumeSource[]) {
+  return sources.map((source) => ({
+    ...source,
+    targetRoles: [...source.targetRoles],
+  }));
+}
+
+function createFormState(profile: UserProfile): FormState {
+  return {
+    fullName: profile.candidate.fullName,
+    email: profile.candidate.email,
+    location: profile.candidate.location,
+    headline: profile.narrative.headline,
+    exitStory: profile.narrative.exitStory,
+    primaryRoles: listToLine(profile.targetRoles.primary),
+    superpowers: listToLine(profile.narrative.superpowers),
+    targetRange: profile.compensation.targetRange,
+    currency: profile.compensation.currency,
+    minimum: profile.compensation.minimum,
+    country: profile.location.country,
+    city: profile.location.city,
+    timezone: profile.location.timezone,
+    resumeSources: cloneResumeSources(profile.resumeSources ?? []),
+  };
+}
+
+function ensureDefaultResumeSource(sources: ResumeSource[]) {
+  if (!sources.length) {
+    return [];
+  }
+
+  const alreadyDefault = sources.some((source) => source.default);
+  if (alreadyDefault) {
+    return sources;
+  }
+
+  return sources.map((source, index) => ({
+    ...source,
+    default: index === 0,
+  }));
 }
 
 export default function ProfileSettingsForm({
@@ -27,55 +90,141 @@ export default function ProfileSettingsForm({
 }: ProfileSettingsFormProps) {
   const router = useRouter();
   const notify = useToast();
+  const { theme, setTheme } = useTheme();
   const [saving, setSaving] = useState(false);
-
-  const [form, setForm] = useState(() => ({
-    fullName: initialProfile.candidate.fullName,
-    email: initialProfile.candidate.email,
-    location: initialProfile.candidate.location,
-    headline: initialProfile.narrative.headline,
-    exitStory: initialProfile.narrative.exitStory,
-    primaryRoles: listToLine(initialProfile.targetRoles.primary),
-    superpowers: listToLine(initialProfile.narrative.superpowers),
-    targetRange: initialProfile.compensation.targetRange,
-    currency: initialProfile.compensation.currency,
-    minimum: initialProfile.compensation.minimum,
-    country: initialProfile.location.country,
-    city: initialProfile.location.city,
-    timezone: initialProfile.location.timezone,
-  }));
-
+  const [uploadingResume, setUploadingResume] = useState(false);
+  const [form, setForm] = useState<FormState>(() => createFormState(initialProfile));
   const [weights, setWeights] = useState({
     careerGrowth: 80,
     techStack: 95,
     workLife: 60,
   });
+  const [uploadState, setUploadState] = useState({
+    file: null as File | null,
+    label: "",
+    makeDefault: (initialProfile.resumeSources?.length ?? 0) === 0,
+    targetRoles: "",
+  });
 
-  const initial = useMemo(() => ({
-    fullName: initialProfile.candidate.fullName,
-    email: initialProfile.candidate.email,
-    location: initialProfile.candidate.location,
-    headline: initialProfile.narrative.headline,
-    exitStory: initialProfile.narrative.exitStory,
-    primaryRoles: listToLine(initialProfile.targetRoles.primary),
-    superpowers: listToLine(initialProfile.narrative.superpowers),
-    targetRange: initialProfile.compensation.targetRange,
-    currency: initialProfile.compensation.currency,
-    minimum: initialProfile.compensation.minimum,
-    country: initialProfile.location.country,
-    city: initialProfile.location.city,
-    timezone: initialProfile.location.timezone,
-  }), [initialProfile]);
-
+  const initial = useMemo(() => createFormState(initialProfile), [initialProfile]);
   const dirty = JSON.stringify(form) !== JSON.stringify(initial);
 
-  function field(key: keyof typeof form) {
+  function field(key: Exclude<keyof FormState, "resumeSources">) {
     return (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
-      setForm((c) => ({ ...c, [key]: e.target.value }));
+      setForm((current) => ({ ...current, [key]: e.target.value }));
+  }
+
+  function updateResumeSource(index: number, next: Partial<ResumeSource>) {
+    setForm((current) => ({
+      ...current,
+      resumeSources: current.resumeSources.map((source, sourceIndex) =>
+        sourceIndex === index ? { ...source, ...next } : source,
+      ),
+    }));
+  }
+
+  function setDefaultResumeSource(index: number) {
+    setForm((current) => ({
+      ...current,
+      resumeSources: current.resumeSources.map((source, sourceIndex) => ({
+        ...source,
+        default: sourceIndex === index,
+      })),
+    }));
+  }
+
+  function removeResumeSource(index: number) {
+    setForm((current) => {
+      const resumeSources = current.resumeSources.filter((_, sourceIndex) => sourceIndex !== index);
+      return {
+        ...current,
+        resumeSources: ensureDefaultResumeSource(resumeSources),
+      };
+    });
+  }
+
+  async function handleUploadResume() {
+    if (!uploadState.file) {
+      notify({
+        title: "Choose a resume file first",
+        description: "Upload a markdown or plain-text resume source to register it here.",
+        tone: "error",
+        dismissAfter: 5000,
+      });
+      return;
+    }
+
+    setUploadingResume(true);
+
+    try {
+      const payload = new FormData();
+      payload.append("file", uploadState.file);
+      payload.append("label", uploadState.label.trim());
+      payload.append("targetRoles", uploadState.targetRoles.trim());
+      payload.append("makeDefault", uploadState.makeDefault ? "true" : "false");
+
+      const response = await fetch("/api/profile/resume-sources", {
+        method: "POST",
+        body: payload,
+      });
+      const data = (await response.json()) as {
+        error?: string;
+        source?: ResumeSource;
+      };
+
+      if (!response.ok || !data.source) {
+        throw new Error(data.error ?? "Unable to upload the resume source.");
+      }
+      const uploadedSource = data.source;
+
+      setForm((current) => {
+        const resumeSources = current.resumeSources.map((source) => ({
+          ...source,
+          default: uploadedSource.default ? false : source.default,
+        }));
+        const nextSource: ResumeSource = {
+          ...uploadedSource,
+          targetRoles: uploadedSource.targetRoles ?? [],
+          default: Boolean(uploadedSource.default) || resumeSources.length === 0,
+        };
+
+        return {
+          ...current,
+          resumeSources: ensureDefaultResumeSource([
+            ...resumeSources,
+            nextSource,
+          ]),
+        };
+      });
+
+      setUploadState({
+        file: null,
+        label: "",
+        makeDefault: false,
+        targetRoles: "",
+      });
+
+      notify({
+        title: "Resume source uploaded",
+        description: "It has been added to the form. Save configuration to persist it in profile.yml.",
+        dismissAfter: 5000,
+      });
+    } catch (error) {
+      notify({
+        title: "Upload failed",
+        description:
+          error instanceof Error ? error.message : "Unable to upload the resume source.",
+        tone: "error",
+        dismissAfter: null,
+      });
+    } finally {
+      setUploadingResume(false);
+    }
   }
 
   async function handleSave() {
     setSaving(true);
+
     const nextProfile: UserProfile = {
       ...initialProfile,
       candidate: {
@@ -106,6 +255,17 @@ export default function ProfileSettingsForm({
         city: form.city.trim(),
         timezone: form.timezone.trim(),
       },
+      resumeSources: ensureDefaultResumeSource(
+        form.resumeSources.map((source, index) => ({
+          id: source.id.trim() || `resume-${index + 1}`,
+          label: source.label.trim() || source.id.trim() || `Resume ${index + 1}`,
+          path: source.path.trim(),
+          default: Boolean(source.default),
+          targetRoles: source.targetRoles
+            .map((role) => role.trim())
+            .filter(Boolean),
+        })),
+      ).filter((source) => source.path),
     };
 
     try {
@@ -115,7 +275,10 @@ export default function ProfileSettingsForm({
         body: JSON.stringify({ profile: nextProfile }),
       });
       const data = (await response.json()) as { error?: string };
-      if (!response.ok) throw new Error(data.error ?? "Unable to save profile.");
+      if (!response.ok) {
+        throw new Error(data.error ?? "Unable to save profile.");
+      }
+
       notify({
         title: hasExistingProfile ? "Configuration saved" : "Configuration created",
         description: "Your Career-Ops profile has been updated.",
@@ -134,9 +297,44 @@ export default function ProfileSettingsForm({
     }
   }
 
+  const themeOptions: { value: "light" | "dark" | "system"; label: string }[] = [
+    { value: "light", label: "Light" },
+    { value: "dark", label: "Dark" },
+    { value: "system", label: "System" },
+  ];
+
   return (
     <div className={styles.form}>
-      {/* CAREER POSITIONING */}
+      <section className={styles.section}>
+        <h2 className={styles.sectionHeading}>Appearance</h2>
+        <div className={styles.sectionBody}>
+          <div className={styles.fieldGroup}>
+            <div className={styles.field}>
+              <span className={styles.fieldLabel}>Theme</span>
+              <div className={styles.themeSegment} role="group" aria-label="Theme preference">
+                {themeOptions.map(({ value, label }) => (
+                  <button
+                    key={value}
+                    className={styles.themeOption}
+                    data-active={theme === value}
+                    onClick={() => setTheme(value)}
+                    type="button"
+                    aria-pressed={theme === value}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <p className={styles.themeHint}>
+                Light is the default. System follows your OS preference.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <div className={styles.divider} />
+
       <section className={styles.section}>
         <h2 className={styles.sectionHeading}>Career Positioning</h2>
         <div className={styles.sectionBody}>
@@ -178,7 +376,6 @@ export default function ProfileSettingsForm({
 
       <div className={styles.divider} />
 
-      {/* NARRATIVE */}
       <section className={styles.section}>
         <h2 className={styles.sectionHeading}>Narrative &amp; Identity</h2>
         <div className={styles.sectionBody}>
@@ -188,7 +385,7 @@ export default function ProfileSettingsForm({
               <input
                 className={styles.control}
                 onChange={field("headline")}
-                placeholder="Senior Technical Lead &amp; Systems Architect"
+                placeholder="Senior Technical Lead & Systems Architect"
                 value={form.headline}
               />
             </label>
@@ -221,7 +418,165 @@ export default function ProfileSettingsForm({
 
       <div className={styles.divider} />
 
-      {/* COMPENSATION */}
+      <section className={styles.section}>
+        <h2 className={styles.sectionHeading}>Resume Sources</h2>
+        <div className={styles.sectionBody}>
+          <div className={styles.resumeUploadPanel}>
+            <div className={styles.panelIntro}>
+              <p className={styles.fieldLabel}>Upload new source</p>
+              <p className={styles.fieldHint}>
+                Upload markdown or plain-text resume files. PDF and DOCX ingestion still needs backend parsing work.
+              </p>
+            </div>
+
+            <div className={styles.resumeUploadFields}>
+              <label className={styles.field}>
+                <span className={styles.fieldLabel}>Resume file</span>
+                <input
+                  accept=".md,.txt,text/markdown,text/plain"
+                  className={styles.fileInput}
+                  onChange={(event) =>
+                    setUploadState((current) => ({
+                      ...current,
+                      file: event.target.files?.[0] ?? null,
+                    }))
+                  }
+                  type="file"
+                />
+              </label>
+              <div className={styles.twoCol}>
+                <label className={styles.field}>
+                  <span className={styles.fieldLabel}>Display label</span>
+                  <input
+                    className={styles.control}
+                    onChange={(event) =>
+                      setUploadState((current) => ({
+                        ...current,
+                        label: event.target.value,
+                      }))
+                    }
+                    placeholder="Frontend master resume"
+                    value={uploadState.label}
+                  />
+                </label>
+                <label className={styles.field}>
+                  <span className={styles.fieldLabel}>Target roles</span>
+                  <input
+                    className={styles.control}
+                    onChange={(event) =>
+                      setUploadState((current) => ({
+                        ...current,
+                        targetRoles: event.target.value,
+                      }))
+                    }
+                    placeholder="Frontend Engineer, Product Engineer"
+                    value={uploadState.targetRoles}
+                  />
+                </label>
+              </div>
+              <label className={styles.checkboxRow}>
+                <input
+                  checked={uploadState.makeDefault}
+                  onChange={(event) =>
+                    setUploadState((current) => ({
+                      ...current,
+                      makeDefault: event.target.checked,
+                    }))
+                  }
+                  type="checkbox"
+                />
+                <span>Make this the default resume source</span>
+              </label>
+              <button
+                className={styles.uploadButton}
+                disabled={uploadingResume}
+                onClick={() => void handleUploadResume()}
+                type="button"
+              >
+                {uploadingResume ? "Uploading…" : "Upload Resume Source"}
+              </button>
+            </div>
+          </div>
+
+          <div className={styles.resumeSourceList}>
+            {form.resumeSources.length ? (
+              form.resumeSources.map((source, index) => (
+                <article className={styles.resumeSourceCard} key={`${source.id}-${source.path}`}>
+                  <div className={styles.resumeSourceHead}>
+                    <div>
+                      <p className={styles.fieldLabel}>Resume source {index + 1}</p>
+                      <p className={styles.resumeSourcePath}>{source.path}</p>
+                    </div>
+                    <div className={styles.resumeSourceActions}>
+                      <button
+                        className={styles.pillButton}
+                        data-active={source.default}
+                        onClick={() => setDefaultResumeSource(index)}
+                        type="button"
+                      >
+                        {source.default ? "Default" : "Set default"}
+                      </button>
+                      <button
+                        className={styles.removeButton}
+                        onClick={() => removeResumeSource(index)}
+                        type="button"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className={styles.twoCol}>
+                    <label className={styles.field}>
+                      <span className={styles.fieldLabel}>ID</span>
+                      <input
+                        className={styles.control}
+                        onChange={(event) => updateResumeSource(index, { id: event.target.value })}
+                        value={source.id}
+                      />
+                    </label>
+                    <label className={styles.field}>
+                      <span className={styles.fieldLabel}>Label</span>
+                      <input
+                        className={styles.control}
+                        onChange={(event) => updateResumeSource(index, { label: event.target.value })}
+                        value={source.label}
+                      />
+                    </label>
+                  </div>
+
+                  <label className={styles.field}>
+                    <span className={styles.fieldLabel}>Target roles</span>
+                    <textarea
+                      className={styles.textarea}
+                      onChange={(event) =>
+                        updateResumeSource(index, {
+                          targetRoles: lineToList(event.target.value),
+                        })
+                      }
+                      rows={2}
+                      value={listToLine(source.targetRoles)}
+                    />
+                    <span className={styles.fieldHint}>
+                      Optional. Helps you remember which base resume to use for which family of roles.
+                    </span>
+                  </label>
+                </article>
+              ))
+            ) : (
+              <div className={styles.emptyResumeState}>
+                <p className={styles.fieldLabel}>No uploaded resume sources yet</p>
+                <p className={styles.fieldHint}>
+                  If you leave this empty, Resume Studio will still fall back to the root-level <code>cv.md</code>.
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      </section>
+
+      <div className={styles.divider} />
+
       <section className={styles.section}>
         <h2 className={styles.sectionHeading}>Compensation Targets</h2>
         <div className={styles.sectionBody}>
@@ -259,7 +614,6 @@ export default function ProfileSettingsForm({
 
       <div className={styles.divider} />
 
-      {/* SCORING DIMENSION WEIGHTS */}
       <section className={styles.section}>
         <h2 className={styles.sectionHeading}>Scoring Dimension Weights</h2>
         <div className={styles.sectionBody}>
@@ -271,7 +625,7 @@ export default function ProfileSettingsForm({
                 className={styles.slider}
                 max={100}
                 min={0}
-                onChange={(e) => setWeights((w) => ({ ...w, careerGrowth: Number(e.target.value) }))}
+                onChange={(e) => setWeights((current) => ({ ...current, careerGrowth: Number(e.target.value) }))}
                 type="range"
                 value={weights.careerGrowth}
               />
@@ -283,7 +637,7 @@ export default function ProfileSettingsForm({
                 className={styles.slider}
                 max={100}
                 min={0}
-                onChange={(e) => setWeights((w) => ({ ...w, techStack: Number(e.target.value) }))}
+                onChange={(e) => setWeights((current) => ({ ...current, techStack: Number(e.target.value) }))}
                 type="range"
                 value={weights.techStack}
               />
@@ -295,7 +649,7 @@ export default function ProfileSettingsForm({
                 className={styles.slider}
                 max={100}
                 min={0}
-                onChange={(e) => setWeights((w) => ({ ...w, workLife: Number(e.target.value) }))}
+                onChange={(e) => setWeights((current) => ({ ...current, workLife: Number(e.target.value) }))}
                 type="range"
                 value={weights.workLife}
               />
@@ -304,12 +658,11 @@ export default function ProfileSettingsForm({
         </div>
       </section>
 
-      {/* FOOTER */}
       <div className={styles.footer}>
         <button
           className={styles.btnDiscard}
           disabled={!dirty}
-          onClick={() => setForm(initial)}
+          onClick={() => setForm(createFormState(initialProfile))}
           type="button"
         >
           Discard Changes

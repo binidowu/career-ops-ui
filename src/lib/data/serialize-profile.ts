@@ -58,6 +58,26 @@ export function serializeProfileYaml(profile: UserProfile) {
       ].join("\n")
     : null;
 
+  const resumeSources = profile.resumeSources?.length
+    ? [
+        "resume_sources:",
+        ...profile.resumeSources.map((source) =>
+          [
+            "  - id: " + quote(source.id),
+            "    label: " + quote(source.label),
+            "    path: " + quote(source.path),
+            source.default ? "    default: true" : null,
+            source.targetRoles.length
+              ? ["    target_roles:", ...source.targetRoles.map((role) => `      - ${quote(role)}`)].join("\n")
+              : null,
+          ]
+            .filter(Boolean)
+            .join("\n"),
+        ),
+        "",
+      ].join("\n")
+    : null;
+
   return [
     "# Career-Ops Profile Configuration",
     "# This file is maintained by the Career-Ops web UI.",
@@ -119,6 +139,7 @@ export function serializeProfileYaml(profile: UserProfile) {
       ? `  onsite_availability: ${quote(profile.location.onsiteAvailability)}`
       : null,
     "",
+    resumeSources,
   ]
     .filter((line): line is string => line !== null)
     .join("\n");

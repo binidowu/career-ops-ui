@@ -41,8 +41,7 @@ export const NAV_ITEMS: NavItem[] = [
   {
     href: "/scans",
     label: "Scans",
-    description: "Source watchlist coming later",
-    disabled: true,
+    description: "Queue pasted links and run backend scanners",
   },
   {
     href: "/settings",
@@ -81,6 +80,14 @@ export const COMMAND_ITEMS: CommandItem[] = [
     description: "Go straight to tailoring and PDF export",
     href: "/resumes",
     keywords: ["resume", "tailor", "pdf"],
+  },
+  {
+    id: "action-scan",
+    group: "Actions",
+    label: "Open Intake Console",
+    description: "Paste URLs, inspect the inbox, and run the backend scanner",
+    href: "/scans",
+    keywords: ["scan", "scanner", "intake", "pipeline", "queue"],
   },
 ];
 

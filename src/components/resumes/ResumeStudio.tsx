@@ -1,20 +1,18 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { startTransition, useMemo, useState } from "react";
+import { startTransition, useEffect, useMemo, useRef, useState } from "react";
 
 import { useToast } from "@/components/common/ToastContext";
-import type { ParsedCvDocument } from "@/lib/data/parse-cv";
 import {
-  buildResumeDraft,
-  getDefaultResumeKeywords,
+  type ResumeDraft,
+  type ResumeDraftVariant,
 } from "@/lib/resume-studio";
-import type { Evaluation, Opportunity, UserProfile } from "@/lib/types";
+import type { Evaluation, Opportunity, ResumeSource, UserProfile } from "@/lib/types";
 
 import styles from "./ResumeStudio.module.css";
 
 interface ResumeStudioProps {
-  cv: ParsedCvDocument | null;
   initialEvaluation: Evaluation | null;
   initialOpportunity: Opportunity | null;
   opportunities: Opportunity[];
@@ -26,31 +24,25 @@ interface ResumeStudioProps {
     profilePath: string;
     profileReady: boolean;
     reportsReady: boolean;
+    resumePath: string;
+    resumeReady: boolean;
+    resumeSourceCount: number;
+    resumeSourcesConfigured: number;
     trackerPath: string;
     trackerReady: boolean;
   };
 }
 
+const ZOOM_LEVELS = [75, 100, 125, 150] as const;
+type ZoomLevel = (typeof ZOOM_LEVELS)[number];
+
 function normalizeRoleList(opportunities: Opportunity[]) {
   return opportunities
-    .filter((opportunity) => opportunity.reportPath)
-    .sort((left, right) => {
-      const scoreDifference = (right.score ?? 0) - (left.score ?? 0);
-      if (scoreDifference !== 0) return scoreDifference;
-      return right.date.localeCompare(left.date);
+    .filter((o) => o.reportPath)
+    .sort((l, r) => {
+      const diff = (r.score ?? 0) - (l.score ?? 0);
+      return diff !== 0 ? diff : r.date.localeCompare(l.date);
     });
-}
-
-function draftFrom(
-  cv: ParsedCvDocument | null,
-  profile: UserProfile | null,
-  opportunity: Opportunity | null,
-  evaluation: Evaluation | null,
-  format: "a4" | "letter",
-  selectedKeywords: string[],
-) {
-  if (!cv || !opportunity) return null;
-  return buildResumeDraft({ cv, profile, opportunity, evaluation, format, selectedKeywords });
 }
 
 function previewId(opportunity: Opportunity | null) {
@@ -58,8 +50,50 @@ function previewId(opportunity: Opportunity | null) {
   return `RSM-${opportunity.id.slice(-3).toUpperCase()}`;
 }
 
+function getDefaultResumeSourceId(profile: UserProfile | null) {
+  const sources = profile?.resumeSources ?? [];
+  return sources.find((source) => source.default)?.id ?? sources[0]?.id ?? "";
+}
+
+function getNextVariant(current: ResumeDraftVariant): ResumeDraftVariant {
+  if (current === "balanced") return "technical";
+  if (current === "technical") return "execution";
+  return "balanced";
+}
+
+function bulletMatches(text: string, keywords: string[]): boolean {
+  if (!keywords.length) return false;
+  const lower = text.toLowerCase();
+  return keywords.some((kw) => kw && lower.includes(kw.toLowerCase()));
+}
+
+function parseBulletsFromText(text: string): string[] {
+  return text
+    .split("\n")
+    .map((line) => line.replace(/^[\s—\-•]+/, "").trim())
+    .filter(Boolean);
+}
+
+function formatBulletsAsText(bullets: string[]): string {
+  return bullets.join("\n");
+}
+
+/* Pencil SVG icon */
+function PencilIcon() {
+  return (
+    <svg viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path
+        d="M8.5 1.5L10.5 3.5L4 10H2V8L8.5 1.5Z"
+        stroke="currentColor"
+        strokeWidth="1.2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 export default function ResumeStudio({
-  cv,
   initialEvaluation,
   initialOpportunity,
   opportunities,
@@ -69,25 +103,40 @@ export default function ResumeStudio({
   const notify = useToast();
   const router = useRouter();
   const reportBacked = useMemo(() => normalizeRoleList(opportunities), [opportunities]);
+  const configuredResumeSources = profile?.resumeSources ?? [];
 
+  /* Core draft state */
   const [selectedOpportunity, setSelectedOpportunity] = useState<Opportunity | null>(initialOpportunity);
   const [selectedEvaluation, setSelectedEvaluation] = useState<Evaluation | null>(initialEvaluation);
-  const [selectedKeywords, setSelectedKeywords] = useState<string[]>(
-    initialOpportunity ? getDefaultResumeKeywords(initialOpportunity, initialEvaluation) : [],
+  const [selectedResumeSourceId, setSelectedResumeSourceId] = useState(
+    getDefaultResumeSourceId(profile),
   );
+  const [selectedKeywords, setSelectedKeywords] = useState<string[]>([]);
   const [format, setFormat] = useState<"a4" | "letter">("a4");
   const [tone, setTone] = useState(50);
+  const [debouncedTone, setDebouncedTone] = useState(50);
+  const toneDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [variant, setVariant] = useState<ResumeDraftVariant>("balanced");
+  const [headlineOverride, setHeadlineOverride] = useState("");
+  const [summaryOverride, setSummaryOverride] = useState("");
   const [loadingId, setLoadingId] = useState<string | null>(null);
+  const [draftLoading, setDraftLoading] = useState(false);
+  const [draft, setDraft] = useState<ResumeDraft | null>(null);
+  const [draftResumeSource, setDraftResumeSource] = useState<ResumeSource | null>(null);
+  const [draftRefreshKey, setDraftRefreshKey] = useState(0);
+  const [lastGeneratedAt, setLastGeneratedAt] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
+  const manualRefreshPendingRef = useRef(false);
 
-  const draft = useMemo(
-    () => draftFrom(cv, profile, selectedOpportunity, selectedEvaluation, format, selectedKeywords),
-    [cv, format, profile, selectedEvaluation, selectedKeywords, selectedOpportunity],
-  );
+  /* Canvas controls */
+  const [zoom, setZoom] = useState<ZoomLevel>(100);
+  const [matchedOnly, setMatchedOnly] = useState(false);
 
-  const allKeywords = selectedEvaluation?.keywords.length
-    ? selectedEvaluation.keywords
-    : getDefaultResumeKeywords(selectedOpportunity ?? reportBacked[0], selectedEvaluation);
+  /* Inline editing state */
+  const [editing, setEditing] = useState<string | null>(null);
+  const [editBuffer, setEditBuffer] = useState("");
+  const [expBulletOverrides, setExpBulletOverrides] = useState<Record<number, string[]>>({});
+  const editHandleRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
 
   async function handleSelectOpportunity(id: string) {
     const next = reportBacked.find((o) => o.id === id);
@@ -103,9 +152,13 @@ export default function ResumeStudio({
         opportunity: Opportunity;
       };
 
+      setVariant("balanced");
+      setHeadlineOverride("");
+      setSummaryOverride("");
+      setExpBulletOverrides({});
+      setEditing(null);
       setSelectedOpportunity(payload.opportunity);
       setSelectedEvaluation(payload.evaluation);
-      setSelectedKeywords(getDefaultResumeKeywords(payload.opportunity, payload.evaluation));
     } catch (error) {
       notify({
         title: "Could not load that role",
@@ -118,19 +171,148 @@ export default function ResumeStudio({
     }
   }
 
-  function toggleKeyword(keyword: string) {
-    setSelectedKeywords((current) =>
-      current.includes(keyword)
-        ? current.filter((k) => k !== keyword)
-        : [...current, keyword],
-    );
+  function handleReset() {
+    if (toneDebounceRef.current) clearTimeout(toneDebounceRef.current);
+    setSelectedResumeSourceId(getDefaultResumeSourceId(profile));
+    setSelectedKeywords(draft?.focusKeywords ?? []);
+    setTone(50);
+    setDebouncedTone(50);
+    setFormat("a4");
+    setVariant("balanced");
+    setHeadlineOverride("");
+    setSummaryOverride("");
+    setExpBulletOverrides({});
+    setEditing(null);
   }
 
-  function handleReset() {
-    const base = getDefaultResumeKeywords(selectedOpportunity ?? reportBacked[0], selectedEvaluation);
-    setSelectedKeywords(base);
-    setTone(50);
-    setFormat("a4");
+  function handleRegenerate() {
+    const nextVariant = getNextVariant(variant);
+    manualRefreshPendingRef.current = true;
+    setHeadlineOverride("");
+    setSummaryOverride("");
+    setExpBulletOverrides({});
+    setEditing(null);
+    setVariant(nextVariant);
+    setDraftRefreshKey((current) => current + 1);
+  }
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadDraft() {
+      if (!selectedOpportunity) {
+        setDraft(null);
+        setDraftResumeSource(null);
+        setSelectedKeywords([]);
+        return;
+      }
+
+      setDraftLoading(true);
+
+      try {
+        const response = await fetch("/api/resumes/draft", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            opportunityId: selectedOpportunity.id,
+            resumeSourceId: selectedResumeSourceId || undefined,
+            format,
+            tone: debouncedTone,
+            variant,
+          }),
+        });
+        const data = (await response.json()) as {
+          draft?: ResumeDraft;
+          error?: string;
+          resumeSource?: ResumeSource;
+        };
+
+        if (!response.ok || !data.draft) {
+          throw new Error(data.error ?? "Unable to generate the resume draft.");
+        }
+
+        if (cancelled) {
+          return;
+        }
+
+        setDraft(data.draft);
+        setDraftResumeSource(data.resumeSource ?? null);
+        setSelectedKeywords(data.draft.focusKeywords);
+        setLastGeneratedAt(
+          new Date().toLocaleTimeString([], {
+            hour: "numeric",
+            minute: "2-digit",
+            second: "2-digit",
+          }),
+        );
+
+        if (manualRefreshPendingRef.current) {
+          manualRefreshPendingRef.current = false;
+          notify({
+            title: "Draft regenerated",
+            description: `Fetched a fresh ${data.draft.variantLabel.toLowerCase()} draft${data.resumeSource?.label ? ` from ${data.resumeSource.label}` : ""}. Manual headline, summary, and bullet edits were reset.`,
+            dismissAfter: 4000,
+          });
+        }
+      } catch (error) {
+        if (cancelled) {
+          return;
+        }
+
+        manualRefreshPendingRef.current = false;
+        setDraft(null);
+        setDraftResumeSource(null);
+        setSelectedKeywords([]);
+        notify({
+          title: "Draft generation failed",
+          description:
+            error instanceof Error ? error.message : "Unable to reach the backend draft generator.",
+          tone: "error",
+          dismissAfter: null,
+        });
+      } finally {
+        if (!cancelled) {
+          setDraftLoading(false);
+        }
+      }
+    }
+
+    void loadDraft();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [debouncedTone, format, notify, selectedOpportunity, selectedResumeSourceId, variant, draftRefreshKey]);
+
+  /* Open a section for inline editing */
+  function openEditor(key: string, initialText: string) {
+    setEditing(key);
+    setEditBuffer(initialText);
+  }
+
+  function closeEditor(key: string) {
+    setEditing(null);
+    setEditBuffer("");
+    editHandleRefs.current.get(key)?.focus();
+  }
+
+  function saveEdit(key: string) {
+    const text = editBuffer.trim();
+    if (key === "summary") {
+      setSummaryOverride(text);
+    } else if (key === "headline") {
+      setHeadlineOverride(text);
+    } else if (key.startsWith("experience-")) {
+      const idx = parseInt(key.replace("experience-", ""), 10);
+      if (!Number.isNaN(idx)) {
+        setExpBulletOverrides((prev) => ({ ...prev, [idx]: parseBulletsFromText(text) }));
+      }
+    }
+    closeEditor(key);
+  }
+
+  function cancelEdit(key: string) {
+    closeEditor(key);
   }
 
   async function handleExport() {
@@ -138,10 +320,25 @@ export default function ResumeStudio({
     setExporting(true);
 
     try {
+      const expOverrides = Object.entries(expBulletOverrides).map(([i, bullets]) => ({
+        index: Number(i),
+        bullets,
+      }));
+
       const response = await fetch("/api/resumes/export", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ opportunityId: selectedOpportunity.id, format, selectedKeywords }),
+        body: JSON.stringify({
+          opportunityId: selectedOpportunity.id,
+          resumeSourceId: selectedResumeSourceId || undefined,
+          format,
+          selectedKeywords,
+          tone,
+          variant,
+          headlineOverride,
+          summaryOverride,
+          experienceOverrides: expOverrides,
+        }),
       });
 
       if (!response.ok) {
@@ -154,7 +351,10 @@ export default function ResumeStudio({
       const anchor = document.createElement("a");
       anchor.href = url;
       anchor.download = draft?.fileName ?? "career-ops-resume.pdf";
+      anchor.style.display = "none";
+      document.body.appendChild(anchor);
       anchor.click();
+      document.body.removeChild(anchor);
       URL.revokeObjectURL(url);
 
       notify({
@@ -163,11 +363,14 @@ export default function ResumeStudio({
         dismissAfter: 4000,
       });
 
-      startTransition(() => { router.refresh(); });
+      startTransition(() => {
+        router.refresh();
+      });
     } catch (error) {
       notify({
         title: "Export failed",
-        description: error instanceof Error ? error.message : "Check the export script and try again.",
+        description:
+          error instanceof Error ? error.message : "Check the export script and try again.",
         tone: "error",
         dismissAfter: null,
       });
@@ -176,14 +379,16 @@ export default function ResumeStudio({
     }
   }
 
-  if (!workspace.cvReady) {
+  if (!workspace.resumeReady) {
     return (
       <section className="empty-state">
-        <p className="section-label">CV source missing</p>
-        <h2>Resume Studio needs a root-level <code>{workspace.cvPath}</code>.</h2>
+        <p className="section-label">Resume source missing</p>
+        <h2>
+          Resume Studio needs either <code>{workspace.cvPath}</code> or an uploaded resume source.
+        </h2>
         <p>
-          Add a markdown CV to <code>{workspace.careerOpsPath}</code> and this page will turn it
-          into a role-specific draft and PDF.
+          Add a markdown CV to <code>{workspace.careerOpsPath}</code> or upload one in settings.
+          The backend draft generator will then tailor it to each job report and unlock PDF export.
         </p>
       </section>
     );
@@ -196,30 +401,38 @@ export default function ResumeStudio({
         <h2>There are no evaluated roles to tailor against yet.</h2>
         <p>
           Add tracker rows and generate at least one evaluation first. As soon as a report exists,
-          this page will show the matching keywords, preview the tailored draft, and unlock PDF export.
+          this page will show the matching keywords, preview the tailored draft, and unlock PDF
+          export.
         </p>
       </section>
     );
   }
 
+  /* Personalization suggestions from evaluation, keyed by section name */
+  const personalizationMap: Record<string, string> = {};
+  for (const item of selectedEvaluation?.personalizationItems ?? []) {
+    if (item.section && item.proposedChange) {
+      personalizationMap[item.section.toLowerCase()] = item.proposedChange;
+    }
+  }
+
   return (
     <section className={styles.studio}>
-      {/* LEFT SIDEBAR */}
+      {/* ── LEFT SIDEBAR ── */}
       <aside className={styles.controls}>
         <div className={styles.controlsShell}>
-
-          {/* ARCHETYPE — role selection */}
+          {/* TARGET ROLE */}
           <section className={styles.controlSection}>
             <div className={styles.panelHead}>
               <p className={styles.sectionLabel}>Target Role</p>
               <p className={styles.panelText}>
-                Select the evaluated role to tailor this resume against. Switching roles
-                refreshes keywords and the live preview.
+                Select the evaluated role to tailor this resume against. Switching roles refreshes
+                the backend draft and live preview.
               </p>
             </div>
             <select
               className={styles.archetypeSelect}
-              disabled={!!loadingId}
+              disabled={!!loadingId || draftLoading}
               onChange={(e) => void handleSelectOpportunity(e.target.value)}
               value={selectedOpportunity?.id ?? ""}
             >
@@ -230,6 +443,29 @@ export default function ResumeStudio({
               ))}
             </select>
           </section>
+
+          {configuredResumeSources.length > 0 && (
+            <section className={styles.controlSection}>
+              <div className={styles.panelHead}>
+                <p className={styles.sectionLabel}>Resume Source</p>
+                <p className={styles.panelText}>
+                  Choose which base resume the backend should tailor for this job description.
+                </p>
+              </div>
+              <select
+                className={styles.archetypeSelect}
+                disabled={draftLoading}
+                onChange={(e) => setSelectedResumeSourceId(e.target.value)}
+                value={selectedResumeSourceId}
+              >
+                {configuredResumeSources.map((source) => (
+                  <option key={source.id} value={source.id}>
+                    {source.label}
+                  </option>
+                ))}
+              </select>
+            </section>
+          )}
 
           {/* TONE CALIBRATION */}
           <section className={styles.controlSection}>
@@ -244,10 +480,16 @@ export default function ResumeStudio({
               <span className={styles.toneValue}>{tone}</span>
             </div>
             <input
+              aria-label="Tone calibration"
               className={styles.toneSlider}
               max={100}
               min={0}
-              onChange={(e) => setTone(Number(e.target.value))}
+              onChange={(e) => {
+                const v = Number(e.target.value);
+                setTone(v);
+                if (toneDebounceRef.current) clearTimeout(toneDebounceRef.current);
+                toneDebounceRef.current = setTimeout(() => setDebouncedTone(v), 350);
+              }}
               style={{
                 background: `linear-gradient(to right, var(--color-text) 0%, var(--color-text) ${tone}%, var(--color-border) ${tone}%, var(--color-border) 100%)`,
               }}
@@ -260,39 +502,7 @@ export default function ResumeStudio({
             </div>
           </section>
 
-          {/* LEXICON — keyword chips */}
-          <section className={styles.controlSection}>
-            <div className={styles.panelHead}>
-              <div className={styles.lexiconHeader}>
-                <p className={styles.sectionLabel}>Lexicon</p>
-                <span className={styles.lexiconCount}>
-                  {selectedKeywords.length}/{allKeywords.length}
-                </span>
-              </div>
-              <p className={styles.panelText}>
-                Toggle terms to control which role keywords get woven into the draft.
-              </p>
-            </div>
-            <div className={styles.keywordList}>
-              {allKeywords.map((keyword) => {
-                const active = selectedKeywords.includes(keyword);
-                return (
-                  <button
-                    aria-pressed={active}
-                    className={styles.keyword}
-                    data-active={active}
-                    key={keyword}
-                    onClick={() => toggleKeyword(keyword)}
-                    type="button"
-                  >
-                    {keyword}
-                  </button>
-                );
-              })}
-            </div>
-          </section>
-
-          {/* FORMAT */}
+          {/* OUTPUT FORMAT */}
           <section className={styles.controlSection}>
             <div className={styles.panelHead}>
               <p className={styles.sectionLabel}>Output Format</p>
@@ -308,36 +518,105 @@ export default function ResumeStudio({
                 <option value="letter">US Letter</option>
               </select>
             </label>
+            <label className={styles.field}>
+              <span>Draft angle</span>
+              <select
+                className={styles.select}
+                onChange={(e) => setVariant(e.target.value as ResumeDraftVariant)}
+                value={variant}
+              >
+                <option value="balanced">Balanced</option>
+                <option value="technical">Technical</option>
+                <option value="execution">Execution</option>
+              </select>
+            </label>
             <div className={styles.metaBlock}>
-              <p>Profile: <strong>{workspace.profileReady ? "Included" : "Optional / missing"}</strong></p>
-              <p>Existing PDF: <strong>{selectedOpportunity?.hasPdf ? "Yes" : "No"}</strong></p>
-              <p>Active keywords: <strong>{selectedKeywords.length}</strong></p>
+              <p>
+                Profile:{" "}
+                <strong>{workspace.profileReady ? "Included" : "Optional / missing"}</strong>
+              </p>
+              <p>
+                Existing PDF: <strong>{selectedOpportunity?.hasPdf ? "Yes" : "No"}</strong>
+              </p>
+              <p>
+                Keywords active: <strong>{selectedKeywords.length}</strong>
+              </p>
+              <p>
+                Draft angle: <strong>{draft?.variantLabel ?? "Balanced emphasis"}</strong>
+              </p>
+              <p>
+                Source: <strong>{draftResumeSource?.label ?? workspace.resumePath}</strong>
+              </p>
             </div>
+            <button
+              className={styles.matchToggle}
+              data-active={matchedOnly}
+              onClick={() => setMatchedOnly((v) => !v)}
+              type="button"
+            >
+              {matchedOnly ? "Showing matched only" : "Show matched only"}
+            </button>
+          </section>
+
+          {/* MANUAL EDITS */}
+          <section className={styles.controlSection}>
+            <div className={styles.panelHead}>
+              <p className={styles.sectionLabel}>Manual Edits</p>
+              <p className={styles.panelText}>
+                Override the generated headline or summary. You can also click the pencil icon
+                on any section in the preview to edit it inline.
+              </p>
+            </div>
+            <label className={styles.field}>
+              <span>Headline</span>
+              <input
+                className={styles.textInput}
+                onChange={(e) => setHeadlineOverride(e.target.value)}
+                placeholder={draft?.headline ?? "Generated headline"}
+                type="text"
+                value={headlineOverride}
+              />
+            </label>
+            <label className={styles.field}>
+              <span>Summary</span>
+              <textarea
+                className={styles.textArea}
+                onChange={(e) => setSummaryOverride(e.target.value)}
+                placeholder={draft?.summary ?? "Generated summary"}
+                rows={5}
+                value={summaryOverride}
+              />
+            </label>
           </section>
         </div>
 
-        {/* SIDEBAR FOOTER */}
+        {/* FOOTER */}
         <div className={styles.controlsFooter}>
           <button
             className={styles.exportButton}
-            disabled={!draft || exporting}
+            disabled={!draft || draftLoading || exporting}
             onClick={() => void handleExport()}
             type="button"
           >
             {exporting ? "Compiling…" : "Compile Asset"}
           </button>
           <button
-            className={styles.resetButton}
-            onClick={handleReset}
+            className={styles.secondaryButton}
+            disabled={!selectedOpportunity || draftLoading}
+            onClick={handleRegenerate}
             type="button"
           >
+            {draftLoading ? "Regenerating…" : "Regenerate Draft"}
+          </button>
+          <button className={styles.resetButton} onClick={handleReset} type="button">
             Reset Baseline
           </button>
         </div>
       </aside>
 
-      {/* RIGHT PREVIEW PANEL */}
+      {/* ── RIGHT CANVAS PANEL ── */}
       <section className={styles.previewPanel}>
+        {/* Header bar */}
         <div className={styles.previewHead}>
           <div className={styles.previewStatus}>
             <div className={styles.liveIndicator}>
@@ -345,106 +624,297 @@ export default function ResumeStudio({
               Live Rendering
             </div>
             <span className={styles.previewId}>{previewId(selectedOpportunity)}</span>
+            {draft ? <span className={styles.previewVariant}>{draft.variantLabel}</span> : null}
           </div>
+
+          {/* Zoom controls */}
+          <div className={styles.zoomControls}>
+            {ZOOM_LEVELS.map((level) => (
+              <button
+                className={styles.zoomBtn}
+                data-active={zoom === level}
+                key={level}
+                onClick={() => setZoom(level)}
+                type="button"
+              >
+                {level}%
+              </button>
+            ))}
+          </div>
+
           <p className={styles.previewMeta}>
-            {draft?.profileReady
-              ? "Updates instantly as you change roles, keywords, and format"
-              : "Using CV and evaluation — profile details can be added later"}
+            {draftLoading
+              ? "Refreshing the backend-tailored draft…"
+              : lastGeneratedAt
+                ? `Last regenerated at ${lastGeneratedAt}`
+              : draft?.profileReady
+                ? "Hover any section to edit inline"
+                : "Using resume source and evaluation — profile details can be added later"}
           </p>
         </div>
 
+        {/* Canvas body */}
         <div className={styles.previewBody}>
           {draft ? (
-            <div className={styles.previewSheet}>
-              <header className={styles.previewHeader}>
-                <div className={styles.previewIdentity}>
-                  <h3>{profile?.candidate.fullName || cv?.name || "Candidate"}</h3>
-                  <p>{draft.headline}</p>
-                  <div className={styles.contactRow}>
-                    {draft.contactLines.map((line) => (
-                      <span key={line}>{line}</span>
-                    ))}
+            <div
+              className={styles.sheetScaler}
+              style={{ transform: `scale(${zoom / 100})`, marginBottom: `calc((${zoom / 100} - 1) * 11in)` }}
+            >
+              <div className={styles.docSheet}>
+                {/* DOCUMENT HEADER */}
+                <header className={styles.docHeader}>
+                  <div className={styles.editableZone}>
+                    <div className={styles.docIdentity}>
+                      <h1 className={styles.docName}>{draft.name}</h1>
+                      {draft.headline && (
+                        <p className={styles.docTitle}>{headlineOverride || draft.headline}</p>
+                      )}
+                    </div>
+                    <button
+                      aria-label="Edit headline"
+                      className={styles.editHandle}
+                      onClick={() => openEditor("headline", headlineOverride || draft.headline)}
+                      ref={(el) => {
+                        if (el) editHandleRefs.current.set("headline", el);
+                        else editHandleRefs.current.delete("headline");
+                      }}
+                      type="button"
+                    >
+                      <PencilIcon />
+                    </button>
+                    {editing === "headline" && (
+                      <div>
+                        <input
+                          autoFocus
+                          className={styles.inlineEditor}
+                          style={{ minHeight: "2.5rem" }}
+                          onChange={(e) => setEditBuffer(e.target.value)}
+                          value={editBuffer}
+                        />
+                        <div className={styles.inlineEditorActions}>
+                          <button className={styles.inlineEditorCancel} onClick={() => cancelEdit("headline")} type="button">Cancel</button>
+                          <button className={styles.inlineEditorSave} onClick={() => saveEdit("headline")} type="button">Apply</button>
+                        </div>
+                      </div>
+                    )}
                   </div>
-                </div>
 
-                <div className={styles.previewSignal}>
-                  <p>Current export</p>
-                  <strong>{draft.targetLabel}</strong>
-                  <span>{draft.fileName}</span>
-                  <span>{draft.focusKeywords.length} keywords active</span>
-                </div>
-              </header>
+                  <div className={styles.docContact}>
+                    {draft.contactLines.map((line) => {
+                      const isEmail = line.includes("@");
+                      const isLink =
+                        line.includes("github.com") ||
+                        line.includes("linkedin.com") ||
+                        line.startsWith("http");
+                      const href = isEmail
+                        ? `mailto:${line}`
+                        : isLink
+                          ? line.startsWith("http")
+                            ? line
+                            : `https://${line}`
+                          : undefined;
+                      return href ? (
+                        <a href={href} key={line} rel="noreferrer" target="_blank">
+                          {line}
+                        </a>
+                      ) : (
+                        <span key={line}>{line}</span>
+                      );
+                    })}
+                  </div>
+                </header>
 
-              <div className={styles.previewGrid}>
-                <div>
-                  <section className={styles.previewSection}>
-                    <h4>Target summary</h4>
-                    <p>{draft.summary}</p>
-                  </section>
-
-                  <section className={styles.previewSection}>
-                    <h4>Experience highlights</h4>
-                    <div className={styles.entryStack}>
-                      {draft.experienceHighlights.map((entry) => (
-                        <article className={styles.entryCard} key={entry.heading + entry.subheading}>
-                          <strong>{entry.heading}</strong>
-                          <p>{entry.subheading}</p>
-                          <ul className={styles.previewList}>
-                            {entry.bullets.map((bullet) => (
-                              <li key={bullet}>{bullet}</li>
-                            ))}
-                          </ul>
-                        </article>
-                      ))}
+                {/* PROFESSIONAL SYNOPSIS */}
+                {draft.summary && (
+                  <div className={styles.docSection}>
+                    <span className={styles.docSectionLabel}>Professional Synopsis</span>
+                    <div className={styles.editableZone}>
+                      <p className={styles.docSectionBody}>
+                        {summaryOverride || draft.summary}
+                      </p>
+                      <button
+                        aria-label="Edit summary"
+                        className={styles.editHandle}
+                        onClick={() => openEditor("summary", summaryOverride || draft.summary)}
+                        ref={(el) => {
+                          if (el) editHandleRefs.current.set("summary", el);
+                          else editHandleRefs.current.delete("summary");
+                        }}
+                        type="button"
+                      >
+                        <PencilIcon />
+                      </button>
+                      {editing === "summary" && (
+                        <div>
+                          <textarea
+                            autoFocus
+                            className={styles.inlineEditor}
+                            onChange={(e) => setEditBuffer(e.target.value)}
+                            rows={5}
+                            value={editBuffer}
+                          />
+                          <div className={styles.inlineEditorActions}>
+                            <button className={styles.inlineEditorCancel} onClick={() => cancelEdit("summary")} type="button">Cancel</button>
+                            <button className={styles.inlineEditorSave} onClick={() => saveEdit("summary")} type="button">Apply</button>
+                          </div>
+                        </div>
+                      )}
+                      {personalizationMap["summary"] && editing !== "summary" && (
+                        <button
+                          className={styles.suggestionChip}
+                          onClick={() => {
+                            setSummaryOverride(personalizationMap["summary"] ?? "");
+                          }}
+                          type="button"
+                        >
+                          AI suggestion — click to apply
+                        </button>
+                      )}
                     </div>
-                  </section>
-                </div>
+                  </div>
+                )}
 
-                <div>
-                  <section className={styles.previewSection}>
-                    <h4>Focus keywords</h4>
-                    <div className={styles.keywordList}>
-                      {draft.focusKeywords.map((keyword) => (
-                        <span className={styles.previewChip} key={keyword}>{keyword}</span>
-                      ))}
+                {/* EXPERIENCE VECTOR */}
+                {draft.experienceHighlights.length > 0 && (
+                  <div className={styles.docSection}>
+                    <span className={styles.docSectionLabel}>Experience Vector</span>
+                    <div className={styles.docEntryList}>
+                      {draft.experienceHighlights.map((entry, index) => {
+                        const expKey = `experience-${index}`;
+                        const overriddenBullets = expBulletOverrides[index] ?? entry.bullets;
+                        const displayBullets = matchedOnly
+                          ? overriddenBullets.filter((b) => bulletMatches(b, selectedKeywords))
+                          : overriddenBullets;
+
+                        return (
+                          <article className={styles.docEntry} key={entry.heading + entry.subheading}>
+                            <div className={styles.docEntryHead}>
+                              <span className={styles.docEntryTitle}>
+                                {entry.heading.includes(" | ") ? (
+                                  <>
+                                    <strong>{entry.heading.split(" | ")[0]}</strong>
+                                    {" | "}
+                                    <span>{entry.heading.split(" | ").slice(1).join(" | ")}</span>
+                                  </>
+                                ) : (
+                                  <strong>{entry.heading}</strong>
+                                )}
+                              </span>
+                              <span className={styles.docEntryDate}>{entry.subheading}</span>
+                            </div>
+
+                            <div className={styles.editableZone}>
+                              <ul className={styles.docBulletList}>
+                                {displayBullets.map((bullet) => {
+                                  const matched = bulletMatches(bullet, selectedKeywords);
+                                  return (
+                                    <li
+                                      className={`${styles.docBulletItem} ${matched ? styles.bulletMatched : styles.bulletUnmatched}`}
+                                      key={bullet}
+                                    >
+                                      {matched && selectedKeywords.length > 0 && (
+                                        <span className={styles.matchDot} aria-hidden="true" />
+                                      )}
+                                      {bullet}
+                                    </li>
+                                  );
+                                })}
+                              </ul>
+
+                              <button
+                                aria-label="Edit bullets"
+                                className={styles.editHandle}
+                                onClick={() =>
+                                  openEditor(expKey, formatBulletsAsText(overriddenBullets))
+                                }
+                                ref={(el) => {
+                                  if (el) editHandleRefs.current.set(expKey, el);
+                                  else editHandleRefs.current.delete(expKey);
+                                }}
+                                type="button"
+                              >
+                                <PencilIcon />
+                              </button>
+
+                              {editing === expKey && (
+                                <div>
+                                  <textarea
+                                    autoFocus
+                                    className={styles.inlineEditor}
+                                    onChange={(e) => setEditBuffer(e.target.value)}
+                                    placeholder="One bullet per line"
+                                    rows={Math.max(4, overriddenBullets.length + 1)}
+                                    value={editBuffer}
+                                  />
+                                  <div className={styles.inlineEditorActions}>
+                                    <button className={styles.inlineEditorCancel} onClick={() => cancelEdit(expKey)} type="button">Cancel</button>
+                                    <button className={styles.inlineEditorSave} onClick={() => saveEdit(expKey)} type="button">Apply</button>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </article>
+                        );
+                      })}
                     </div>
-                  </section>
+                  </div>
+                )}
 
-                  <section className={styles.previewSection}>
-                    <h4>Fit evidence</h4>
-                    <ul className={styles.previewList}>
-                      {draft.fitHighlights.map((item) => (
-                        <li key={item}>{item}</li>
-                      ))}
-                    </ul>
-                  </section>
-
-                  <section className={styles.previewSection}>
-                    <h4>Selected projects</h4>
-                    <ul className={styles.previewList}>
+                {/* PROJECT LEDGER */}
+                {draft.projectHighlights.length > 0 && (
+                  <div className={styles.docSection}>
+                    <span className={styles.docSectionLabel}>Project Ledger</span>
+                    <div className={styles.docProjectList}>
                       {draft.projectHighlights.map((project) => (
-                        <li key={project.title}>
+                        <p className={styles.docProjectItem} key={project.title}>
                           <strong>{project.title}</strong>
                           {project.description ? ` — ${project.description}` : ""}
-                        </li>
+                        </p>
                       ))}
-                    </ul>
-                  </section>
+                    </div>
+                  </div>
+                )}
 
-                  <section className={styles.previewSection}>
-                    <h4>Skills emphasis</h4>
-                    <ul className={styles.previewList}>
-                      {draft.skillHighlights.map((group) => (
-                        <li key={group.label}>
-                          <strong>{group.label}:</strong> {group.items.join(", ")}
-                        </li>
+                {/* EDUCATION */}
+                {draft.educationHighlights.length > 0 && (
+                  <div className={styles.docSection}>
+                    <span className={styles.docSectionLabel}>Education</span>
+                    <div className={styles.docEducationList}>
+                      {draft.educationHighlights.map((entry) => (
+                        <p className={styles.docEducationItem} key={entry}>
+                          {entry}
+                        </p>
                       ))}
-                    </ul>
-                  </section>
-                </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* TECHNICAL ONTOLOGY — 3-column skills grid */}
+                {draft.skillHighlights.length > 0 && (
+                  <div className={styles.docSection}>
+                    <span className={styles.docSectionLabel}>Technical Ontology</span>
+                    <div className={styles.docOntologyGrid}>
+                      {draft.skillHighlights.map((group) => (
+                        <div className={styles.docOntologyGroup} key={group.label}>
+                          <span className={styles.docOntologyGroupLabel}>{group.label}</span>
+                          <p className={styles.docOntologyGroupItems}>{group.items.join(", ")}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
-          ) : null}
+          ) : (
+            <div className={styles.previewEmpty}>
+              <p className={styles.sectionLabel}>Draft preview</p>
+              <h2>Choose a report-backed role to generate a tailored resume.</h2>
+              <p>
+                The preview will appear here once the backend assembles the draft from your selected
+                resume source and the job evaluation report.
+              </p>
+            </div>
+          )}
         </div>
       </section>
     </section>

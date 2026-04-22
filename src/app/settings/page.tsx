@@ -1,5 +1,5 @@
 import ProfileSettingsForm from "@/components/settings/ProfileSettingsForm";
-import { getProfile, getWorkspaceSignals } from "@/lib/api/career-ops";
+import { getProfile } from "@/lib/api/career-ops";
 import type { UserProfile } from "@/lib/types";
 
 import styles from "./settings.module.css";
@@ -11,11 +11,12 @@ function createBlankProfile(): UserProfile {
     narrative: { headline: "", exitStory: "", superpowers: [], proofPoints: [] },
     compensation: { targetRange: "", currency: "", minimum: "" },
     location: { country: "", city: "", timezone: "" },
+    resumeSources: [],
   };
 }
 
 export default async function SettingsPage() {
-  const [profile, workspace] = await Promise.all([getProfile(), getWorkspaceSignals()]);
+  const profile = await getProfile();
   const editableProfile = profile ?? createBlankProfile();
 
   return (

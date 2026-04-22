@@ -1,6 +1,8 @@
 import type { ParsedCvDocument } from "@/lib/data/parse-cv";
 import type { Evaluation, Opportunity, UserProfile } from "@/lib/types";
 
+export type ResumeDraftVariant = "balanced" | "technical" | "execution";
+
 export interface ResumeDraftExperience {
   bullets: string[];
   heading: string;
@@ -19,18 +21,42 @@ export interface ResumeDraftSkillGroup {
 
 export interface ResumeDraft {
   contactLines: string[];
+  educationHighlights: string[];
   experienceHighlights: ResumeDraftExperience[];
   fileName: string;
   fitHighlights: string[];
   focusKeywords: string[];
   format: "a4" | "letter";
   headline: string;
+  name: string;
   notes: string[];
   profileReady: boolean;
   projectHighlights: ResumeDraftProject[];
   skillHighlights: ResumeDraftSkillGroup[];
   summary: string;
   targetLabel: string;
+  variantLabel: string;
+}
+
+function unique<T>(items: T[]) {
+  return [...new Set(items)];
+}
+
+function cleanSentence(value: string) {
+  return value
+    .replace(/\|/g, " ")
+    .replace(/\*\*(.+?)\*\*/g, "$1")
+    .replace(/\[(.+?)\]\((.+?)\)/g, "$1")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function takeLeadSentences(value: string, count: number) {
+  const matches = cleanSentence(value).match(/[^.!?]+[.!?]?/g) ?? [];
+  return matches
+    .slice(0, count)
+    .map((sentence) => sentence.trim())
+    .join(" ");
 }
 
 function tokenize(value: string) {
@@ -95,27 +121,73 @@ function buildContactLines(profile: UserProfile | null, cv: ParsedCvDocument) {
   return Object.values(cv.contact).filter(Boolean);
 }
 
+function buildHeadline(
+  profile: UserProfile | null,
+  opportunity: Opportunity,
+  variant: ResumeDraftVariant,
+  tone: number,
+  headlineOverride?: string,
+) {
+  if (headlineOverride?.trim()) {
+    return headlineOverride.trim();
+  }
+
+  if (profile?.narrative.headline && tone < 65 && variant === "balanced") {
+    return profile.narrative.headline;
+  }
+
+  if (variant === "technical") {
+    return tone >= 60
+      ? "AI / software engineer building agentic systems, RAG pipelines, and production-ready tooling"
+      : "Software engineer with hands-on experience in agentic systems, RAG pipelines, and AI product delivery";
+  }
+
+  if (variant === "execution") {
+    return tone >= 60
+      ? "Software engineer shipping AI-powered tools, full-stack systems, and reliable operator workflows"
+      : "Software engineer translating messy requirements into reliable AI-assisted and full-stack systems";
+  }
+
+  return tone >= 60
+    ? `${opportunity.role} candidate with hands-on AI systems and full-stack delivery experience`
+    : "Software engineer with hands-on experience building AI systems and full-stack applications";
+}
+
 function buildSummary(
   profile: UserProfile | null,
   cv: ParsedCvDocument,
   opportunity: Opportunity,
   evaluation: Evaluation | null,
   keywords: string[],
+  tone: number,
+  variant: ResumeDraftVariant,
+  summaryOverride?: string,
 ) {
-  const base =
-    profile?.narrative.headline ||
-    cv.summary.replace(/\s+/g, " ").trim() ||
-    "Builder of practical software systems with a bias toward shipping and clarity.";
-  const keywordClause = keywords.length
-    ? `Targeting ${opportunity.role} opportunities with emphasis on ${keywords
-        .slice(0, 4)
-        .join(", ")}.`
-    : `Targeting ${opportunity.role} opportunities.`;
-  const evaluationClause = evaluation?.summary
-    ? `Role fit signal: ${evaluation.summary.replace(/\s+/g, " ").trim()}`
-    : "";
+  if (summaryOverride?.trim()) {
+    return summaryOverride.trim();
+  }
 
-  return [base, keywordClause, evaluationClause].filter(Boolean).join(" ");
+  const base =
+    takeLeadSentences(profile?.narrative.exitStory || "", 2) ||
+    takeLeadSentences(cv.summary, 2) ||
+    "Software engineer with hands-on experience building AI systems and delivery-oriented full-stack products.";
+
+  const evaluationLine = cleanSentence(evaluation?.summary || "");
+  const roleLine =
+    variant === "technical"
+      ? "Best used for roles that value React delivery, AI tooling familiarity, and hands-on system building."
+      : variant === "execution"
+        ? `Strong fit for roles that value shipping, troubleshooting, and turning ambiguous requirements into working systems.`
+        : `Targeting ${opportunity.role} roles with strong overlap in frontend delivery, API integration, and AI-assisted product development.`;
+  const closingLine =
+    tone >= 60
+      ? evaluationLine || `Ready to contribute quickly on ${opportunity.company} problems with strong ownership.`
+      : evaluationLine;
+
+  return [base, roleLine, closingLine]
+    .filter(Boolean)
+    .slice(0, 3)
+    .join(" ");
 }
 
 function buildFitHighlights(evaluation: Evaluation | null, keywords: string[]) {
@@ -149,6 +221,17 @@ function buildNotes(
   return [...profileNotes, ...personalization, ...fallback].slice(0, 5);
 }
 
+function buildVariantLabel(variant: ResumeDraftVariant) {
+  switch (variant) {
+    case "technical":
+      return "Technical emphasis";
+    case "execution":
+      return "Execution emphasis";
+    default:
+      return "Balanced emphasis";
+  }
+}
+
 export function buildResumeDraft(input: {
   cv: ParsedCvDocument;
   evaluation: Evaluation | null;
@@ -156,17 +239,38 @@ export function buildResumeDraft(input: {
   opportunity: Opportunity;
   profile: UserProfile | null;
   selectedKeywords: string[];
+  tone: number;
+  variant: ResumeDraftVariant;
+  headlineOverride?: string;
+  summaryOverride?: string;
 }) {
-  const { cv, evaluation, format, opportunity, profile, selectedKeywords } = input;
+  const {
+    cv,
+    evaluation,
+    format,
+    opportunity,
+    profile,
+    selectedKeywords,
+    tone,
+    variant,
+    headlineOverride,
+    summaryOverride,
+  } = input;
   const focusKeywords = selectedKeywords.length
     ? selectedKeywords
     : getDefaultResumeKeywords(opportunity, evaluation);
-  const rankingKeywords = [
+  const rankingKeywords = unique([
     ...focusKeywords,
     opportunity.role,
     opportunity.company,
     opportunity.archetype ?? "",
-  ].filter(Boolean);
+    ...(variant === "technical"
+      ? ["python", "typescript", "api", "rag", "agentic", "langchain", "react"]
+      : []),
+    ...(variant === "execution"
+      ? ["delivery", "troubleshooting", "documentation", "workflow", "operations"]
+      : []),
+  ].filter(Boolean));
 
   const experienceHighlights = [...cv.experiences]
     .sort((left, right) => {
@@ -181,7 +285,7 @@ export function buildResumeDraft(input: {
 
       return rightScore - leftScore;
     })
-    .slice(0, 3)
+    .slice(0, variant === "execution" ? 4 : 5)
     .map((experience) => ({
       heading: experience.company,
       subheading: [experience.role, experience.location, experience.period]
@@ -192,7 +296,7 @@ export function buildResumeDraft(input: {
           (left, right) =>
             scoreText(right, rankingKeywords) - scoreText(left, rankingKeywords),
         )
-        .slice(0, 3),
+        .slice(0, variant === "technical" ? 4 : 5),
     }));
 
   const projectHighlights = [...cv.projects]
@@ -201,7 +305,7 @@ export function buildResumeDraft(input: {
         scoreText(`${right.title} ${right.description}`, rankingKeywords) -
         scoreText(`${left.title} ${left.description}`, rankingKeywords),
     )
-    .slice(0, 4);
+    .slice(0, variant === "technical" ? 4 : 3);
 
   const skillHighlights = [...cv.skills]
     .sort(
@@ -209,28 +313,45 @@ export function buildResumeDraft(input: {
         scoreText(`${right.label} ${right.items.join(" ")}`, rankingKeywords) -
         scoreText(`${left.label} ${left.items.join(" ")}`, rankingKeywords),
     )
-    .slice(0, 4);
+    .slice(0, variant === "technical" ? 6 : 5);
 
   const name = profile?.candidate.fullName || cv.name || "candidate";
   const companySlug = slugify(opportunity.company || "role");
   const fileName = `${slugify(name)}-${companySlug}-${opportunity.date || "resume"}.pdf`;
+  const headline = buildHeadline(
+    profile,
+    opportunity,
+    variant,
+    tone,
+    headlineOverride,
+  );
 
   return {
     format,
     fileName,
+    name,
     profileReady: Boolean(profile),
     targetLabel: `${opportunity.role} · ${opportunity.company}`,
-    headline:
-      profile?.narrative.headline ||
-      `${opportunity.role} candidate with delivery-focused technical range`,
+    headline,
     contactLines: buildContactLines(profile, cv),
-    summary: buildSummary(profile, cv, opportunity, evaluation, focusKeywords),
+    summary: buildSummary(
+      profile,
+      cv,
+      opportunity,
+      evaluation,
+      focusKeywords,
+      tone,
+      variant,
+      summaryOverride,
+    ),
     focusKeywords,
     fitHighlights: buildFitHighlights(evaluation, focusKeywords),
     experienceHighlights,
     projectHighlights,
     skillHighlights,
+    educationHighlights: cv.education.slice(0, 3),
     notes: buildNotes(profile, evaluation, opportunity),
+    variantLabel: buildVariantLabel(variant),
   } satisfies ResumeDraft;
 }
 
@@ -244,45 +365,97 @@ function escapeHtml(value: string) {
 }
 
 export function renderResumeHtml(draft: ResumeDraft) {
-  const keywordTags = draft.focusKeywords
-    .map((keyword) => `<span class="chip">${escapeHtml(keyword)}</span>`)
-    .join("");
-  const contact = draft.contactLines
-    .map((line) => `<span>${escapeHtml(line)}</span>`)
-    .join('<span class="dot">·</span>');
-  const fitHighlights = draft.fitHighlights
-    .map((item) => `<li>${escapeHtml(item)}</li>`)
-    .join("");
-  const experiences = draft.experienceHighlights
-    .map(
-      (item) => `
-        <section class="entry">
-          <div class="entry-head">
-            <h3>${escapeHtml(item.heading)}</h3>
-            <p>${escapeHtml(item.subheading)}</p>
-          </div>
-          <ul>${item.bullets.map((bullet) => `<li>${escapeHtml(bullet)}</li>`).join("")}</ul>
-        </section>
-      `,
-    )
-    .join("");
-  const projects = draft.projectHighlights
-    .map(
-      (project) => `
-        <li><strong>${escapeHtml(project.title)}</strong>${project.description ? ` — ${escapeHtml(project.description)}` : ""}</li>
-      `,
-    )
-    .join("");
-  const skills = draft.skillHighlights
-    .map(
-      (group) => `
-        <li><strong>${escapeHtml(group.label)}:</strong> ${escapeHtml(group.items.join(", "))}</li>
-      `,
-    )
-    .join("");
-  const notes = draft.notes
-    .map((note) => `<li>${escapeHtml(note)}</li>`)
-    .join("");
+  const contactHtml = draft.contactLines
+    .map((line) => {
+      const isEmail = line.includes("@");
+      const isLink =
+        line.includes("github.com") ||
+        line.includes("linkedin.com") ||
+        line.startsWith("http");
+      const href = isEmail
+        ? `mailto:${line}`
+        : isLink
+          ? line.startsWith("http")
+            ? line
+            : `https://${line}`
+          : undefined;
+      return href
+        ? `<a href="${href}" target="_blank" rel="noopener noreferrer">${escapeHtml(line)}</a>`
+        : `<span>${escapeHtml(line)}</span>`;
+    })
+    .join("\n");
+
+  const experiencesHtml =
+    draft.experienceHighlights.length > 0
+      ? `<section class="section">
+        <div class="section-label">EXPERIENCE VECTOR</div>
+        <div class="entry-list">
+          ${draft.experienceHighlights
+            .map((entry) => {
+              const subParts = entry.subheading.split(" · ");
+              const role = subParts[0] ?? "";
+              const period = subParts[subParts.length - 1] ?? "";
+              return `<article class="entry">
+              <div class="entry-head">
+                <span class="entry-title"><strong>${escapeHtml(role)}</strong> | ${escapeHtml(entry.heading)}</span>
+                <span class="entry-date">${escapeHtml(period)}</span>
+              </div>
+              <ul class="bullet-list">
+                ${entry.bullets.map((bullet) => `<li>${escapeHtml(bullet)}</li>`).join("")}
+              </ul>
+            </article>`;
+            })
+            .join("")}
+        </div>
+      </section>`
+      : "";
+
+  const projectsHtml =
+    draft.projectHighlights.length > 0
+      ? `<section class="section">
+        <div class="section-label">PROJECT LEDGER</div>
+        <div class="project-list">
+          ${draft.projectHighlights
+            .map(
+              (project) =>
+                `<article class="project-item">
+              <strong>${escapeHtml(project.title)}</strong>${project.description ? ` — <span class="project-desc">${escapeHtml(project.description)}</span>` : ""}
+            </article>`,
+            )
+            .join("")}
+        </div>
+      </section>`
+      : "";
+
+  const educationHtml =
+    draft.educationHighlights.length > 0
+      ? `<section class="section">
+        <div class="section-label">EDUCATION</div>
+        <ul class="plain-list">
+          ${draft.educationHighlights.map((entry) => `<li>${escapeHtml(entry)}</li>`).join("")}
+        </ul>
+      </section>`
+      : "";
+
+  const skillsHtml =
+    draft.skillHighlights.length > 0
+      ? `<section class="section">
+        <div class="section-label">TECHNICAL ONTOLOGY</div>
+        <div class="ontology-grid">
+          ${draft.skillHighlights
+            .map(
+              (group) =>
+                `<div class="ontology-group">
+              <div class="ontology-group-label">${escapeHtml(group.label)}</div>
+              <div class="ontology-group-items">${escapeHtml(group.items.join(", "))}</div>
+            </div>`,
+            )
+            .join("")}
+        </div>
+      </section>`
+      : "";
+
+  const pageWidth = draft.format === "letter" ? "8.5in" : "8.27in";
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -291,76 +464,193 @@ export function renderResumeHtml(draft: ResumeDraft) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>${escapeHtml(draft.targetLabel)} Resume</title>
     <style>
-      * { box-sizing: border-box; }
+      * { box-sizing: border-box; margin: 0; padding: 0; }
       body {
-        margin: 0;
-        font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-        color: #18181b;
         background: #fff;
-        font-size: 11px;
-        line-height: 1.55;
+        color: #111;
+        font-family: Georgia, "Times New Roman", serif;
+        font-size: 0.85rem;
+        line-height: 1.5;
       }
-      .page { max-width: ${draft.format === "letter" ? "8in" : "7.27in"}; margin: 0 auto; padding: 0.1in 0; }
-      .header { margin-bottom: 18px; }
-      .header h1 { font-size: 28px; line-height: 1.1; margin: 0 0 6px; }
-      .headline { font-size: 12px; font-weight: 600; color: #3f3f46; margin: 0 0 8px; }
-      .contact { display: flex; flex-wrap: wrap; gap: 6px; color: #52525b; font-size: 10px; }
-      .dot { color: #a1a1aa; }
-      .target { margin-top: 10px; padding: 8px 10px; background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 8px; }
-      .summary { margin-top: 12px; color: #27272a; }
-      .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
-      .chip { padding: 3px 8px; border: 1px solid #d4d4d8; border-radius: 999px; font-size: 9px; text-transform: uppercase; letter-spacing: 0.04em; }
-      .grid { display: grid; grid-template-columns: 1.4fr 0.9fr; gap: 20px; }
-      .section { margin-bottom: 16px; }
-      .section h2 { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: #71717a; margin: 0 0 8px; }
-      .entry { margin-bottom: 12px; }
-      .entry-head h3 { font-size: 12px; margin: 0; }
-      .entry-head p { margin: 3px 0 0; color: #52525b; }
-      ul { margin: 8px 0 0; padding-left: 18px; }
-      li { margin-bottom: 4px; }
+      .page {
+        max-width: ${pageWidth};
+        margin: 0 auto;
+        padding: 0.75in 0.8in;
+      }
+      .doc-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 1.5rem;
+        padding-bottom: 1.25rem;
+        border-bottom: 1.5px solid #111;
+        margin-bottom: 1.5rem;
+      }
+      .doc-identity { flex: 1; display: flex; flex-direction: column; gap: 0.25rem; }
+      .doc-name {
+        font-size: 2.5rem;
+        font-weight: 700;
+        letter-spacing: -0.03em;
+        color: #111;
+        line-height: 1.1;
+      }
+      .doc-title {
+        font-size: 1.25rem;
+        font-weight: 400;
+        color: #555;
+      }
+      .doc-contact {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 0.35rem;
+        flex-shrink: 0;
+        padding-top: 0.5rem;
+      }
+      .doc-contact span,
+      .doc-contact a { 
+        font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace;
+        font-size: 0.75rem;
+        color: #111;
+        text-decoration: none;
+        display: block;
+      }
+      .doc-contact a:hover { text-decoration: underline; }
+      
+      .section { margin-bottom: 1.5rem; }
+      .section-label {
+        font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace;
+        font-size: 0.7rem;
+        font-weight: 600;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        color: #111;
+        margin-bottom: 1rem;
+        border-bottom: 1px solid #ddd;
+        padding-bottom: 0.5rem;
+      }
+      .section:last-child {
+        border-top: 1px solid #ddd;
+        padding-top: 1.5rem;
+        margin-top: 2rem;
+        margin-bottom: 0;
+      }
+      .section:last-child .section-label {
+        border-bottom: none;
+        padding-bottom: 0;
+        margin-bottom: 1rem;
+      }
+      
+      .section p { font-size: 0.85rem; color: #333; line-height: 1.6; }
+      
+      .entry-list { display: flex; flex-direction: column; gap: 1.5rem; }
+      .entry { display: flex; flex-direction: column; gap: 0.5rem; }
+      .entry-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        gap: 1rem;
+        margin-bottom: 0.25rem;
+      }
+      .entry-title { font-size: 0.95rem; font-weight: 400; color: #555; flex: 1; }
+      .entry-title strong { font-weight: 700; color: #111; }
+      .entry-desc { font-style: italic; color: #555; }
+      .entry-date { 
+        font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace;
+        font-size: 0.75rem; 
+        color: #111; 
+        white-space: nowrap; 
+        flex-shrink: 0;
+      }
+      
+      .bullet-list { list-style: none; display: block; }
+      .bullet-list li {
+        position: relative;
+        padding-left: 1.25rem;
+        padding-bottom: 0.5rem;
+        font-size: 0.85rem;
+        color: #333;
+        line-height: 1.5;
+      }
+      .bullet-list li:last-child {
+        padding-bottom: 0;
+      }
+      .bullet-list li::before {
+        content: "";
+        position: absolute;
+        top: 0.65em;
+        bottom: -0.65em;
+        left: 0;
+        width: 1px;
+        background-color: #a3a3a3;
+      }
+      .bullet-list li:last-child::before {
+        display: none;
+      }
+      .bullet-list li::after {
+        content: "";
+        position: absolute;
+        top: 0.65em;
+        left: 0;
+        width: 0.5rem;
+        height: 1px;
+        background-color: #a3a3a3;
+      }
+      
+      .project-list { display: flex; flex-direction: column; gap: 0.5rem; }
+      .project-item { font-size: 0.85rem; color: #333; line-height: 1.5; }
+      .project-item strong { font-weight: 700; color: #111; }
+      .project-desc { font-style: normal; color: #333; }
+      
+      .plain-list { list-style: none; display: flex; flex-direction: column; gap: 0.25rem; }
+      .plain-list li { font-size: 0.85rem; color: #333; line-height: 1.5; }
+      
+      .ontology-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 1.5rem;
+      }
+      .ontology-group { display: flex; flex-direction: column; gap: 0.35rem; }
+      .ontology-group-label {
+        font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace;
+        font-size: 0.65rem;
+        font-weight: 600;
+        letter-spacing: 0.05em;
+        text-transform: capitalize;
+        color: #111;
+      }
+      .ontology-group-items { font-size: 0.85rem; color: #333; line-height: 1.5; }
       @media print {
         body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        .page { padding: 0; }
       }
     </style>
   </head>
   <body>
     <main class="page">
-      <header class="header">
-        <h1>${escapeHtml(draft.fileName.replace(/-\d{4}-\d{2}-\d{2}\.pdf$/, "").replace(/-/g, " "))}</h1>
-        <p class="headline">${escapeHtml(draft.headline)}</p>
-        <div class="contact">${contact}</div>
-        <div class="target">
-          <strong>Tailored target:</strong> ${escapeHtml(draft.targetLabel)}
+      <header class="doc-header">
+        <div class="doc-identity">
+          <div class="doc-name">${escapeHtml(draft.name)}</div>
+          ${draft.headline ? `<div class="doc-title">${escapeHtml(draft.headline)}</div>` : ""}
         </div>
-        <p class="summary">${escapeHtml(draft.summary)}</p>
-        <div class="chips">${keywordTags}</div>
+        <div class="doc-contact">
+          ${contactHtml}
+        </div>
       </header>
-      <section class="grid">
-        <div>
-          <section class="section">
-            <h2>Fit Evidence</h2>
-            <ul>${fitHighlights}</ul>
-          </section>
-          <section class="section">
-            <h2>Experience Highlights</h2>
-            ${experiences}
-          </section>
-          <section class="section">
-            <h2>Selected Projects</h2>
-            <ul>${projects}</ul>
-          </section>
-        </div>
-        <aside>
-          <section class="section">
-            <h2>Skills</h2>
-            <ul>${skills}</ul>
-          </section>
-          <section class="section">
-            <h2>Tailoring Notes</h2>
-            <ul>${notes}</ul>
-          </section>
-        </aside>
-      </section>
+
+      ${
+        draft.summary
+          ? `<section class="section">
+        <div class="section-label">PROFESSIONAL SYNOPSIS</div>
+        <p>${escapeHtml(draft.summary)}</p>
+      </section>`
+          : ""
+      }
+
+      ${experiencesHtml}
+      ${projectsHtml}
+      ${educationHtml}
+      ${skillsHtml}
     </main>
   </body>
 </html>`;

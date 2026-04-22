@@ -1,6 +1,17 @@
-import Link from "next/link";
+"use client";
 
-import type { DashboardStats, Opportunity, OpportunityStatus } from "@/lib/types";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { startTransition, useMemo, useState } from "react";
+
+import { useToast } from "@/components/common/ToastContext";
+import type {
+  DashboardStats,
+  Opportunity,
+  OpportunityStatus,
+  PipelineInboxItem,
+  ScanRunResult,
+} from "@/lib/types";
 
 import styles from "./DashboardOverview.module.css";
 
@@ -15,6 +26,11 @@ interface WorkspaceSignals {
 
 interface DashboardOverviewProps {
   opportunities: Opportunity[];
+  pipelineInbox: {
+    path: string;
+    pending: PipelineInboxItem[];
+    processed: PipelineInboxItem[];
+  };
   stats: DashboardStats;
   workspace: WorkspaceSignals;
 }
@@ -73,20 +89,39 @@ function getAttentionRank(opportunity: Opportunity) {
   return rank;
 }
 
+function normalizePipelineEntries(value: string) {
+  return value
+    .split("\n")
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+}
+
 export default function DashboardOverview({
   opportunities,
+  pipelineInbox,
   stats,
   workspace,
 }: DashboardOverviewProps) {
+  const notify = useToast();
+  const router = useRouter();
   const hasOpportunities = opportunities.length > 0;
+  const [pipelineEntriesInput, setPipelineEntriesInput] = useState("");
+  const [queueing, setQueueing] = useState(false);
+  const [scanCompany, setScanCompany] = useState("");
+  const [scanning, setScanning] = useState(false);
+  const [scannerResult, setScannerResult] = useState<ScanRunResult | null>(null);
 
-  const attentionQueue = [...opportunities]
-    .filter((o) => ACTIVE_STATUSES.has(o.status))
-    .sort((a, b) => {
-      const diff = getAttentionRank(b) - getAttentionRank(a);
-      return diff !== 0 ? diff : b.date.localeCompare(a.date);
-    })
-    .slice(0, 5);
+  const attentionQueue = useMemo(
+    () =>
+      [...opportunities]
+        .filter((o) => ACTIVE_STATUSES.has(o.status))
+        .sort((a, b) => {
+          const diff = getAttentionRank(b) - getAttentionRank(a);
+          return diff !== 0 ? diff : b.date.localeCompare(a.date);
+        })
+        .slice(0, 5),
+    [opportunities],
+  );
 
   const leadOpportunity = attentionQueue[0] ?? null;
 
@@ -98,6 +133,215 @@ export default function DashboardOverview({
     ? leadOpportunity.archetype.split(/[,/]/).map((t) => t.trim()).filter(Boolean).slice(0, 3)
     : [];
 
+  async function handleQueueEntries() {
+    const entries = normalizePipelineEntries(pipelineEntriesInput);
+    if (!entries.length) {
+      notify({
+        title: "Paste at least one URL",
+        description: "You can paste one URL per line, or use the backend pipeline format: URL | Company | Role.",
+        tone: "error",
+        dismissAfter: 5000,
+      });
+      return;
+    }
+
+    setQueueing(true);
+
+    try {
+      const response = await fetch("/api/pipeline", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ entries }),
+      });
+      const data = (await response.json()) as { added?: number; error?: string };
+
+      if (!response.ok) {
+        throw new Error(data.error ?? "Unable to queue the pipeline entries.");
+      }
+
+      setPipelineEntriesInput("");
+      notify({
+        title: data.added ? "Pipeline inbox updated" : "No new URLs added",
+        description: data.added
+          ? `${data.added} new item${data.added === 1 ? "" : "s"} queued for backend processing.`
+          : "Those URLs were already present in the pipeline inbox.",
+        dismissAfter: 4000,
+      });
+
+      startTransition(() => {
+        router.refresh();
+      });
+    } catch (error) {
+      notify({
+        title: "Queue failed",
+        description:
+          error instanceof Error ? error.message : "Unable to queue the pipeline entries.",
+        tone: "error",
+        dismissAfter: null,
+      });
+    } finally {
+      setQueueing(false);
+    }
+  }
+
+  async function handleRunScan() {
+    setScanning(true);
+
+    try {
+      const response = await fetch("/api/scan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          company: scanCompany.trim() || undefined,
+          dryRun: false,
+        }),
+      });
+      const data = (await response.json()) as ScanRunResult & { error?: string };
+
+      if (!response.ok) {
+        throw new Error(data.error ?? "Unable to run the portal scanner.");
+      }
+
+      setScannerResult(data);
+      notify({
+        title: "Scanner finished",
+        description:
+          data.summary.newOffersAdded && data.summary.newOffersAdded > 0
+            ? `${data.summary.newOffersAdded} new offer${data.summary.newOffersAdded === 1 ? "" : "s"} added to the backend pipeline inbox.`
+            : "Scan completed. No new offers were added this run.",
+        dismissAfter: 5000,
+      });
+
+      startTransition(() => {
+        router.refresh();
+      });
+    } catch (error) {
+      notify({
+        title: "Scan failed",
+        description:
+          error instanceof Error ? error.message : "Unable to run the backend scanner.",
+        tone: "error",
+        dismissAfter: null,
+      });
+    } finally {
+      setScanning(false);
+    }
+  }
+
+  const intakePanel = (
+    <section className={styles.intakeSection}>
+      <div className={styles.intakeCard}>
+        <div className={styles.intakeHead}>
+          <div>
+            <p className={styles.sectionLabel}>Search & Intake</p>
+            <h2 className={styles.intakeTitle}>Move backend job discovery into the UI.</h2>
+          </div>
+          <span className={styles.idBadge}>{pipelineInbox.pending.length} pending</span>
+        </div>
+
+        <div className={styles.intakeGrid}>
+          <div className={styles.intakePanel}>
+            <label className={styles.fieldLabel} htmlFor="pipeline-intake">
+              Paste job URLs or pipeline entries
+            </label>
+            <textarea
+              className={styles.intakeTextarea}
+              id="pipeline-intake"
+              onChange={(event) => setPipelineEntriesInput(event.target.value)}
+              placeholder={"https://jobs.example.com/role\nhttps://boards.greenhouse.io/company/jobs/123 | Company | Role"}
+              rows={6}
+              value={pipelineEntriesInput}
+            />
+            <div className={styles.intakeActions}>
+              <button
+                className={styles.btnPrimary}
+                disabled={queueing}
+                onClick={() => void handleQueueEntries()}
+                type="button"
+              >
+                {queueing ? "Queueing…" : "Queue for Backend Pipeline"}
+              </button>
+              <span className={styles.inputHint}>Writes to <code>{pipelineInbox.path}</code></span>
+            </div>
+          </div>
+
+          <div className={styles.intakePanel}>
+            <label className={styles.fieldLabel} htmlFor="scan-company">
+              Trigger portal scanner
+            </label>
+            <input
+              className={styles.intakeInput}
+              id="scan-company"
+              onChange={(event) => setScanCompany(event.target.value)}
+              placeholder="Optional company filter, e.g. Cohere"
+              type="text"
+              value={scanCompany}
+            />
+            <div className={styles.intakeActions}>
+              <button
+                className={styles.btnOutline}
+                disabled={scanning}
+                onClick={() => void handleRunScan()}
+                type="button"
+              >
+                {scanning ? "Scanning…" : "Run Backend Scan"}
+              </button>
+            </div>
+
+            {scannerResult ? (
+              <div className={styles.scanResult}>
+                <div className={styles.scanStats}>
+                  <span>Scanned: <strong>{scannerResult.summary.companiesScanned ?? "—"}</strong></span>
+                  <span>Found: <strong>{scannerResult.summary.totalJobsFound ?? "—"}</strong></span>
+                  <span>Added: <strong>{scannerResult.summary.newOffersAdded ?? "—"}</strong></span>
+                  <span>Errors: <strong>{scannerResult.summary.errorsCount}</strong></span>
+                </div>
+                <pre className={styles.scanOutput}>{scannerResult.output}</pre>
+              </div>
+            ) : (
+              <p className={styles.inputHint}>
+                Runs the real backend `scan.mjs` script and refreshes the frontend queue when it finishes.
+              </p>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className={styles.queueTable}>
+        <div className={styles.queueTableHead}>
+          <span>Pending inbox</span>
+          <span>Company hint</span>
+          <span>Role hint</span>
+          <span>State</span>
+        </div>
+        {pipelineInbox.pending.length ? (
+          pipelineInbox.pending.slice(0, 6).map((item) => (
+            <div className={styles.queueRow} key={`${item.url}-${item.raw}`}>
+              <div className={styles.queueRoleCell}>
+                <strong title={item.url}>
+                  {(() => { try { return new URL(item.url).hostname; } catch { return item.url; } })()}
+                </strong>
+                <span>{item.url}</span>
+              </div>
+              <div className={styles.queueStatus}>{item.companyHint ?? "—"}</div>
+              <div className={styles.queueStatus}>{item.roleHint ?? "—"}</div>
+              <div>
+                <span className={styles.signalBadge} data-tone="neutral">
+                  {item.state}
+                </span>
+              </div>
+            </div>
+          ))
+        ) : (
+          <div className={styles.emptyInline}>
+            <p>No pending pipeline entries yet.</p>
+            <p>Paste URLs above or run the scanner to feed the backend queue.</p>
+          </div>
+        )}
+      </div>
+    </section>
+  );
+
   if (!hasOpportunities) {
     return (
       <article className={`app-page ${styles.page}`}>
@@ -105,6 +349,8 @@ export default function DashboardOverview({
           <h1>The Next-Action Desk</h1>
           <p className={styles.subtitle}>Clinical operational overview. Prioritize and execute.</p>
         </header>
+
+        {intakePanel}
 
         <div className={styles.emptyState}>
           <div className={styles.emptyCard}>
@@ -117,7 +363,7 @@ export default function DashboardOverview({
             </div>
           </div>
 
-          <aside className={styles.statusCard}>
+          <aside className={styles.sideCard}>
             <p className={styles.sectionLabel}>System Status</p>
             <ul className={styles.signalList}>
               <li data-ready={workspace.trackerReady}>
@@ -146,8 +392,9 @@ export default function DashboardOverview({
         <p className={styles.subtitle}>Clinical operational overview. Prioritize and execute.</p>
       </header>
 
+      {intakePanel}
+
       <div className={styles.topRow}>
-        {/* CURRENT LEAD */}
         <div className={styles.leadCard}>
           <div className={styles.leadCardMeta}>
             <span className={styles.sectionLabel}>Current Lead</span>
@@ -198,9 +445,7 @@ export default function DashboardOverview({
           )}
         </div>
 
-        {/* RIGHT COLUMN */}
         <div className={styles.rightColumn}>
-          {/* PIPELINE HEALTH */}
           <div className={styles.sideCard}>
             <p className={styles.sectionLabel}>Pipeline Health</p>
             <div className={styles.healthList}>
@@ -229,7 +474,6 @@ export default function DashboardOverview({
             </div>
           </div>
 
-          {/* SYSTEM STATUS */}
           <div className={styles.sideCard}>
             <p className={styles.sectionLabel}>System Status</p>
             <ul className={styles.systemList}>
@@ -253,7 +497,6 @@ export default function DashboardOverview({
         </div>
       </div>
 
-      {/* ATTENTION QUEUE */}
       {attentionQueue.length > 0 && (
         <section className={styles.queueSection}>
           <div className={styles.queueHeader}>

@@ -40,6 +40,22 @@ export function parseProfileYaml(text: string): UserProfile {
   const narrative = toRecord(parsed.narrative);
   const compensation = toRecord(parsed.compensation);
   const location = toRecord(parsed.location);
+  const resumeSources = Array.isArray(parsed.resume_sources)
+    ? parsed.resume_sources.map((entry) => {
+        const record = toRecord(entry);
+
+        return {
+          id: toString(record.id),
+          label: toString(record.label) || toString(record.id) || "Resume source",
+          path: toString(record.path),
+          default:
+            typeof record.default === "boolean"
+              ? record.default
+              : String(record.default).toLowerCase() === "true",
+          targetRoles: toStringArray(record.target_roles),
+        };
+      }).filter((entry) => entry.id && entry.path)
+    : [];
 
   const archetypes = Array.isArray(targetRoles.archetypes)
     ? targetRoles.archetypes.map((entry) => {
@@ -117,5 +133,6 @@ export function parseProfileYaml(text: string): UserProfile {
       visaStatus: toOptionalString(location.visa_status),
       onsiteAvailability: toOptionalString(location.onsite_availability),
     },
+    resumeSources,
   };
 }

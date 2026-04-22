@@ -28,7 +28,7 @@ export interface ParsedCvDocument {
 
 function extractSection(markdown: string, heading: string) {
   const expression = new RegExp(
-    `^##\\s+${heading.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*$([\\s\\S]*?)(?=^##\\s+|\\Z)`,
+    `^##\\s+${heading.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*$([\\s\\S]*?)(?=^##\\s+|(?![\\s\\S]))`,
     "im",
   );
   return expression.exec(markdown)?.[1]?.trim() ?? "";
@@ -113,12 +113,12 @@ function parseSkills(section: string) {
     .filter((line) => line.startsWith("- "))
     .map((line) => line.replace(/^- /, "").trim())
     .map((line) => {
-      const match = /^\*\*(.+?)\*\*:\s+(.+)$/.exec(line);
+      const match = /^\*\*(.+?):\*\*\s+(.+)$|^\*\*(.+?)\*\*:\s+(.+)$/.exec(line);
 
       if (match) {
         return {
-          label: match[1].trim(),
-          items: match[2]
+          label: (match[1] || match[3]).trim(),
+          items: (match[2] || match[4])
             .split(",")
             .map((item) => item.trim())
             .filter(Boolean),

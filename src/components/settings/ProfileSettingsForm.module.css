@@ -63,6 +63,11 @@
   max-width: none;
 }
 
+.panelIntro {
+  display: grid;
+  gap: var(--space-xs);
+}
+
 .control,
 .textarea {
   width: 100%;
@@ -75,13 +80,23 @@
   transition: border-color var(--duration-fast) var(--ease-out);
 }
 
+.fileInput {
+  width: 100%;
+  padding: var(--space-sm) var(--space-md);
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface);
+  color: var(--color-text-secondary);
+  font-size: var(--text-sm);
+}
+
 .control {
   min-height: 2.75rem;
   padding-block: 0;
 }
 
-.control:focus,
-.textarea:focus {
+.control:focus-visible,
+.textarea:focus-visible {
   outline: none;
   border-color: var(--color-line-strong);
 }
@@ -90,6 +105,163 @@
   resize: vertical;
   min-height: 5.5rem;
   line-height: var(--leading-relaxed);
+}
+
+.resumeUploadPanel,
+.resumeSourceCard,
+.emptyResumeState {
+  display: grid;
+  gap: var(--space-lg);
+  padding: var(--space-xl);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+.resumeUploadFields,
+.resumeSourceList {
+  display: grid;
+  gap: var(--space-lg);
+}
+
+.resumeSourceHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-lg);
+}
+
+.resumeSourcePath {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-text-secondary);
+  max-width: none;
+}
+
+.resumeSourceActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.checkboxRow {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-sm);
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+}
+
+.checkboxRow input {
+  margin: 0;
+}
+
+.uploadButton,
+.pillButton,
+.removeButton {
+  min-height: 2.5rem;
+  padding: 0 var(--space-lg);
+  border-radius: var(--radius-md);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition:
+    border-color var(--duration-fast) var(--ease-out),
+    background-color var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out),
+    opacity var(--duration-fast) var(--ease-out);
+}
+
+.uploadButton {
+  border: 1px solid var(--color-text);
+  background-color: var(--color-text);
+  color: var(--color-bg);
+  justify-self: start;
+}
+
+.uploadButton:hover:not(:disabled) {
+  opacity: 0.84;
+}
+
+.pillButton,
+.removeButton {
+  border: 1px solid var(--color-border);
+  background: none;
+  color: var(--color-text-secondary);
+}
+
+.pillButton[data-active="true"] {
+  border-color: var(--color-line-strong);
+  background-color: var(--color-surface-2);
+  color: var(--color-text);
+}
+
+.pillButton:hover:not(:disabled),
+.removeButton:hover:not(:disabled) {
+  border-color: var(--color-line-strong);
+  color: var(--color-text);
+}
+
+.uploadButton:disabled,
+.pillButton:disabled,
+.removeButton:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* APPEARANCE */
+
+.themeSegment {
+  display: inline-grid;
+  grid-template-columns: repeat(3, 1fr);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  width: fit-content;
+}
+
+.themeOption {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-xs);
+  min-height: 2.5rem;
+  padding: 0 var(--space-xl);
+  border: 0;
+  background: none;
+  color: var(--color-text-secondary);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition:
+    background-color var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
+}
+
+.themeOption + .themeOption {
+  border-left: 1px solid var(--color-border);
+}
+
+.themeOption[data-active="true"] {
+  background-color: var(--color-accent-subtle);
+  color: var(--color-accent-strong);
+}
+
+.themeOption:hover:not([data-active="true"]) {
+  background-color: var(--color-surface-2);
+  color: var(--color-text);
+}
+
+.themeHint {
+  font-size: var(--text-xs);
+  color: var(--color-text-tertiary);
+  max-width: none;
+  margin: 0;
 }
 
 /* SCORING WEIGHTS */
@@ -232,5 +404,11 @@
   .twoCol,
   .threeCol {
     grid-template-columns: 1fr;
+  }
+
+  .resumeSourceHead,
+  .resumeSourceActions {
+    align-items: stretch;
+    flex-direction: column;
   }
 }

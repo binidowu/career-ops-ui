@@ -1,6 +1,5 @@
 import ResumeStudio from "@/components/resumes/ResumeStudio";
 import {
-  getCvDocument,
   getOpportunities,
   getOpportunity,
   getProfile,
@@ -10,11 +9,10 @@ import {
 import styles from "./resumes.module.css";
 
 export default async function ResumesPage() {
-  const [opportunities, profile, workspace, cv] = await Promise.all([
+  const [opportunities, profile, workspace] = await Promise.all([
     getOpportunities(),
     getProfile(),
     getWorkspaceSignals(),
-    getCvDocument(),
   ]);
 
   const resumeReady = opportunities
@@ -38,7 +36,6 @@ export default async function ResumesPage() {
       </header>
 
       <ResumeStudio
-        cv={cv}
         initialEvaluation={initialDetail.evaluation}
         initialOpportunity={initialDetail.opportunity}
         opportunities={opportunities}
