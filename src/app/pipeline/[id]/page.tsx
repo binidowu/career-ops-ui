@@ -185,16 +185,26 @@ export default async function OpportunityDetailPage({
             </div>
           </div>
 
-          {opportunity.jobUrl ? (
+          {opportunity.jobUrl || evaluation ? (
             <div className={styles.headerActions}>
-              <a
-                className={styles.btnOutline}
-                href={opportunity.jobUrl}
-                rel="noreferrer"
-                target="_blank"
-              >
-                Open Posting ↗
-              </a>
+              {evaluation ? (
+                <Link
+                  className={styles.btnOutline}
+                  href={`/pipeline/${opportunity.id}/interview`}
+                >
+                  Interview Prep
+                </Link>
+              ) : null}
+              {opportunity.jobUrl ? (
+                <a
+                  className={styles.btnOutline}
+                  href={opportunity.jobUrl}
+                  rel="noreferrer"
+                  target="_blank"
+                >
+                  Open Posting ↗
+                </a>
+              ) : null}
             </div>
           ) : null}
         </div>
@@ -307,6 +317,17 @@ export default async function OpportunityDetailPage({
                     >
                       Open posting ↗
                     </a>
+                  </div>
+                ) : null}
+                {evaluation ? (
+                  <div className={styles.metaRow}>
+                    <span className={styles.metaKey}>Prep</span>
+                    <Link
+                      className={styles.externalLink}
+                      href={`/pipeline/${opportunity.id}/interview`}
+                    >
+                      Open interview workspace
+                    </Link>
                   </div>
                 ) : null}
               </div>

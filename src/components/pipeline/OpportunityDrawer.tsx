@@ -178,12 +178,12 @@ export default function OpportunityDrawer({
 
         {/* FOOTER ACTIONS */}
         <footer className={styles.footer}>
-          <Link className={styles.btnPrimary} href={`/pipeline/${activeOpportunity.id}`}>
-            Advance Stage
+          <Link className={styles.btnPrimary} href={`/pipeline/${activeOpportunity.id}/interview`}>
+            Prep Interview
           </Link>
-          <button className={styles.btnOutline} type="button">
-            Request Feedback
-          </button>
+          <Link className={styles.btnOutline} href={`/pipeline/${activeOpportunity.id}`}>
+            Open Dossier
+          </Link>
         </footer>
       </aside>
     </>

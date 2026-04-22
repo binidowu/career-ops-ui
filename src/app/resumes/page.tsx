@@ -8,12 +8,17 @@ import {
 
 import styles from "./resumes.module.css";
 
-export default async function ResumesPage() {
+export default async function ResumesPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ opportunity?: string }>;
+}) {
   const [opportunities, profile, workspace] = await Promise.all([
     getOpportunities(),
     getProfile(),
     getWorkspaceSignals(),
   ]);
+  const resolvedSearchParams = await searchParams;
 
   const resumeReady = opportunities
     .filter((o) => o.reportPath)
@@ -22,8 +27,14 @@ export default async function ResumesPage() {
       return diff !== 0 ? diff : b.date.localeCompare(a.date);
     });
 
-  const initialDetail = resumeReady[0]
-    ? await getOpportunity(resumeReady[0].id)
+  const preferredOpportunityId = resolvedSearchParams?.opportunity?.trim();
+  const preferredOpportunity = preferredOpportunityId
+    ? resumeReady.find((opportunity) => opportunity.id === preferredOpportunityId) ?? null
+    : null;
+  const initialTarget = preferredOpportunity ?? resumeReady[0] ?? null;
+
+  const initialDetail = initialTarget
+    ? await getOpportunity(initialTarget.id)
     : { opportunity: null, evaluation: null };
 
   return (

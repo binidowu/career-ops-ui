@@ -60,6 +60,10 @@ The backend currently contains four broad classes of capability:
   - Browser-triggered pipeline verify
   - Browser-triggered resume sync check
   - Browser-triggered job link liveness check over tracked URLs
+- Interview prep
+  - Dedicated per-role interview prep workspace
+  - STAR story map from parsed evaluation data
+  - Rehearsal checklist and risk-area surfacing
 - Discovery / intake
   - URL paste queue via `/api/pipeline`
   - Backend scanner trigger via `/api/scan`
@@ -80,7 +84,7 @@ The backend currently contains four broad classes of capability:
 
 - Apply assistant workflows
 - Contact / outreach workflows
-- Interview prep orchestration beyond static report sections
+- Full interview research orchestration with external company-specific sourcing beyond static report sections
 - Mutating maintenance commands
   - `normalize`
   - `dedup`
@@ -117,6 +121,7 @@ The backend currently contains four broad classes of capability:
   - `verify`
   - `sync-check`
   - `liveness`
+- Added a dedicated interview prep route for each tracked role so prep is no longer buried inside the raw evaluation report.
 
 ## Recommended Next Parity Queue
 
