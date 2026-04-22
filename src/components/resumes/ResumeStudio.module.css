@@ -397,6 +397,38 @@
   max-width: none;
 }
 
+.qualityBadge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.75rem;
+  padding: 0 var(--space-sm);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  font-size: var(--text-xs);
+  font-family: var(--font-mono);
+  color: var(--color-text-tertiary);
+  cursor: default;
+}
+
+.qualityBadge[data-full="true"] {
+  border-color: color-mix(in oklch, var(--color-success) 40%, var(--color-border));
+  color: var(--color-success);
+}
+
+.editsIndicator {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.75rem;
+  padding: 0 var(--space-sm);
+  border: 1px solid color-mix(in oklch, var(--color-accent) 35%, var(--color-border));
+  border-radius: var(--radius-full);
+  background-color: var(--color-accent-subtle);
+  color: var(--color-accent-strong);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  cursor: default;
+}
+
 /* ZOOM CONTROLS */
 
 .zoomControls {
@@ -890,4 +922,67 @@
   .docOntologyGrid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+}
+
+/* Source selection feedback */
+
+.sourceMismatch {
+  font-size: var(--text-xs);
+  color: var(--color-warning);
+  max-width: none;
+  margin: 0;
+}
+
+.sourceRoles {
+  font-size: var(--text-xs);
+  color: var(--color-text-tertiary);
+  max-width: none;
+  margin: 0;
+}
+
+/* Draft diagnostics panel */
+
+.draftNotes {
+  margin-bottom: var(--space-md);
+  padding: var(--space-md) var(--space-lg);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  background-color: color-mix(in oklch, var(--color-surface) 80%, var(--color-bg));
+}
+
+.draftNotesSummary {
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--color-text-tertiary);
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+
+.draftNotesSummary::-webkit-details-marker { display: none; }
+
+.draftNotesList {
+  margin: var(--space-sm) 0 0;
+  padding-left: var(--space-lg);
+  display: grid;
+  gap: 4px;
+}
+
+.draftNotesList li {
+  font-size: var(--text-xs);
+  color: var(--color-text-secondary);
+  font-family: var(--font-mono);
+}
+
+/* Empty section fallback hint */
+
+.emptySectionHint {
+  font-size: var(--text-xs);
+  color: var(--color-text-tertiary);
+  font-style: italic;
+  max-width: none;
+  margin: 0;
+  padding: var(--space-sm) 0;
 }

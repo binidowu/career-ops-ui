@@ -183,11 +183,11 @@ export function parseReportMarkdown(
   const cvMatchTable = parseMarkdownTable(sectionB).map<CvMatchItem>((row) => ({
     requirement: row["JD Requirement"] ?? "",
     match: row["CV Match"] ?? "",
-    source: row.Source ?? "",
+    source: row.Evidence ?? row.Source ?? "",
   }));
 
   const gapsTable = parseMarkdownTable(
-    sectionB.split(/^###\s+Gaps$/im)[1] ?? "",
+    sectionB.split(/^###\s+Gaps(?:\s+and\s+Mitigation)?$/im)[1] ?? "",
   ).map((row) => ({
     gap: row.Gap ?? "",
     severity: severityFromText(row.Severity ?? ""),
@@ -219,7 +219,7 @@ export function parseReportMarkdown(
   const interviewItems = parseMarkdownTable(sectionF).map<InterviewPrepItem>((row) => ({
     index: row["#"] ?? "",
     requirement: row["JD Requirement"] ?? "",
-    story: row["STAR Story"] ?? "",
+    story: row["Story (STAR+R)"] ?? row["STAR Story"] ?? "",
     situation: row.S ?? "",
     task: row.T ?? "",
     action: row.A ?? "",

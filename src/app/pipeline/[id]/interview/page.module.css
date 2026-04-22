@@ -218,6 +218,87 @@
   line-height: var(--leading-relaxed);
 }
 
+.intelDocument {
+  display: grid;
+  gap: var(--space-md);
+}
+
+.intelSectionHeading,
+.intelSubheading,
+.intelParagraph {
+  margin: 0;
+}
+
+.intelSectionHeading {
+  padding-top: var(--space-md);
+  border-top: 1px solid var(--color-border-subtle);
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+  letter-spacing: 0.02em;
+}
+
+.intelSubheading {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  color: var(--color-text);
+}
+
+.intelParagraph {
+  color: var(--color-text-secondary);
+  line-height: var(--leading-relaxed);
+}
+
+.intelList {
+  display: grid;
+  gap: var(--space-sm);
+  margin: 0;
+  padding-left: 1.1rem;
+  color: var(--color-text-secondary);
+}
+
+.intelList li {
+  line-height: var(--leading-relaxed);
+}
+
+.intelTableWrap {
+  overflow-x: auto;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+}
+
+.intelTable {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 38rem;
+}
+
+.intelTable th,
+.intelTable td {
+  padding: var(--space-sm) var(--space-md);
+  border-bottom: 1px solid var(--color-border-subtle);
+  text-align: left;
+  vertical-align: top;
+  font-size: var(--text-sm);
+  line-height: var(--leading-relaxed);
+}
+
+.intelTable th {
+  font-size: var(--text-xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-tertiary);
+  background: var(--color-surface);
+}
+
+.intelTable td {
+  color: var(--color-text-secondary);
+}
+
+.intelTable tr:last-child td {
+  border-bottom: 0;
+}
+
 .storyGrid {
   display: grid;
   gap: var(--space-lg);

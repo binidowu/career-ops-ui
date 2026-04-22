@@ -167,6 +167,19 @@ export default function ResumeStudio({
   const [exporting, setExporting] = useState(false);
   const manualRefreshPendingRef = useRef(false);
 
+  const draftQuality = useMemo(() => {
+    if (!draft) return null;
+    const sections = [
+      { label: "Contact", ok: draft.contactLines.length > 0 },
+      { label: "Headline", ok: Boolean(draft.headline) },
+      { label: "Summary", ok: Boolean(draft.summary) },
+      { label: "Experience", ok: draft.experienceHighlights.length > 0 },
+      { label: "Skills", ok: draft.skillHighlights.length > 0 },
+    ];
+    const filled = sections.filter((s) => s.ok).length;
+    return { sections, filled, total: sections.length };
+  }, [draft]);
+
   /* Canvas controls */
   const [zoom, setZoom] = useState<ZoomLevel>(100);
   const [matchedOnly, setMatchedOnly] = useState(false);
@@ -477,6 +490,10 @@ export default function ResumeStudio({
     }
   }
 
+  const hasEdits = Boolean(
+    headlineOverride || summaryOverride || Object.keys(expBulletOverrides).length,
+  );
+
   return (
     <section className={styles.studio}>
       {/* ── LEFT SIDEBAR ── */}
@@ -521,10 +538,28 @@ export default function ResumeStudio({
               >
                 {configuredResumeSources.map((source) => (
                   <option key={source.id} value={source.id}>
-                    {source.label}
+                    {source.label}{source.default ? " (default)" : ""}
                   </option>
                 ))}
               </select>
+              {(() => {
+                const selected = configuredResumeSources.find((s) => s.id === selectedResumeSourceId);
+                const mismatch = lastGeneratedSourceId !== null && lastGeneratedSourceId !== selectedResumeSourceId;
+                return (
+                  <>
+                    {mismatch && (
+                      <p className={styles.sourceMismatch}>
+                        Source changed — regenerate to apply
+                      </p>
+                    )}
+                    {selected?.targetRoles?.length ? (
+                      <p className={styles.sourceRoles}>
+                        Targets: {selected.targetRoles.join(", ")}
+                      </p>
+                    ) : null}
+                  </>
+                );
+              })()}
             </section>
           )}
 
@@ -686,6 +721,22 @@ export default function ResumeStudio({
             </div>
             <span className={styles.previewId}>{previewId(selectedOpportunity)}</span>
             {draft ? <span className={styles.previewVariant}>{draft.variantLabel}</span> : null}
+            {draftQuality ? (
+              <span
+                className={styles.qualityBadge}
+                data-full={draftQuality.filled === draftQuality.total}
+                title={draftQuality.sections
+                  .map((s) => `${s.ok ? "✓" : "✗"} ${s.label}`)
+                  .join("  ·  ")}
+              >
+                {draftQuality.filled}/{draftQuality.total} sections
+              </span>
+            ) : null}
+            {hasEdits && (
+              <span className={styles.editsIndicator} title="You have unsaved inline edits. Use Reset Baseline to clear them.">
+                Edited
+              </span>
+            )}
           </div>
 
           {/* Zoom controls */}
@@ -785,8 +836,22 @@ export default function ResumeStudio({
                   </div>
                 </header>
 
+                {/* DRAFT DIAGNOSTICS — shown when backend emits notes */}
+                {draft.notes.length > 0 && (
+                  <details className={styles.draftNotes}>
+                    <summary className={styles.draftNotesSummary}>
+                      Draft diagnostics ({draft.notes.length})
+                    </summary>
+                    <ul className={styles.draftNotesList}>
+                      {draft.notes.map((note, i) => (
+                        <li key={i}>{note}</li>
+                      ))}
+                    </ul>
+                  </details>
+                )}
+
                 {/* PROFESSIONAL SYNOPSIS */}
-                {draft.summary && (
+                {draft.summary ? (
                   <div className={styles.docSection}>
                     <span className={styles.docSectionLabel}>Professional Synopsis</span>
                     <div className={styles.editableZone}>
@@ -832,6 +897,13 @@ export default function ResumeStudio({
                         </button>
                       )}
                     </div>
+                  </div>
+                ) : (
+                  <div className={styles.docSection}>
+                    <span className={styles.docSectionLabel}>Professional Synopsis</span>
+                    <p className={styles.emptySectionHint}>
+                      No summary generated — add a professional summary to your resume source.
+                    </p>
                   </div>
                 )}
 

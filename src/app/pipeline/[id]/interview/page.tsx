@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import type { ReactNode } from "react";
 
 import GenerateInterviewIntelButton from "@/components/interview/GenerateInterviewIntelButton";
 import StoryBankEditor from "@/components/interview/StoryBankEditor";
@@ -46,15 +47,152 @@ function splitInterviewSummary(value: string) {
 }
 
 function renderReportParagraphs(content: string) {
-  const body = content
+  return content
     .replace(/^#\s+.+$/m, "")
     .trim();
+}
 
-  return body
-    .split(/\n\s*\n/)
-    .map((block) => block.trim())
-    .filter(Boolean)
-    .slice(0, 10);
+function cleanInlineMarkdown(value: string) {
+  return value
+    .replace(/\*\*(.+?)\*\*/g, "$1")
+    .replace(/\*(.+?)\*/g, "$1")
+    .replace(/`(.+?)`/g, "$1")
+    .trim();
+}
+
+function parseMarkdownTableRows(lines: string[]) {
+  if (lines.length < 2) return null;
+
+  const cellsFromLine = (line: string) =>
+    line
+      .replace(/^\|/, "")
+      .replace(/\|$/, "")
+      .split("|")
+      .map((cell) => cleanInlineMarkdown(cell.trim()));
+
+  const header = cellsFromLine(lines[0]);
+  const rows = lines
+    .slice(2)
+    .map(cellsFromLine)
+    .filter((row) => row.length >= header.length);
+
+  if (!header.length || !rows.length) {
+    return null;
+  }
+
+  return { header, rows };
+}
+
+function renderIntelContent(content: string) {
+  const lines = renderReportParagraphs(content).split("\n");
+  const blocks: ReactNode[] = [];
+  let index = 0;
+
+  while (index < lines.length) {
+    const line = lines[index]?.trim() ?? "";
+
+    if (!line) {
+      index += 1;
+      continue;
+    }
+
+    if (line.startsWith("## ")) {
+      blocks.push(
+        <h3 className={styles.intelSectionHeading} key={`heading-${index}`}>
+          {cleanInlineMarkdown(line.replace(/^##\s+/, ""))}
+        </h3>,
+      );
+      index += 1;
+      continue;
+    }
+
+    if (line.startsWith("### ")) {
+      blocks.push(
+        <h4 className={styles.intelSubheading} key={`subheading-${index}`}>
+          {cleanInlineMarkdown(line.replace(/^###\s+/, ""))}
+        </h4>,
+      );
+      index += 1;
+      continue;
+    }
+
+    if (line.startsWith("|")) {
+      const tableLines: string[] = [];
+
+      while (index < lines.length && lines[index]?.trim().startsWith("|")) {
+        tableLines.push(lines[index]!.trim());
+        index += 1;
+      }
+
+      const table = parseMarkdownTableRows(tableLines);
+
+      if (table) {
+        blocks.push(
+          <div className={styles.intelTableWrap} key={`table-${index}`}>
+            <table className={styles.intelTable}>
+              <thead>
+                <tr>
+                  {table.header.map((cell) => (
+                    <th key={cell}>{cell}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {table.rows.map((row, rowIndex) => (
+                  <tr key={`row-${rowIndex}`}>
+                    {table.header.map((_, cellIndex) => (
+                      <td key={`${rowIndex}-${cellIndex}`}>{row[cellIndex] ?? ""}</td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>,
+        );
+      }
+
+      continue;
+    }
+
+    if (line.startsWith("- ")) {
+      const items: string[] = [];
+
+      while (index < lines.length && lines[index]?.trim().startsWith("- ")) {
+        items.push(cleanInlineMarkdown(lines[index]!.trim().replace(/^- /, "")));
+        index += 1;
+      }
+
+      blocks.push(
+        <ul className={styles.intelList} key={`list-${index}`}>
+          {items.map((item) => (
+            <li key={item}>{item}</li>
+          ))}
+        </ul>,
+      );
+      continue;
+    }
+
+    const paragraphLines: string[] = [];
+
+    while (index < lines.length) {
+      const nextLine = lines[index]?.trim() ?? "";
+      if (!nextLine || nextLine.startsWith("## ") || nextLine.startsWith("### ") || nextLine.startsWith("- ") || nextLine.startsWith("|")) {
+        break;
+      }
+      paragraphLines.push(nextLine);
+      index += 1;
+    }
+
+    if (paragraphLines.length) {
+      blocks.push(
+        <p className={styles.intelParagraph} key={`paragraph-${index}`}>
+          {cleanInlineMarkdown(paragraphLines.join(" "))}
+        </p>,
+      );
+    }
+  }
+
+  return blocks;
 }
 
 export default async function OpportunityInterviewPrepPage({
@@ -84,8 +222,8 @@ export default async function OpportunityInterviewPrepPage({
     : [];
   const prepSummary = evaluation ? splitInterviewSummary(evaluation.interviewPrep) : [];
   const matchedReportParagraphs = prepWorkspace.matchedReport
-    ? renderReportParagraphs(prepWorkspace.matchedReport.content)
-    : [];
+    ? renderIntelContent(prepWorkspace.matchedReport.content)
+    : null;
 
   return (
     <article className={`app-page ${styles.page}`}>
@@ -190,9 +328,7 @@ export default async function OpportunityInterviewPrepPage({
                   </p>
                 </div>
                 {prepWorkspace.matchedReport ? (
-                  matchedReportParagraphs.map((paragraph) => (
-                    <p key={paragraph}>{paragraph.replace(/\n+/g, " ")}</p>
-                  ))
+                  <div className={styles.intelDocument}>{matchedReportParagraphs}</div>
                 ) : (
                   <>
                     <p>
