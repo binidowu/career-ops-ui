@@ -930,6 +930,48 @@ export async function saveInterviewPrepStoryBank(content: string) {
   };
 }
 
+export async function generateInterviewPrepIntel(input: {
+  opportunityId: string;
+}) {
+  noStore();
+
+  const { opportunity } = await getOpportunity(input.opportunityId);
+
+  if (!opportunity?.reportPath) {
+    throw new Error("The selected opportunity does not have a report-backed evaluation yet.");
+  }
+
+  const args = [
+    resolveCareerOpsFile("interview-intel-draft.mjs"),
+    "--report",
+    opportunity.reportPath,
+    "--json",
+  ];
+
+  try {
+    const { stdout } = await execFileAsync("node", args, {
+      cwd: getCareerOpsPath(),
+      maxBuffer: 1024 * 1024 * 10,
+    });
+
+    const payload = JSON.parse(stdout) as {
+      company: string;
+      inferredQuestions: number;
+      outputPath: string;
+      reportPath: string;
+      role: string;
+      storyMatches: number;
+    };
+
+    clearCache(["interview-prep:"]);
+    return payload;
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Unable to generate the interview intel draft.";
+    throw new Error(message);
+  }
+}
+
 function sanitizeResumeSourceId(value: string) {
   return value
     .toLowerCase()
@@ -1107,4 +1149,55 @@ export async function saveProfile(profile: UserProfile) {
   clearCache(["profile", "profile-template", "opportunities", "stats"]);
 
   return getProfile();
+}
+
+/* ============================================================
+   Apply & Outreach Data
+   Stored in data/apply-notes.json in the career-ops directory.
+   Each entry is keyed by opportunity id.
+   ============================================================ */
+
+export interface ApplyNoteEntry {
+  coverLetterNotes: string;
+  outreachDraft: string;
+  appliedDate: string | null;
+}
+
+function applyNotesPath() {
+  return resolveCareerOpsFile("data", "apply-notes.json");
+}
+
+async function readApplyNotesFile(): Promise<Record<string, ApplyNoteEntry>> {
+  try {
+    const raw = await readFile(applyNotesPath(), "utf8");
+    return JSON.parse(raw) as Record<string, ApplyNoteEntry>;
+  } catch {
+    return {};
+  }
+}
+
+export async function getApplyData(opportunityId: string): Promise<ApplyNoteEntry> {
+  noStore();
+  const all = await readApplyNotesFile();
+  return all[opportunityId] ?? { coverLetterNotes: "", outreachDraft: "", appliedDate: null };
+}
+
+export async function saveApplyData(
+  opportunityId: string,
+  patch: Partial<ApplyNoteEntry>,
+): Promise<ApplyNoteEntry> {
+  noStore();
+  const all = await readApplyNotesFile();
+  const existing = all[opportunityId] ?? {
+    coverLetterNotes: "",
+    outreachDraft: "",
+    appliedDate: null,
+  };
+  const next: ApplyNoteEntry = { ...existing, ...patch };
+  all[opportunityId] = next;
+
+  await mkdir(resolveCareerOpsFile("data"), { recursive: true });
+  await writeFile(applyNotesPath(), JSON.stringify(all, null, 2), "utf8");
+
+  return next;
 }

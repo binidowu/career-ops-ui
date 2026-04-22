@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import GenerateInterviewIntelButton from "@/components/interview/GenerateInterviewIntelButton";
 import StoryBankEditor from "@/components/interview/StoryBankEditor";
 import { getInterviewPrepWorkspace, getOpportunity } from "@/lib/api/career-ops";
 
@@ -181,6 +182,13 @@ export default async function OpportunityInterviewPrepPage({
                 </span>
               </div>
               <div className={styles.cardBody}>
+                <div className={styles.inlineActions}>
+                  <GenerateInterviewIntelButton opportunityId={opportunity.id} />
+                  <p className={styles.inlineHint}>
+                    Generates a fresh prep brief from the parsed evaluation report and your current
+                    story bank, then refreshes this workspace.
+                  </p>
+                </div>
                 {prepWorkspace.matchedReport ? (
                   matchedReportParagraphs.map((paragraph) => (
                     <p key={paragraph}>{paragraph.replace(/\n+/g, " ")}</p>
@@ -192,8 +200,9 @@ export default async function OpportunityInterviewPrepPage({
                       {" "}for this role yet.
                     </p>
                     <p>
-                      The backend mode definition exists, but there is not currently a standalone
-                      script we can safely trigger from the UI the way we do for scans or doctor.
+                      Use <strong>Generate Fresh Intel</strong> to create one from the existing
+                      evaluation report, then come back here to refine your story bank and rehearse
+                      against the generated prompts.
                     </p>
                   </>
                 )}

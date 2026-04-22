@@ -196,6 +196,22 @@
   gap: var(--space-md);
 }
 
+.inlineActions {
+  display: grid;
+  gap: var(--space-sm);
+  justify-items: start;
+  padding-bottom: var(--space-md);
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.inlineHint {
+  margin: 0;
+  max-width: 40rem;
+  color: var(--color-text-tertiary);
+  font-size: var(--text-sm);
+  line-height: var(--leading-relaxed);
+}
+
 .cardBody p {
   margin: 0;
   color: var(--color-text-secondary);
