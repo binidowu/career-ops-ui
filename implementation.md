@@ -1,6 +1,6 @@
 # Career-Ops UI — Code-Verified Implementation Ledger
 
-Last updated: 2026-04-24
+Last updated: 2026-04-24 (Resume Studio hardening pass + backend draft quality fixes)
 
 ## Purpose
 
@@ -141,6 +141,7 @@ Status: implemented, with room for deeper research capabilities
 - Dedicated scans route exists.
 - Users can paste URLs or pipeline-style intake lines from the browser.
 - Browser-triggered scanner execution exists.
+- Browser-triggered pending pipeline processing now exists in controlled batches.
 - Pending and processed inbox states are visible in the UI.
 
 Status: implemented
@@ -167,15 +168,32 @@ What exists:
 - inline editing controls,
 - backend connectivity.
 
+Hardening pass completed (2026-04-24):
+
+- Sidebar headline/summary edits now persist to localStorage (was silently lost on refresh).
+- Regenerate button now re-runs the current draft settings rather than cycling to the next variant.
+- Preview experience entry heading layout now matches the PDF export (Role | Company with period as the date column).
+- Source mismatch warning is now a clickable action that triggers regeneration.
+
+Backend draft quality pass completed (2026-04-24):
+
+- Fixed three regex mismatches in `resume-draft.mjs` that were silently producing wrong/empty data from every evaluation report:
+  - Title regex: `# Evaluation: Company — Role` format was never matched, so `role` and `company` were always `"Unknown role"` / `"Unknown company"`.
+  - Section regex: `## A) Heading` format was never matched, so `sections` was always `[]` — meaning summary extraction, nextSteps, and keyword scanning all fell back to empty.
+  - Archetype regex: `**Archetype:** value` format was never matched, so archetype was always `""`.
+- Keywords now use the `## Keywords (ATS)` section at the bottom of each report — curated by the evaluator — instead of guessing from text matches.
+- Summary now uses the report's TL;DR (role-specific, evaluator-written) instead of hardcoded template strings about "React delivery" and "frontend delivery".
+- Diagnostic notes now extract real personalization suggestions from section E instead of being empty.
+- Resume section parser now accepts `## Experience`, `## Professional Experience`, etc. in addition to `## Work Experience`.
+- Bullet parsing now handles `•`, `*`, and `◦` prefix styles in addition to `-`.
+- `targetRoles` from resume sources is now passed through the entire chain from `resume-draft.mjs` → API type → UI.
+
 What still needs work:
 
-- stronger and more predictable draft quality,
-- clearer regenerate behavior,
-- better edit-state consistency,
-- tighter contract between backend generation output and frontend rendering,
-- better trust that what the user edits is what the final asset reflects.
+- Edit-state consistency when the base draft regenerates under existing overrides (deep UX issue, low frequency).
+- Deeper trust signals for what the final compiled PDF will look like vs the preview.
 
-Status: partial
+Status: substantially complete — quality was primarily limited by parsing bugs, not generation capability
 
 #### Apply and outreach depth
 
@@ -339,6 +357,8 @@ Goals:
 - clarify source selection and regenerate flows,
 - make inline edits more trustworthy,
 - tighten the frontend-backend contract for draft shape and export behavior.
+
+Progress: complete. UX and contract bugs resolved first (sidebar persistence, regenerate behavior, heading layout parity, source mismatch action), then backend draft quality fixed — see below.
 
 ### 2. Apply and outreach depth
 

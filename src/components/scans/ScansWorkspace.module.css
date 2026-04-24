@@ -117,7 +117,8 @@
 }
 
 .textarea,
-.input {
+.input,
+.select {
   background-color: var(--color-bg);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
@@ -138,10 +139,15 @@
 }
 
 .textarea:focus-visible,
-.input:focus-visible {
+.input:focus-visible,
+.select:focus-visible {
   border-color: var(--color-accent);
   outline: 2px solid color-mix(in oklch, var(--color-accent) 40%, transparent);
   outline-offset: 1px;
+}
+
+.select {
+  appearance: none;
 }
 
 .actions {
@@ -208,10 +214,89 @@
 }
 
 .helpCard,
-.scanCard {
+.scanCard,
+.processCard,
+.processNote {
   display: grid;
   gap: var(--space-md);
   padding: var(--space-lg);
+}
+
+.processBlock {
+  border-top: 1px solid var(--color-border-subtle);
+  display: grid;
+  gap: var(--space-md);
+  padding-top: var(--space-lg);
+}
+
+.processHead {
+  align-items: start;
+  display: flex;
+  gap: var(--space-md);
+  justify-content: space-between;
+}
+
+.processHead h3 {
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-tight);
+  line-height: var(--leading-tight);
+  margin: var(--space-xs) 0 0;
+  max-width: 24ch;
+}
+
+.processBadge {
+  align-items: center;
+  background-color: var(--color-surface-2);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-full);
+  color: var(--color-text-secondary);
+  display: inline-flex;
+  font-size: var(--text-xs);
+  min-height: 2.2rem;
+  padding: 0 var(--space-md);
+  white-space: nowrap;
+}
+
+.processControls {
+  align-items: end;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-md);
+}
+
+.processField {
+  display: grid;
+  gap: var(--space-xs);
+  min-width: 12rem;
+}
+
+.processStats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+
+.processStats span {
+  background-color: var(--color-surface-2);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-full);
+  color: var(--color-text-secondary);
+  font-size: var(--text-sm);
+  padding: 0.35rem var(--space-md);
+}
+
+.processSummary {
+  color: var(--color-text);
+  font-size: var(--text-sm);
+  margin: 0;
+}
+
+.processNote p {
+  color: var(--color-text-secondary);
+  margin: 0;
+  font-size: var(--text-sm);
 }
 
 .helpCard p {
@@ -364,7 +449,8 @@
   }
 
   .panelHead,
-  .ledgerHead {
+  .ledgerHead,
+  .processHead {
     align-items: start;
     flex-direction: column;
   }

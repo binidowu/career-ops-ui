@@ -143,6 +143,15 @@ export interface ScanRunResult {
   output: string;
 }
 
+export interface PipelineProcessResult {
+  attemptedCount: number;
+  output: string;
+  pendingAfter: number;
+  pendingBefore: number;
+  resolvedCount: number;
+  summary: string;
+}
+
 export type SystemCheckId = "doctor" | "verify" | "sync-check" | "liveness";
 export type SystemCheckStatus = "pass" | "warn" | "fail";
 

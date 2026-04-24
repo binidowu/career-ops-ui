@@ -55,12 +55,6 @@ function getDefaultResumeSourceId(profile: UserProfile | null) {
   return sources.find((source) => source.default)?.id ?? sources[0]?.id ?? "";
 }
 
-function getNextVariant(current: ResumeDraftVariant): ResumeDraftVariant {
-  if (current === "balanced") return "technical";
-  if (current === "technical") return "execution";
-  return "balanced";
-}
-
 /* ── Override persistence helpers ── */
 
 const OVERRIDES_PREFIX = "resume-overrides-";
@@ -258,10 +252,8 @@ export default function ResumeStudio({
   }
 
   function handleRegenerate() {
-    const nextVariant = getNextVariant(variant);
     manualRefreshPendingRef.current = true;
     setEditing(null);
-    setVariant(nextVariant);
     setDraftRefreshKey((current) => current + 1);
   }
 
@@ -563,7 +555,14 @@ export default function ResumeStudio({
                   <>
                     {mismatch && (
                       <p className={styles.sourceMismatch}>
-                        Source changed — regenerate to apply
+                        Source changed —{" "}
+                        <button
+                          className={styles.sourceMismatchAction}
+                          onClick={handleRegenerate}
+                          type="button"
+                        >
+                          regenerate to apply
+                        </button>
                       </p>
                     )}
                     {selected?.targetRoles?.length ? (
@@ -681,7 +680,17 @@ export default function ResumeStudio({
               <span>Headline</span>
               <input
                 className={styles.textInput}
-                onChange={(e) => setHeadlineOverride(e.target.value)}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setHeadlineOverride(value);
+                  if (selectedOpportunity) {
+                    saveStoredOverrides(selectedOpportunity.id, {
+                      headlineOverride: value,
+                      summaryOverride,
+                      expBulletOverrides,
+                    });
+                  }
+                }}
                 placeholder={draft?.headline ?? "Generated headline"}
                 type="text"
                 value={headlineOverride}
@@ -691,7 +700,17 @@ export default function ResumeStudio({
               <span>Summary</span>
               <textarea
                 className={styles.textArea}
-                onChange={(e) => setSummaryOverride(e.target.value)}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setSummaryOverride(value);
+                  if (selectedOpportunity) {
+                    saveStoredOverrides(selectedOpportunity.id, {
+                      headlineOverride,
+                      summaryOverride: value,
+                      expBulletOverrides,
+                    });
+                  }
+                }}
                 placeholder={draft?.summary ?? "Generated summary"}
                 rows={5}
                 value={summaryOverride}
@@ -937,17 +956,24 @@ export default function ResumeStudio({
                           <article className={styles.docEntry} key={entry.heading + entry.subheading}>
                             <div className={styles.docEntryHead}>
                               <span className={styles.docEntryTitle}>
-                                {entry.heading.includes(" | ") ? (
-                                  <>
-                                    <strong>{entry.heading.split(" | ")[0]}</strong>
-                                    {" | "}
-                                    <span>{entry.heading.split(" | ").slice(1).join(" | ")}</span>
-                                  </>
-                                ) : (
-                                  <strong>{entry.heading}</strong>
-                                )}
+                                {(() => {
+                                  const subParts = entry.subheading.split(" · ");
+                                  const role = subParts[0] ?? "";
+                                  return (
+                                    <>
+                                      <strong>{role}</strong>
+                                      {" | "}
+                                      <span>{entry.heading}</span>
+                                    </>
+                                  );
+                                })()}
                               </span>
-                              <span className={styles.docEntryDate}>{entry.subheading}</span>
+                              <span className={styles.docEntryDate}>
+                                {(() => {
+                                  const subParts = entry.subheading.split(" · ");
+                                  return subParts.length > 1 ? subParts[subParts.length - 1] : "";
+                                })()}
+                              </span>
                             </div>
 
                             <div className={styles.editableZone}>

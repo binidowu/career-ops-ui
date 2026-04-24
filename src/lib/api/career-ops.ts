@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
+import { access, mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { basename, extname } from "node:path";
 import { promisify } from "node:util";
 import { unstable_noStore as noStore } from "next/cache";
@@ -38,6 +38,7 @@ import type {
   Opportunity,
   OpportunityStatus,
   PipelineInboxItem,
+  PipelineProcessResult,
   ResumeSource,
   ScanRunResult,
   StateDefinition,
@@ -56,6 +57,12 @@ interface CacheEntry<T> {
 
 const cache = new Map<string, CacheEntry<unknown>>();
 const execFileAsync = promisify(execFile);
+const LOCAL_TOOL_PATHS = ["/opt/homebrew/bin", "/usr/local/bin"];
+const CODEX_CLI_CANDIDATES = [
+  process.env.CODEX_CLI_PATH,
+  "/opt/homebrew/bin/codex",
+  "/usr/local/bin/codex",
+].filter(Boolean) as string[];
 
 const SYSTEM_CHECKS: Record<
   SystemCheckId,
@@ -87,6 +94,7 @@ interface BackendResumeDraftPayload {
     id: string;
     label: string;
     path: string;
+    targetRoles?: string[];
   };
   opportunity: {
     archetype: string;
@@ -130,6 +138,72 @@ function clearCache(prefixes: string[] = []) {
       cache.delete(key);
     }
   }
+}
+
+function buildLocalExecEnv() {
+  const existingPath = process.env.PATH?.split(":").filter(Boolean) ?? [];
+
+  return {
+    ...process.env,
+    PATH: [...new Set([...LOCAL_TOOL_PATHS, ...existingPath])].join(":"),
+  };
+}
+
+function normalizeExecError(error: unknown, fallbackMessage: string) {
+  if (typeof error !== "object" || error === null) {
+    throw new Error(fallbackMessage);
+  }
+
+  const execError = error as {
+    code?: number | string;
+    message?: string;
+    stderr?: string;
+    stdout?: string;
+  };
+
+  const output = normalizeCommandOutput(execError.stdout ?? "", execError.stderr ?? "");
+  const message = output || execError.message || fallbackMessage;
+
+  return {
+    exitCode: typeof execError.code === "number" ? execError.code : 1,
+    message,
+    output,
+  };
+}
+
+async function fileExists(path: string) {
+  try {
+    await access(path);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function resolveCodexCliPath() {
+  for (const candidate of CODEX_CLI_CANDIDATES) {
+    if (await fileExists(candidate)) {
+      return candidate;
+    }
+  }
+
+  const home = process.env.HOME?.trim();
+  if (home) {
+    const extensionsDir = `${home}/.antigravity/extensions`;
+    const extensionIds = await readdir(extensionsDir).catch(() => [] as string[]);
+
+    for (const extensionId of extensionIds) {
+      const candidate = `${extensionsDir}/${extensionId}/bin/macos-aarch64/codex`;
+
+      if (await fileExists(candidate)) {
+        return candidate;
+      }
+    }
+  }
+
+  throw new Error(
+    "The local Codex CLI could not be found. Install or expose the Codex binary so browser-triggered pipeline processing can run.",
+  );
 }
 
 function normalizeResumeSource(source: ResumeSource, fallbackIndex = 0): ResumeSource {
@@ -336,7 +410,7 @@ function toUiResumeDraft(
       id: payload.resumeSource.id,
       label: payload.resumeSource.label,
       path: payload.resumeSource.path,
-      targetRoles: [],
+      targetRoles: payload.resumeSource.targetRoles ?? [],
     },
     draft: {
       contactLines: payload.draft.contactLines,
@@ -740,6 +814,7 @@ export async function runPortalScan(input?: {
   try {
     const { stdout, stderr } = await execFileAsync("node", args, {
       cwd: getCareerOpsPath(),
+      env: buildLocalExecEnv(),
       maxBuffer: 1024 * 1024 * 10,
     });
 
@@ -831,6 +906,7 @@ export async function runSystemCheck(input: {
   try {
     const result = await execFileAsync("node", args, {
       cwd: getCareerOpsPath(),
+      env: buildLocalExecEnv(),
       maxBuffer: 1024 * 1024 * 10,
     });
     stdout = result.stdout;
@@ -954,6 +1030,7 @@ export async function generateInterviewPrepIntel(input: {
   try {
     const { stdout } = await execFileAsync("node", args, {
       cwd: getCareerOpsPath(),
+      env: buildLocalExecEnv(),
       maxBuffer: 1024 * 1024 * 10,
     });
 
@@ -1035,6 +1112,7 @@ export async function generateResumeDraft(input: {
   try {
     const { stdout } = await execFileAsync("node", args, {
       cwd: getCareerOpsPath(),
+      env: buildLocalExecEnv(),
       maxBuffer: 1024 * 1024 * 10,
     });
 
@@ -1084,6 +1162,101 @@ export async function uploadResumeSourceFile(input: {
     path: relativePath,
     default: Boolean(input.makeDefault),
     targetRoles: input.targetRoles ?? [],
+  };
+}
+
+async function readOptionalTextFile(path: string) {
+  try {
+    return await readFile(path, "utf8");
+  } catch {
+    return "";
+  }
+}
+
+export async function processPendingPipelineBatch(input?: {
+  limit?: number;
+}): Promise<PipelineProcessResult> {
+  noStore();
+
+  const inboxBefore = await getPipelineInbox();
+  const pendingBefore = inboxBefore.pending.length;
+  const requestedLimit = Number.isFinite(input?.limit)
+    ? Math.trunc(input?.limit ?? 3)
+    : 3;
+  const limit = Math.min(10, Math.max(1, requestedLimit));
+  const attemptedCount = Math.min(limit, pendingBefore);
+
+  if (!attemptedCount) {
+    return {
+      attemptedCount: 0,
+      pendingBefore: 0,
+      pendingAfter: 0,
+      resolvedCount: 0,
+      summary: "There are no pending pipeline items to process right now.",
+      output: "No pending items in data/pipeline.md.",
+    };
+  }
+
+  const runId = `pipeline-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const summaryPath = `/tmp/${runId}.txt`;
+  const codexCliPath = await resolveCodexCliPath();
+  const prompt = [
+    `Working inside the career-ops repository, process only the first ${attemptedCount} pending entries from data/pipeline.md using the Career-Ops pipeline workflow.`,
+    "Follow the checked-in instructions from AGENTS.md, docs/CODEX.md, CLAUDE.md, and modes/pipeline.md.",
+    `Do not process more than ${attemptedCount} pending items even if more remain in the inbox.`,
+    "Use /opt/homebrew/bin/node when you need to invoke repository Node scripts.",
+    "If tracker TSV additions are created during the run, merge them and verify integrity before finishing.",
+    "At the end, output only a concise operator summary describing what was processed, what reports or PDFs were created, and any blockers encountered.",
+  ].join("\n");
+
+  try {
+    await execFileAsync(
+      codexCliPath,
+      [
+        "exec",
+        "-C",
+        getCareerOpsPath(),
+        "--full-auto",
+        "--ephemeral",
+        "--output-last-message",
+        summaryPath,
+        prompt,
+      ],
+      {
+        cwd: getCareerOpsPath(),
+        env: buildLocalExecEnv(),
+        maxBuffer: 1024 * 1024 * 20,
+        timeout: 1000 * 60 * 30,
+      },
+    );
+  } catch (error) {
+    const summary = (await readOptionalTextFile(summaryPath)).trim();
+    const normalized = normalizeExecError(
+      error,
+      "Unable to run the pending pipeline processor.",
+    );
+
+    throw new Error(summary || normalized.message);
+  }
+
+  const summary = (await readOptionalTextFile(summaryPath)).trim();
+  clearCache();
+
+  const inboxAfter = await getPipelineInbox();
+  const pendingAfter = inboxAfter.pending.length;
+  const resolvedCount = Math.max(0, pendingBefore - pendingAfter);
+  const fallbackSummary =
+    resolvedCount > 0
+      ? `${resolvedCount} pending pipeline item${resolvedCount === 1 ? "" : "s"} moved out of the inbox.`
+      : "Pipeline processor finished, but no pending items moved out of the inbox.";
+
+  return {
+    attemptedCount,
+    pendingBefore,
+    pendingAfter,
+    resolvedCount,
+    summary: summary || fallbackSummary,
+    output: summary || fallbackSummary,
   };
 }
 
@@ -1348,6 +1521,7 @@ export async function runMaintenanceCommand(input: {
   try {
     const result = await execFileAsync("node", args, {
       cwd: getCareerOpsPath(),
+      env: buildLocalExecEnv(),
       maxBuffer: 1024 * 1024 * 10,
     });
     stdout = result.stdout;

@@ -26,27 +26,47 @@ const GROUP_ORDER = ["Navigation", "Opportunities", "Actions"] as const;
 const RECENT_ITEMS_STORAGE_KEY = "career-ops.command-palette.recent";
 const MAX_RECENT_ITEMS = 6;
 const RECENT_ITEMS_EVENT = "career-ops:command-palette-recent";
+const EMPTY_RECENT_ITEMS: string[] = [];
 
-function readRecentItems() {
-  if (typeof window === "undefined") {
-    return [];
+let recentItemsSnapshot = EMPTY_RECENT_ITEMS;
+let recentItemsSnapshotRaw = "";
+
+function parseRecentItems(value: string | null) {
+  if (!value) {
+    return EMPTY_RECENT_ITEMS;
   }
 
   try {
-    const value = window.localStorage.getItem(RECENT_ITEMS_STORAGE_KEY);
-
-    if (!value) {
-      return [];
-    }
-
     const parsed = JSON.parse(value) as unknown;
 
-    return Array.isArray(parsed)
-      ? parsed.filter((entry): entry is string => typeof entry === "string").slice(0, MAX_RECENT_ITEMS)
-      : [];
+    if (!Array.isArray(parsed)) {
+      return EMPTY_RECENT_ITEMS;
+    }
+
+    const nextItems = parsed
+      .filter((entry): entry is string => typeof entry === "string")
+      .slice(0, MAX_RECENT_ITEMS);
+
+    return nextItems.length ? nextItems : EMPTY_RECENT_ITEMS;
   } catch {
-    return [];
+    return EMPTY_RECENT_ITEMS;
   }
+}
+
+function readRecentItems() {
+  if (typeof window === "undefined") {
+    return EMPTY_RECENT_ITEMS;
+  }
+
+  const value = window.localStorage.getItem(RECENT_ITEMS_STORAGE_KEY) ?? "";
+
+  if (value === recentItemsSnapshotRaw) {
+    return recentItemsSnapshot;
+  }
+
+  recentItemsSnapshotRaw = value;
+  recentItemsSnapshot = parseRecentItems(value);
+  return recentItemsSnapshot;
 }
 
 function writeRecentItems(nextItems: string[]) {
@@ -54,10 +74,17 @@ function writeRecentItems(nextItems: string[]) {
     return;
   }
 
-  window.localStorage.setItem(
-    RECENT_ITEMS_STORAGE_KEY,
-    JSON.stringify(nextItems.slice(0, MAX_RECENT_ITEMS)),
-  );
+  const normalized = nextItems.slice(0, MAX_RECENT_ITEMS);
+  const raw = normalized.length ? JSON.stringify(normalized) : "";
+
+  if (raw) {
+    window.localStorage.setItem(RECENT_ITEMS_STORAGE_KEY, raw);
+  } else {
+    window.localStorage.removeItem(RECENT_ITEMS_STORAGE_KEY);
+  }
+
+  recentItemsSnapshotRaw = raw;
+  recentItemsSnapshot = normalized.length ? normalized : EMPTY_RECENT_ITEMS;
 }
 
 function subscribeToRecentItems(onStoreChange: () => void) {
@@ -66,9 +93,11 @@ function subscribeToRecentItems(onStoreChange: () => void) {
   }
 
   window.addEventListener(RECENT_ITEMS_EVENT, onStoreChange);
+  window.addEventListener("storage", onStoreChange);
 
   return () => {
     window.removeEventListener(RECENT_ITEMS_EVENT, onStoreChange);
+    window.removeEventListener("storage", onStoreChange);
   };
 }
 
@@ -156,7 +185,7 @@ export default function CommandPalette({
   const recentItems = useSyncExternalStore(
     subscribeToRecentItems,
     readRecentItems,
-    () => [],
+    () => EMPTY_RECENT_ITEMS,
   );
 
   const rankedItems = items

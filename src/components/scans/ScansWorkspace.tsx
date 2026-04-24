@@ -5,7 +5,11 @@ import { useRouter } from "next/navigation";
 import { startTransition, useState } from "react";
 
 import { useToast } from "@/components/common/ToastContext";
-import type { PipelineInboxItem, ScanRunResult } from "@/lib/types";
+import type {
+  PipelineInboxItem,
+  PipelineProcessResult,
+  ScanRunResult,
+} from "@/lib/types";
 
 import styles from "./ScansWorkspace.module.css";
 
@@ -36,6 +40,9 @@ export default function ScansWorkspace({
   const [scanCompany, setScanCompany] = useState("");
   const [scanning, setScanning] = useState(false);
   const [scannerResult, setScannerResult] = useState<ScanRunResult | null>(null);
+  const [processLimit, setProcessLimit] = useState("3");
+  const [processing, setProcessing] = useState(false);
+  const [processResult, setProcessResult] = useState<PipelineProcessResult | null>(null);
 
   async function handleQueueEntries() {
     const entries = normalizePipelineEntries(pipelineEntriesInput);
@@ -130,6 +137,49 @@ export default function ScansWorkspace({
       });
     } finally {
       setScanning(false);
+    }
+  }
+
+  async function handleProcessPending() {
+    setProcessing(true);
+
+    try {
+      const response = await fetch("/api/pipeline/process", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ limit: Number(processLimit) || 3 }),
+      });
+      const data = (await response.json()) as PipelineProcessResult & { error?: string };
+
+      if (!response.ok) {
+        throw new Error(data.error ?? "Unable to process the pending pipeline items.");
+      }
+
+      setProcessResult(data);
+      notify({
+        title: data.resolvedCount
+          ? "Pending roles processed"
+          : "Processor finished with no resolved items",
+        description: data.summary,
+        dismissAfter: data.resolvedCount ? 6000 : null,
+        tone: data.resolvedCount ? "neutral" : "error",
+      });
+
+      startTransition(() => {
+        router.refresh();
+      });
+    } catch (error) {
+      notify({
+        title: "Pipeline processing failed",
+        description:
+          error instanceof Error
+            ? error.message
+            : "Unable to process the pending pipeline items.",
+        tone: "error",
+        dismissAfter: null,
+      });
+    } finally {
+      setProcessing(false);
     }
   }
 
@@ -258,6 +308,78 @@ export default function ScansWorkspace({
             <Link className={styles.secondaryLink} href="/">
               Return to dashboard
             </Link>
+          </div>
+
+          <div className={styles.processBlock}>
+            <div className={styles.processHead}>
+              <div>
+                <p className={styles.eyebrow}>Pipeline Processor</p>
+                <h3>Move the oldest pending roles through the full backend workflow.</h3>
+              </div>
+              <span className={styles.processBadge}>
+                {pipelineInbox.pending.length} waiting
+              </span>
+            </div>
+
+            <p className={styles.copy}>
+              This launches the backend pipeline mode through your local Codex
+              agent. Start with small batches so you can verify report quality,
+              tracker writes, and PDF output before scaling up.
+            </p>
+
+            <div className={styles.processControls}>
+              <div className={styles.processField}>
+                <label className={styles.label} htmlFor="pipeline-process-limit">
+                  Batch size
+                </label>
+                <select
+                  className={styles.select}
+                  id="pipeline-process-limit"
+                  onChange={(event) => setProcessLimit(event.target.value)}
+                  value={processLimit}
+                >
+                  <option value="1">1 pending role</option>
+                  <option value="3">3 pending roles</option>
+                  <option value="5">5 pending roles</option>
+                  <option value="10">10 pending roles</option>
+                </select>
+              </div>
+
+              <button
+                className={styles.primaryButton}
+                disabled={processing || pipelineInbox.pending.length === 0}
+                onClick={() => void handleProcessPending()}
+                type="button"
+              >
+                {processing ? "Processing…" : "Process Pending Roles"}
+              </button>
+            </div>
+
+            {processResult ? (
+              <div className={styles.processCard}>
+                <div className={styles.processStats}>
+                  <span>
+                    Attempted: <strong>{processResult.attemptedCount}</strong>
+                  </span>
+                  <span>
+                    Resolved: <strong>{processResult.resolvedCount}</strong>
+                  </span>
+                  <span>
+                    Pending after: <strong>{processResult.pendingAfter}</strong>
+                  </span>
+                </div>
+                <p className={styles.processSummary}>{processResult.summary}</p>
+                <pre className={styles.output}>{processResult.output}</pre>
+              </div>
+            ) : (
+              <div className={styles.processNote}>
+                <p>
+                  The current browser scan only fills <code>data/pipeline.md</code>.
+                  This processor is the step that evaluates those queued roles and
+                  moves them into the tracked pipeline.
+                </p>
+              </div>
+            )}
           </div>
 
           {scannerResult ? (
