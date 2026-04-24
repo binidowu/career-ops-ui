@@ -284,7 +284,7 @@ function ExpectedRoundsStrip({ rounds, title }: { rounds: RoundCard[]; title: st
           >
             <div className={styles.stageCardHead}>
               <span className={styles.stageIndex}>
-                STAGE {String(index + 1).padStart(2, "0")}
+                Round {String(index + 1).padStart(2, "0")}
               </span>
               {round.duration ? (
                 <span className={styles.stageDuration}>{round.duration}</span>
@@ -302,7 +302,7 @@ function ExpectedRoundsStrip({ rounds, title }: { rounds: RoundCard[]; title: st
         <div className={styles.stageDetail} key={active}>
           <div className={styles.stageDetailHead}>
             <span className={styles.stageDetailLabel}>
-              STAGE {String(active + 1).padStart(2, "0")} · {rounds[active].title}
+              Round {String(active + 1).padStart(2, "0")} · {rounds[active].title}
             </span>
           </div>
           {rounds[active].testing ? (
@@ -404,8 +404,8 @@ function QuestionSection({ groups, title }: { groups: QuestionGroup[]; title: st
 function ConcernSection({ cards, title }: { cards: ConcernCard[]; title: string }) {
   function shortFlag(text: string, index: number): string {
     const firstSentence = text.split(/[.!?]/)[0] ?? text;
-    const words = firstSentence.trim().toUpperCase().split(/\s+/).slice(0, 4).join(" ");
-    return `FLAG_${String(index + 1).padStart(2, "0")}: ${words}`;
+    const words = firstSentence.trim().split(/\s+/).slice(0, 5).join(" ");
+    return `Concern ${String(index + 1).padStart(2, "0")} · ${words}`;
   }
 
   return (

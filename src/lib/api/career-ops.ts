@@ -32,6 +32,9 @@ import type { ResumeDraft, ResumeDraftVariant } from "@/lib/resume-studio";
 import type {
   DashboardStats,
   Evaluation,
+  MaintenanceCommandId,
+  MaintenanceMode,
+  MaintenanceResult,
   Opportunity,
   OpportunityStatus,
   PipelineInboxItem,
@@ -1200,4 +1203,173 @@ export async function saveApplyData(
   await writeFile(applyNotesPath(), JSON.stringify(all, null, 2), "utf8");
 
   return next;
+}
+
+const MAINTENANCE_COMMANDS: Record<
+  MaintenanceCommandId,
+  { title: string; description: string }
+> = {
+  normalize: {
+    title: "Normalize statuses",
+    description: "Map non-canonical status values to canonical ones and strip formatting artefacts.",
+  },
+  dedup: {
+    title: "Deduplicate tracker",
+    description: "Remove duplicate entries, keeping the highest-scored row and merging notes.",
+  },
+  merge: {
+    title: "Merge batch additions",
+    description: "Merge pending TSV additions from the batch folder into applications.md.",
+  },
+  "update-check": {
+    title: "Check for system updates",
+    description: "Compare local system version against the remote release.",
+  },
+  "update-apply": {
+    title: "Apply system update",
+    description: "Pull the latest system layer files. User data is never touched.",
+  },
+  rollback: {
+    title: "Rollback last update",
+    description: "Revert the most recent system update to the previous version.",
+  },
+};
+
+function parseMaintOutput(
+  commandId: MaintenanceCommandId,
+  output: string,
+  exitCode: number,
+): Pick<MaintenanceResult, "status" | "summary" | "changesFound"> {
+  const isError = exitCode !== 0;
+
+  if (isError) {
+    return { status: "error", summary: "Command exited with an error.", changesFound: 0 };
+  }
+
+  if (commandId === "update-check") {
+    try {
+      const parsed = JSON.parse(output.trim()) as {
+        status?: string;
+        local?: string;
+        remote?: string;
+      };
+      if (parsed.status === "up-to-date") {
+        return {
+          status: "ok",
+          summary: `System is up to date (v${parsed.local ?? "?"}).`,
+          changesFound: 0,
+        };
+      }
+      return {
+        status: "warn",
+        summary: `Update available: v${parsed.local ?? "?"} → v${parsed.remote ?? "?"}.`,
+        changesFound: 1,
+      };
+    } catch {
+      return { status: "ok", summary: output.trim().slice(0, 120), changesFound: 0 };
+    }
+  }
+
+  if (commandId === "update-apply" || commandId === "rollback") {
+    const ok = output.includes("✅") || output.toLowerCase().includes("success");
+    return {
+      status: ok ? "ok" : "warn",
+      summary: output.trim().split("\n").find((l) => l.trim()) ?? "Done.",
+      changesFound: 0,
+    };
+  }
+
+  const countMatch = /(\d+)\s+(statuses normalized|duplicates removed|entries added)/i.exec(output);
+  const count = countMatch ? parseInt(countMatch[1], 10) : 0;
+  const isDryRun = output.includes("dry-run");
+
+  const noChanges =
+    output.includes("No changes") ||
+    output.includes("No pending") ||
+    (count === 0 && !output.toLowerCase().includes("error"));
+
+  if (noChanges) {
+    return {
+      status: "ok",
+      summary: isDryRun
+        ? "Preview complete — no changes would be made."
+        : "No changes were needed.",
+      changesFound: 0,
+    };
+  }
+
+  return {
+    status: "warn",
+    summary: isDryRun
+      ? `Preview: ${count} change${count !== 1 ? "s" : ""} would be applied.`
+      : `Applied ${count} change${count !== 1 ? "s" : ""}.`,
+    changesFound: count,
+  };
+}
+
+export async function runMaintenanceCommand(input: {
+  commandId: MaintenanceCommandId;
+  mode: MaintenanceMode;
+}): Promise<MaintenanceResult> {
+  noStore();
+
+  const { commandId, mode } = input;
+  const dryRun = mode === "preview";
+
+  let args: string[];
+
+  switch (commandId) {
+    case "normalize":
+      args = [resolveCareerOpsFile("normalize-statuses.mjs"), ...(dryRun ? ["--dry-run"] : [])];
+      break;
+    case "dedup":
+      args = [resolveCareerOpsFile("dedup-tracker.mjs"), ...(dryRun ? ["--dry-run"] : [])];
+      break;
+    case "merge":
+      args = [resolveCareerOpsFile("merge-tracker.mjs"), ...(dryRun ? ["--dry-run"] : [])];
+      break;
+    case "update-check":
+      args = [resolveCareerOpsFile("update-system.mjs"), "check"];
+      break;
+    case "update-apply":
+      args = [resolveCareerOpsFile("update-system.mjs"), "apply"];
+      break;
+    case "rollback":
+      args = [resolveCareerOpsFile("update-system.mjs"), "rollback"];
+      break;
+    default:
+      throw new Error("Unknown maintenance command.");
+  }
+
+  let stdout = "";
+  let stderr = "";
+  let exitCode = 0;
+
+  try {
+    const result = await execFileAsync("node", args, {
+      cwd: getCareerOpsPath(),
+      maxBuffer: 1024 * 1024 * 10,
+    });
+    stdout = result.stdout;
+    stderr = result.stderr;
+  } catch (error) {
+    if (typeof error === "object" && error !== null) {
+      const execError = error as { code?: number | string; stderr?: string; stdout?: string };
+      stdout = execError.stdout ?? "";
+      stderr = execError.stderr ?? "";
+      exitCode = typeof execError.code === "number" ? execError.code : 1;
+    } else {
+      throw new Error("Unable to execute the maintenance command.");
+    }
+  }
+
+  const output = normalizeCommandOutput(stdout, stderr);
+  const parsed = parseMaintOutput(commandId, output, exitCode);
+
+  return {
+    commandId,
+    mode,
+    output,
+    ...parsed,
+  };
 }

@@ -146,6 +146,25 @@ export interface ScanRunResult {
 export type SystemCheckId = "doctor" | "verify" | "sync-check" | "liveness";
 export type SystemCheckStatus = "pass" | "warn" | "fail";
 
+export type MaintenanceCommandId =
+  | "normalize"
+  | "dedup"
+  | "merge"
+  | "update-check"
+  | "update-apply"
+  | "rollback";
+
+export type MaintenanceMode = "preview" | "apply";
+
+export interface MaintenanceResult {
+  commandId: MaintenanceCommandId;
+  mode: MaintenanceMode;
+  status: "ok" | "warn" | "error";
+  summary: string;
+  changesFound: number;
+  output: string;
+}
+
 export interface SystemCheckResult {
   checkId: SystemCheckId;
   counts: {

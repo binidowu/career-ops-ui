@@ -1,3 +1,4 @@
+import MaintenancePanel from "@/components/settings/MaintenancePanel";
 import OperationsPanel from "@/components/settings/OperationsPanel";
 import ProfileSettingsForm from "@/components/settings/ProfileSettingsForm";
 import {
@@ -58,6 +59,8 @@ export default async function SettingsPage() {
           workspacePath: workspace.careerOpsPath,
         }}
       />
+
+      <MaintenancePanel />
     </article>
   );
 }

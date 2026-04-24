@@ -157,7 +157,7 @@ export default async function OpportunityInterviewPrepPage({
       ) : (
         <div className={styles.layout}>
           <div className={styles.main}>
-            <section className={styles.card}>
+            <section className={`${styles.card} ${styles.overviewCard}`}>
               <div className={styles.cardHead}>
                 <span className={styles.cardLabel}>Prep overview</span>
                 <span className={styles.cardTitle}>What the report suggests you should emphasize</span>
@@ -171,8 +171,8 @@ export default async function OpportunityInterviewPrepPage({
               </div>
             </section>
 
-            <section className={styles.card}>
-              <div className={styles.cardHead}>
+            <section className={`${styles.card} ${styles.intelCard}`}>
+              <div className={`${styles.cardHead} ${styles.intelCardHead}`}>
                 <span className={styles.cardLabel}>Company-specific intel</span>
                 <span className={styles.cardTitle}>
                   {prepWorkspace.matchedReport ? prepWorkspace.matchedReport.title : "Research report not generated yet"}
@@ -203,7 +203,19 @@ export default async function OpportunityInterviewPrepPage({
                 </div>
                 {matchedReportContent ? (
                   <div className={styles.intelSurface}>
-                    <InterviewIntelDocument content={matchedReportContent} />
+                    <div className={styles.intelSurfaceFrame}>
+                      <div className={styles.intelSurfaceHeader}>
+                        <div className={styles.intelSurfaceCopy}>
+                          <p className={styles.intelSurfaceEyebrow}>Reading mode</p>
+                          <h2 className={styles.intelSurfaceTitle}>Work through the brief like a rehearsal deck.</h2>
+                        </div>
+                        <p className={styles.intelSurfaceNote}>
+                          Open the prediction clusters, stay inside the module, and move section by
+                          section instead of scanning one long export.
+                        </p>
+                      </div>
+                      <InterviewIntelDocument content={matchedReportContent} />
+                    </div>
                   </div>
                 ) : (
                   <>
@@ -282,32 +294,40 @@ export default async function OpportunityInterviewPrepPage({
           </div>
 
           <aside className={styles.rail}>
-            <section className={styles.railCard}>
-              <div className={styles.cardHead}>
-                <span className={styles.cardLabel}>Pressure points</span>
-                <span className={styles.cardTitle}>What could come up</span>
+            <section className={`${styles.railCard} ${styles.railLeadCard}`}>
+              <div className={styles.railCardHead}>
+                <span className={styles.railLabel}>Pressure map</span>
+                <h2 className={styles.railTitle}>What the conversation is likely to probe.</h2>
+                <p className={styles.railLead}>
+                  Use this side rail like field notes while you rehearse through the generated
+                  brief.
+                </p>
               </div>
-              <div className={styles.railBody}>
-                <div className={styles.statRow}>
-                  <span>Stories mapped</span>
-                  <strong>{evaluation.interviewItems.length}</strong>
+              <div className={styles.railMetricGrid}>
+                <div className={styles.railMetricCard}>
+                  <span className={styles.railMetricValue}>{evaluation.interviewItems.length}</span>
+                  <span className={styles.railMetricLabel}>Stories already mapped</span>
                 </div>
-                <div className={styles.statRow}>
-                  <span>Gaps flagged</span>
-                  <strong>{evaluation.gapItems.length}</strong>
+                <div className={styles.railMetricCard}>
+                  <span className={styles.railMetricValue}>{evaluation.gapItems.length}</span>
+                  <span className={styles.railMetricLabel}>Risk areas to frame carefully</span>
                 </div>
-                <div className={styles.statRow}>
-                  <span>CV matches</span>
-                  <strong>{evaluation.cvMatchItems.length}</strong>
+                <div className={styles.railMetricCard}>
+                  <span className={styles.railMetricValue}>{evaluation.cvMatchItems.length}</span>
+                  <span className={styles.railMetricLabel}>Resume-to-posting matches surfaced</span>
                 </div>
               </div>
             </section>
 
             {evaluation.gapItems.length ? (
               <section className={styles.railCard}>
-                <div className={styles.cardHead}>
-                  <span className={styles.cardLabel}>Risk areas</span>
-                  <span className={styles.cardTitle}>Questions you should expect to navigate carefully</span>
+                <div className={styles.railCardHead}>
+                  <span className={styles.railLabel}>Risk areas</span>
+                  <h2 className={styles.railTitle}>Questions you should expect to navigate carefully.</h2>
+                  <p className={styles.railSupport}>
+                    These are the places where the report already suggests you may need firmer
+                    framing or clearer trade-off language.
+                  </p>
                 </div>
                 <div className={styles.railBody}>
                   <ul className={styles.gapList}>
@@ -324,11 +344,15 @@ export default async function OpportunityInterviewPrepPage({
 
             {evaluation.keywords.length ? (
               <section className={styles.railCard}>
-                <div className={styles.cardHead}>
-                  <span className={styles.cardLabel}>Keywords</span>
-                  <span className={styles.cardTitle}>Vocabulary to keep active in answers</span>
+                <div className={styles.railCardHead}>
+                  <span className={styles.railLabel}>Vocabulary</span>
+                  <h2 className={styles.railTitle}>Terms worth keeping active in your answers.</h2>
+                  <p className={styles.railSupport}>
+                    Keep these words close to the surface so your examples sound native to the role
+                    rather than translated after the fact.
+                  </p>
                 </div>
-                <div className={styles.keywordList}>
+                <div className={`${styles.keywordList} ${styles.railKeywordList}`}>
                   {evaluation.keywords.map((keyword) => (
                     <span className={styles.keyword} key={keyword}>{keyword}</span>
                   ))}
@@ -337,9 +361,15 @@ export default async function OpportunityInterviewPrepPage({
             ) : null}
 
             <section className={styles.railCard}>
-              <div className={styles.cardHead}>
-                <span className={styles.cardLabel}>Prep assets</span>
-                <span className={styles.cardTitle}>{prepWorkspace.reports.length} report{prepWorkspace.reports.length === 1 ? "" : "s"}</span>
+              <div className={styles.railCardHead}>
+                <span className={styles.railLabel}>Prep assets</span>
+                <h2 className={styles.railTitle}>
+                  {prepWorkspace.reports.length} report{prepWorkspace.reports.length === 1 ? "" : "s"} currently supporting this prep workspace.
+                </h2>
+                <p className={styles.railSupport}>
+                  A quick audit of what the route can already lean on before you generate anything
+                  new.
+                </p>
               </div>
               <div className={styles.railBody}>
                 <div className={styles.statRow}>

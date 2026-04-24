@@ -199,8 +199,6 @@ export default function OperationsPanel({ snapshot }: OperationsPanelProps) {
       </div>
 
       <p className={styles.panelHint}>
-        These checks are currently read-only. Mutating backend maintenance flows like normalize,
-        dedup, merge, update, and rollback are still intentionally kept out of the UI for now.
         Resume sources configured: {snapshot.resumeSourceCount}.
       </p>
     </section>

@@ -60,26 +60,42 @@ export default function StoryBankEditor({
   return (
     <section className={styles.panel}>
       <div className={styles.head}>
-        <div>
+        <div className={styles.headCopy}>
           <p className={styles.eyebrow}>Story bank</p>
           <h2>Edit the reusable STAR+R bank from the browser.</h2>
+          <p className={styles.lead}>
+            This is the reusable layer the backend keeps reaching for when it builds prep briefs.
+            Tighten the stories here and the rest of the workspace gets sharper with it.
+          </p>
         </div>
-        <span className={styles.path}>{path}</span>
+        <div className={styles.meta}>
+          <span className={styles.path}>{path}</span>
+          <span className={styles.status}>{dirty ? "Unsaved changes" : "In sync with workspace"}</span>
+        </div>
       </div>
 
       <p className={styles.copy}>
-        This is the persistent interview-prep asset the backend accumulates over time. Keep your
-        strongest stories here so future interview prep can map questions back to proven examples.
+        Keep your strongest examples here so future interview prep can map questions back to proven
+        work rather than generic claims.
       </p>
 
-      <textarea
-        className={styles.editor}
-        onChange={(event) => setContent(event.target.value)}
-        rows={18}
-        value={content}
-      />
+      <div className={styles.editorShell}>
+        <div className={styles.editorNote}>
+          Write in plain language first. The generator can translate tone later, but it needs
+          concrete situations, actions, and outcomes to work from.
+        </div>
+        <textarea
+          className={styles.editor}
+          onChange={(event) => setContent(event.target.value)}
+          rows={18}
+          value={content}
+        />
+      </div>
 
       <div className={styles.actions}>
+        <span className={styles.actionHint}>
+          Saves directly into the backend workspace and refreshes the prep route.
+        </span>
         <button
           className={styles.saveButton}
           disabled={!dirty || saving}
