@@ -143,13 +143,36 @@ export interface ScanRunResult {
   output: string;
 }
 
-export interface PipelineProcessResult {
+export type PipelineProcessJobStatus =
+  | "queued"
+  | "running"
+  | "completed"
+  | "failed";
+
+export interface PipelineProcessJob {
   attemptedCount: number;
-  output: string;
-  pendingAfter: number;
+  createdAt: string;
+  finishedAt: string | null;
+  heartbeatAt: string | null;
+  id: string;
+  output: string | null;
+  pendingAfter: number | null;
   pendingBefore: number;
-  resolvedCount: number;
-  summary: string;
+  progressLabel: string;
+  progressPercent: number;
+  requestedLimit: number;
+  resolvedCount: number | null;
+  stage: string;
+  startedAt: string | null;
+  status: PipelineProcessJobStatus;
+  summary: string | null;
+  updatedAt: string;
+  workerPid: number | null;
+}
+
+export interface PipelineProcessStartResponse {
+  job: PipelineProcessJob;
+  started: boolean;
 }
 
 export type SystemCheckId = "doctor" | "verify" | "sync-check" | "liveness";

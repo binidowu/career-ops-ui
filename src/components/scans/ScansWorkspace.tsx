@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { startTransition, useState } from "react";
+import { startTransition, useEffect, useMemo, useState } from "react";
 
 import { useToast } from "@/components/common/ToastContext";
 import type {
   PipelineInboxItem,
-  PipelineProcessResult,
+  PipelineProcessJob,
+  PipelineProcessStartResponse,
   ScanRunResult,
 } from "@/lib/types";
 
@@ -29,6 +30,36 @@ function normalizePipelineEntries(value: string) {
     .filter(Boolean);
 }
 
+function formatRelativeSeconds(value: string | null) {
+  if (!value) {
+    return "Waiting for first heartbeat";
+  }
+
+  const diffMs = Date.now() - new Date(value).getTime();
+  const diffSeconds = Math.max(0, Math.round(diffMs / 1000));
+
+  if (diffSeconds < 60) {
+    return `${diffSeconds}s ago`;
+  }
+
+  const minutes = Math.floor(diffSeconds / 60);
+  const seconds = diffSeconds % 60;
+  return `${minutes}m ${seconds}s ago`;
+}
+
+function formatElapsed(startedAt: string | null, finishedAt: string | null) {
+  if (!startedAt) {
+    return "Not started yet";
+  }
+
+  const start = new Date(startedAt).getTime();
+  const end = finishedAt ? new Date(finishedAt).getTime() : Date.now();
+  const diffSeconds = Math.max(0, Math.round((end - start) / 1000));
+  const minutes = Math.floor(diffSeconds / 60);
+  const seconds = diffSeconds % 60;
+  return minutes ? `${minutes}m ${seconds}s` : `${seconds}s`;
+}
+
 export default function ScansWorkspace({
   opportunitiesCount,
   pipelineInbox,
@@ -41,8 +72,10 @@ export default function ScansWorkspace({
   const [scanning, setScanning] = useState(false);
   const [scannerResult, setScannerResult] = useState<ScanRunResult | null>(null);
   const [processLimit, setProcessLimit] = useState("3");
-  const [processing, setProcessing] = useState(false);
-  const [processResult, setProcessResult] = useState<PipelineProcessResult | null>(null);
+  const [processJob, setProcessJob] = useState<PipelineProcessJob | null>(null);
+  const [processLoading, setProcessLoading] = useState(true);
+  const [directUrl, setDirectUrl] = useState("");
+  const [directEvaluating, setDirectEvaluating] = useState(false);
 
   async function handleQueueEntries() {
     const entries = normalizePipelineEntries(pipelineEntriesInput);
@@ -96,6 +129,53 @@ export default function ScansWorkspace({
     }
   }
 
+  async function handleDirectEvaluate() {
+    const url = directUrl.trim();
+    if (!url) {
+      notify({
+        title: "Paste a URL first",
+        description: "Enter the job posting URL you want to evaluate directly.",
+        tone: "error",
+        dismissAfter: 4000,
+      });
+      return;
+    }
+
+    setDirectEvaluating(true);
+    setProcessLoading(true);
+
+    try {
+      const response = await fetch("/api/pipeline/process", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ directUrl: url }),
+      });
+      const data = (await response.json()) as PipelineProcessStartResponse & { error?: string };
+
+      if (!response.ok) {
+        throw new Error(data.error ?? "Unable to start direct evaluation.");
+      }
+
+      setDirectUrl("");
+      setProcessJob(data.job);
+      notify({
+        title: "Direct evaluation started",
+        description: "Claude is evaluating the URL now. The status card will update live.",
+        dismissAfter: 4500,
+      });
+    } catch (error) {
+      notify({
+        title: "Direct evaluation failed",
+        description: error instanceof Error ? error.message : "Unable to start the evaluation.",
+        tone: "error",
+        dismissAfter: null,
+      });
+    } finally {
+      setDirectEvaluating(false);
+      setProcessLoading(false);
+    }
+  }
+
   async function handleRunScan() {
     setScanning(true);
 
@@ -140,8 +220,46 @@ export default function ScansWorkspace({
     }
   }
 
+  async function refreshProcessJob(jobId?: string) {
+    const query = jobId ? `?jobId=${encodeURIComponent(jobId)}` : "";
+    const response = await fetch(`/api/pipeline/process${query}`, {
+      cache: "no-store",
+    });
+    const data = (await response.json()) as { job?: PipelineProcessJob | null };
+    setProcessJob(data.job ?? null);
+    return data.job ?? null;
+  }
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        await refreshProcessJob();
+      } finally {
+        setProcessLoading(false);
+      }
+    })();
+  }, []);
+
+  useEffect(() => {
+    if (!processJob || !["queued", "running"].includes(processJob.status)) {
+      return;
+    }
+
+    const interval = window.setInterval(() => {
+      void refreshProcessJob(processJob.id).then((job) => {
+        if (job && ["completed", "failed"].includes(job.status)) {
+          startTransition(() => {
+            router.refresh();
+          });
+        }
+      });
+    }, 2500);
+
+    return () => window.clearInterval(interval);
+  }, [processJob, router]);
+
   async function handleProcessPending() {
-    setProcessing(true);
+    setProcessLoading(true);
 
     try {
       const response = await fetch("/api/pipeline/process", {
@@ -149,24 +267,19 @@ export default function ScansWorkspace({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ limit: Number(processLimit) || 3 }),
       });
-      const data = (await response.json()) as PipelineProcessResult & { error?: string };
+      const data = (await response.json()) as PipelineProcessStartResponse & { error?: string };
 
       if (!response.ok) {
         throw new Error(data.error ?? "Unable to process the pending pipeline items.");
       }
 
-      setProcessResult(data);
+      setProcessJob(data.job);
       notify({
-        title: data.resolvedCount
-          ? "Pending roles processed"
-          : "Processor finished with no resolved items",
-        description: data.summary,
-        dismissAfter: data.resolvedCount ? 6000 : null,
-        tone: data.resolvedCount ? "neutral" : "error",
-      });
-
-      startTransition(() => {
-        router.refresh();
+        title: data.started ? "Pipeline processor started" : "Processor already running",
+        description: data.started
+          ? `Background job started for ${data.job.attemptedCount} pending role${data.job.attemptedCount === 1 ? "" : "s"}.`
+          : "A pipeline batch is already running. The status card will keep updating live.",
+        dismissAfter: 4500,
       });
     } catch (error) {
       notify({
@@ -179,9 +292,78 @@ export default function ScansWorkspace({
         dismissAfter: null,
       });
     } finally {
-      setProcessing(false);
+      setProcessLoading(false);
     }
   }
+
+  async function handleClearStaleProcess() {
+    if (!processJob) {
+      return;
+    }
+
+    setProcessLoading(true);
+
+    try {
+      const response = await fetch("/api/pipeline/process", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "clear-stale",
+          jobId: processJob.id,
+        }),
+      });
+      const data = (await response.json()) as { error?: string; job?: PipelineProcessJob | null };
+
+      if (!response.ok) {
+        throw new Error(data.error ?? "Unable to clear the stuck pipeline processor.");
+      }
+
+      setProcessJob(null);
+      notify({
+        title: "Processor cleared",
+        description: "The stuck processor lock was cleared. You can start a fresh batch now.",
+        dismissAfter: 4500,
+      });
+      startTransition(() => {
+        router.refresh();
+      });
+    } catch (error) {
+      notify({
+        title: "Unable to clear processor",
+        description:
+          error instanceof Error ? error.message : "Unable to clear the stuck pipeline processor.",
+        tone: "error",
+        dismissAfter: null,
+      });
+    } finally {
+      setProcessLoading(false);
+    }
+  }
+
+  const processHeartbeatLabel = useMemo(
+    () => formatRelativeSeconds(processJob?.heartbeatAt ?? processJob?.updatedAt ?? null),
+    [processJob],
+  );
+  const processElapsedLabel = useMemo(
+    () => formatElapsed(processJob?.startedAt ?? null, processJob?.finishedAt ?? null),
+    [processJob],
+  );
+  const processIsActive = processJob
+    ? ["queued", "running"].includes(processJob.status)
+    : false;
+  const processIsStale =
+    processJob?.status === "running" &&
+    (
+      // Broken state: finishedAt is set but status is still "running" — heartbeat
+      // re-corrupted the job after a manual clear. Show the clear button unconditionally.
+      Boolean(processJob.finishedAt) ||
+      (
+        Boolean(processJob.startedAt) &&
+        Date.now() - new Date(processJob.startedAt ?? "").getTime() > 1000 * 60 * 8 &&
+        !processJob.summary &&
+        processJob.pendingAfter == null
+      )
+    );
 
   function renderInboxRows(items: PipelineInboxItem[], emptyTitle: string, emptyBody: string) {
     if (!items.length) {
@@ -274,6 +456,44 @@ export default function ScansWorkspace({
         <section className={styles.panel}>
           <div className={styles.panelHead}>
             <div>
+              <p className={styles.eyebrow}>Direct Evaluate</p>
+              <h2>Evaluate a URL immediately without touching the queue.</h2>
+            </div>
+          </div>
+
+          <p className={styles.copy}>
+            Paste any job posting URL and Claude will run the full A–F evaluation, write the
+            report, generate the PDF, and update the tracker — without adding it to or consuming
+            anything from the pending queue.
+          </p>
+
+          <label className={styles.label} htmlFor="direct-eval-url">
+            Job posting URL
+          </label>
+          <input
+            className={styles.input}
+            id="direct-eval-url"
+            onChange={(e) => setDirectUrl(e.target.value)}
+            placeholder="https://boards.greenhouse.io/company/jobs/123"
+            type="url"
+            value={directUrl}
+          />
+
+          <div className={styles.actions}>
+            <button
+              className={styles.primaryButton}
+              disabled={directEvaluating || processIsActive || !directUrl.trim()}
+              onClick={() => void handleDirectEvaluate()}
+              type="button"
+            >
+              {directEvaluating ? "Starting…" : "Evaluate Now"}
+            </button>
+          </div>
+        </section>
+
+        <section className={styles.panel}>
+          <div className={styles.panelHead}>
+            <div>
               <p className={styles.eyebrow}>Scanner Trigger</p>
               <h2>Run the real portal scanner from the browser.</h2>
             </div>
@@ -347,29 +567,92 @@ export default function ScansWorkspace({
 
               <button
                 className={styles.primaryButton}
-                disabled={processing || pipelineInbox.pending.length === 0}
+                disabled={processIsActive || processLoading || pipelineInbox.pending.length === 0}
                 onClick={() => void handleProcessPending()}
                 type="button"
               >
-                {processing ? "Processing…" : "Process Pending Roles"}
+                {processIsActive ? "Processing…" : "Process Pending Roles"}
               </button>
+
+              {processIsStale ? (
+                <button
+                  className={styles.secondaryButton}
+                  disabled={processLoading}
+                  onClick={() => void handleClearStaleProcess()}
+                  type="button"
+                >
+                  Clear Stuck Run
+                </button>
+              ) : null}
             </div>
 
-            {processResult ? (
+            {processJob ? (
               <div className={styles.processCard}>
+                <div className={styles.processStatusRow}>
+                  <span
+                    className={styles.processStatusBadge}
+                    data-status={processJob.status}
+                  >
+                    {processJob.status}
+                  </span>
+                  <div className={styles.processStage}>
+                    <strong>{processJob.progressLabel}</strong>
+                    <span>
+                      {processJob.stage} · {processJob.progressPercent}%
+                    </span>
+                  </div>
+                </div>
+
+                <div
+                  aria-hidden="true"
+                  className={styles.processMeter}
+                  data-active={processIsActive}
+                >
+                  <span
+                    className={styles.processMeterFill}
+                    style={{ width: `${processJob.progressPercent}%` }}
+                  />
+                </div>
+
                 <div className={styles.processStats}>
                   <span>
-                    Attempted: <strong>{processResult.attemptedCount}</strong>
+                    Attempted: <strong>{processJob.attemptedCount}</strong>
                   </span>
                   <span>
-                    Resolved: <strong>{processResult.resolvedCount}</strong>
+                    Elapsed: <strong>{processElapsedLabel}</strong>
                   </span>
                   <span>
-                    Pending after: <strong>{processResult.pendingAfter}</strong>
+                    Heartbeat: <strong>{processHeartbeatLabel}</strong>
                   </span>
                 </div>
-                <p className={styles.processSummary}>{processResult.summary}</p>
-                <pre className={styles.output}>{processResult.output}</pre>
+
+                {processIsStale ? (
+                  <p className={styles.processWarning}>
+                    This run has been active for a long time without producing a final
+                    result. It may still recover, but it now looks more like a stuck
+                    backend run than a healthy short batch. Clear it and retry with one
+                    item if needed.
+                  </p>
+                ) : null}
+
+                <p className={styles.processSummary}>
+                  {processJob.summary ??
+                    "The batch is running in the background. This card will refresh automatically."}
+                </p>
+
+                <div className={styles.processStats}>
+                  <span>
+                    Pending before: <strong>{processJob.pendingBefore}</strong>
+                  </span>
+                  <span>
+                    Pending after: <strong>{processJob.pendingAfter ?? "—"}</strong>
+                  </span>
+                  <span>
+                    Resolved: <strong>{processJob.resolvedCount ?? "—"}</strong>
+                  </span>
+                </div>
+
+                {processJob.output ? <pre className={styles.output}>{processJob.output}</pre> : null}
               </div>
             ) : (
               <div className={styles.processNote}>
@@ -378,6 +661,7 @@ export default function ScansWorkspace({
                   This processor is the step that evaluates those queued roles and
                   moves them into the tracked pipeline.
                 </p>
+                {processLoading ? <p>Checking the latest processor state…</p> : null}
               </div>
             )}
           </div>

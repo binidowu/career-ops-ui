@@ -1,6 +1,6 @@
 # Career-Ops UI — Code-Verified Implementation Ledger
 
-Last updated: 2026-04-24 (Resume Studio hardening + backend quality fixes + Compare polish)
+Last updated: 2026-04-24 (Resume Studio hardening + backend quality fixes + Compare polish + Pipeline worker)
 
 ## Purpose
 
@@ -141,8 +141,11 @@ Status: implemented, with room for deeper research capabilities
 - Dedicated scans route exists.
 - Users can paste URLs or pipeline-style intake lines from the browser.
 - Browser-triggered scanner execution exists.
-- Browser-triggered pending pipeline processing now exists in controlled batches.
+- Browser-triggered pipeline processing works via Claude API (Sonnet 4.6 agentic loop with bash, read_file, write_file, web_fetch, web_search tools). Replaces non-functional Codex CLI path.
+- Direct Evaluate: any single URL can be processed immediately without touching the pending queue.
+- Gated URLs (login walls, CAPTCHA, JS-only pages) detected behaviorally and marked `[!]` automatically — no hardcoded domain list.
 - Pending and processed inbox states are visible in the UI.
+- Known cost: ~$0.30–0.60 per evaluation on Sonnet 4.6 after context trimming and result truncation mitigations.
 
 Status: implemented
 
@@ -259,13 +262,16 @@ What exists:
 - login flow,
 - protected routing.
 
-What still needs work:
+Auth hardening pass completed (2026-04-24):
 
-- production-readiness validation,
-- edge-case testing,
-- confidence around session lifecycle behavior and environment toggles.
+- Fixed open redirect: `from` param on login is now validated to be a relative path — external URLs fall back to `/`.
+- Fixed logout requiring auth: `/api/auth/logout` added to public paths so an expired-session user can always clear their cookie without a 401 redirect loop.
+- Added `getAuthConfigError()`: when `AUTH_PASSWORD` is set but `AUTH_SECRET` is missing or too short, the login endpoint now returns a clear actionable error message instead of a generic 500.
+- Deduplicated `SESSION_DURATION_SECONDS` — now exported from `auth.ts` and reused in the login route.
 
-Status: partial
+Remaining known limitation: JWT sessions are stateless — a logout only clears the client cookie; the token itself remains cryptographically valid until its 30-day expiry. Acceptable for a personal workspace tool; would need a server-side revocation list for multi-user production use.
+
+Status: hardened for personal use — not production-multi-user ready
 
 #### Ops safety and operator clarity
 
@@ -274,12 +280,16 @@ What exists:
 - maintenance actions in-browser,
 - checks and verification in-browser.
 
-What still needs work:
+Ops safety pass completed (2026-04-24):
 
-- stronger safeguards around destructive actions,
-- clearer operator warnings,
-- better confirmation UX,
-- clearer distinction between safe checks and mutating operations.
+- `dedup` now shows a persistent red warning callout before any interaction — the only command that permanently deletes rows.
+- Confirm prompts are now operation-specific: dedup names permanent deletion and the count, normalize names corrections, merge names additions.
+- Dedup confirm button uses a distinct destructive style (red border/background) vs the standard apply style.
+- `UpdateCard` Rollback button is now hidden until an update has been applied in the current session — removing unconditional access to an irreversible operation.
+- "Apply update" is disabled (with tooltip) when a check has been run and confirmed the system is already current.
+- Rollback confirm prompt now explicitly states what reverts ("System scripts will return to the previous version").
+
+Status: complete
 
 Status: partial
 
@@ -364,7 +374,17 @@ Goals:
 
 Progress: complete. UX and contract bugs resolved first (sidebar persistence, regenerate behavior, heading layout parity, source mismatch action), then backend draft quality fixed — see below.
 
-### 2. Apply and outreach depth
+### 2. Pipeline worker cost and durability
+
+Goals:
+
+- move job state from `/tmp` to workspace-relative storage (survives restarts),
+- explore cost reduction further for large batch runs (1000+ queue),
+- evaluate Phase 3 browser capability decision (Option C — document the gap — is current stance).
+
+Progress: Phase 1 and 2 complete, cost mitigations applied. Phase 4 (durable state) and Phase 5 (deployment architecture) remain open. See `pipeline-worker-plan.md` for full detail.
+
+### 3. Apply and outreach depth
 
 Goals:
 

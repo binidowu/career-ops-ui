@@ -8,7 +8,9 @@ import styles from "./login.module.css";
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const from = searchParams.get("from") ?? "/";
+  // Validate the redirect target is a relative path to prevent open redirects.
+  const rawFrom = searchParams.get("from") ?? "/";
+  const from = rawFrom.startsWith("/") && !rawFrom.startsWith("//") ? rawFrom : "/";
 
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");

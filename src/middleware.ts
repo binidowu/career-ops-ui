@@ -3,7 +3,9 @@ import { NextResponse } from "next/server";
 
 import { isAuthEnabled, SESSION_COOKIE, verifySessionToken } from "@/lib/auth";
 
-const PUBLIC_PATHS = ["/login", "/api/auth/login"];
+// Logout must be public so an expired-session user can still clear their cookie
+// without getting a 401 redirect loop.
+const PUBLIC_PATHS = ["/login", "/api/auth/login", "/api/auth/logout"];
 
 function isPublicPath(pathname: string): boolean {
   return PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));

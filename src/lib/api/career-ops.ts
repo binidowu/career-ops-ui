@@ -1,6 +1,6 @@
-import { execFile } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import { access, mkdir, readdir, readFile, writeFile } from "node:fs/promises";
-import { basename, extname } from "node:path";
+import { basename, extname, join, resolve as resolvePath } from "node:path";
 import { promisify } from "node:util";
 import { unstable_noStore as noStore } from "next/cache";
 
@@ -38,7 +38,8 @@ import type {
   Opportunity,
   OpportunityStatus,
   PipelineInboxItem,
-  PipelineProcessResult,
+  PipelineProcessJob,
+  PipelineProcessStartResponse,
   ResumeSource,
   ScanRunResult,
   StateDefinition,
@@ -63,6 +64,13 @@ const CODEX_CLI_CANDIDATES = [
   "/opt/homebrew/bin/codex",
   "/usr/local/bin/codex",
 ].filter(Boolean) as string[];
+// Jobs are stored in the career-ops workspace directory so they survive server
+// restarts. /tmp is wiped on reboot and can't survive deployments.
+// Falls back to /tmp if CAREER_OPS_PATH is not yet set (e.g. during build).
+const PIPELINE_JOBS_DIR = process.env.CAREER_OPS_PATH
+  ? join(process.env.CAREER_OPS_PATH, ".career-ops-ui", "jobs")
+  : "/tmp/career-ops-ui-pipeline-jobs";
+const PIPELINE_JOBS_LATEST_PATH = join(PIPELINE_JOBS_DIR, "latest.json");
 
 const SYSTEM_CHECKS: Record<
   SystemCheckId,
@@ -149,28 +157,6 @@ function buildLocalExecEnv() {
   };
 }
 
-function normalizeExecError(error: unknown, fallbackMessage: string) {
-  if (typeof error !== "object" || error === null) {
-    throw new Error(fallbackMessage);
-  }
-
-  const execError = error as {
-    code?: number | string;
-    message?: string;
-    stderr?: string;
-    stdout?: string;
-  };
-
-  const output = normalizeCommandOutput(execError.stdout ?? "", execError.stderr ?? "");
-  const message = output || execError.message || fallbackMessage;
-
-  return {
-    exitCode: typeof execError.code === "number" ? execError.code : 1,
-    message,
-    output,
-  };
-}
-
 async function fileExists(path: string) {
   try {
     await access(path);
@@ -204,6 +190,142 @@ async function resolveCodexCliPath() {
   throw new Error(
     "The local Codex CLI could not be found. Install or expose the Codex binary so browser-triggered pipeline processing can run.",
   );
+}
+
+function createPipelineJob(
+  input: Pick<PipelineProcessJob, "attemptedCount" | "pendingBefore" | "requestedLimit">,
+): PipelineProcessJob {
+  const now = new Date().toISOString();
+
+  return {
+    id: `pipeline-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    status: "queued",
+    stage: "Waiting to launch background processor",
+    progressLabel: "Queued",
+    progressPercent: 4,
+    createdAt: now,
+    updatedAt: now,
+    startedAt: null,
+    heartbeatAt: null,
+    finishedAt: null,
+    pendingAfter: null,
+    resolvedCount: null,
+    summary: null,
+    output: null,
+    workerPid: null,
+    ...input,
+  };
+}
+
+async function ensurePipelineJobsDir() {
+  await mkdir(PIPELINE_JOBS_DIR, { recursive: true });
+}
+
+function getPipelineJobPath(id: string) {
+  return join(PIPELINE_JOBS_DIR, `${id}.json`);
+}
+
+async function readJsonFile<T>(path: string): Promise<T | null> {
+  try {
+    const raw = await readFile(path, "utf8");
+    return JSON.parse(raw) as T;
+  } catch {
+    return null;
+  }
+}
+
+async function writeJsonFile(path: string, value: unknown) {
+  await ensurePipelineJobsDir();
+  await writeFile(path, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+}
+
+async function writePipelineJob(job: PipelineProcessJob) {
+  await writeJsonFile(getPipelineJobPath(job.id), job);
+  await writeJsonFile(PIPELINE_JOBS_LATEST_PATH, { id: job.id });
+}
+
+export async function getPipelineProcessJob(id: string) {
+  noStore();
+  return readJsonFile<PipelineProcessJob>(getPipelineJobPath(id));
+}
+
+export async function getLatestPipelineProcessJob() {
+  noStore();
+
+  const latest = await readJsonFile<{ id?: string }>(PIPELINE_JOBS_LATEST_PATH);
+  const latestId = latest?.id?.trim();
+
+  if (!latestId) {
+    return null;
+  }
+
+  return getPipelineProcessJob(latestId);
+}
+
+async function clearLatestPipelineProcessJobReference(id: string) {
+  const latest = await readJsonFile<{ id?: string }>(PIPELINE_JOBS_LATEST_PATH);
+
+  if (latest?.id?.trim() === id) {
+    await writeJsonFile(PIPELINE_JOBS_LATEST_PATH, {});
+  }
+}
+
+export async function abandonPipelineProcessJob(input?: {
+  id?: string;
+  reason?: string;
+}) {
+  noStore();
+
+  const job = input?.id
+    ? await getPipelineProcessJob(input.id)
+    : await getLatestPipelineProcessJob();
+
+  if (!job) {
+    return null;
+  }
+
+  if (job.status === "queued" || job.status === "running") {
+    if (typeof job.workerPid === "number") {
+      try {
+        process.kill(job.workerPid, "SIGTERM");
+      } catch {
+        // Worker may already be gone — still write the failed status so the heartbeat
+        // detects the termination and stops itself.
+      }
+      // Give SIGTERM a moment, then follow up with SIGKILL if the process is still alive.
+      await new Promise<void>((resolve) => setTimeout(resolve, 400));
+      try {
+        process.kill(job.workerPid, "SIGKILL");
+      } catch {
+        // Expected if SIGTERM already cleaned it up.
+      }
+    }
+
+    const finishedAt = new Date().toISOString();
+    const abandonedJob: PipelineProcessJob = {
+      ...job,
+      finishedAt,
+      heartbeatAt: finishedAt,
+      progressLabel: "Stopped",
+      progressPercent: 100,
+      stage: "Processor cleared from the UI",
+      status: "failed",
+      summary:
+        input?.reason?.trim() ||
+        "This pipeline processor was cleared manually so a fresh run can start.",
+      output:
+        job.output ??
+        "No final summary was produced before the processor was cleared.",
+      updatedAt: finishedAt,
+      workerPid: null,
+    };
+
+    await writePipelineJob(abandonedJob);
+    await clearLatestPipelineProcessJobReference(job.id);
+    return abandonedJob;
+  }
+
+  return job;
 }
 
 function normalizeResumeSource(source: ResumeSource, fallbackIndex = 0): ResumeSource {
@@ -1165,98 +1287,130 @@ export async function uploadResumeSourceFile(input: {
   };
 }
 
-async function readOptionalTextFile(path: string) {
-  try {
-    return await readFile(path, "utf8");
-  } catch {
-    return "";
-  }
-}
-
-export async function processPendingPipelineBatch(input?: {
+export async function startPendingPipelineProcess(input?: {
+  directUrl?: string;
   limit?: number;
-}): Promise<PipelineProcessResult> {
+}): Promise<PipelineProcessStartResponse> {
   noStore();
+
+  const activeJob = await getLatestPipelineProcessJob();
+  if (activeJob && ["queued", "running"].includes(activeJob.status)) {
+    return {
+      job: activeJob,
+      started: false,
+    };
+  }
 
   const inboxBefore = await getPipelineInbox();
   const pendingBefore = inboxBefore.pending.length;
+  const directUrl = input?.directUrl?.trim() || undefined;
   const requestedLimit = Number.isFinite(input?.limit)
     ? Math.trunc(input?.limit ?? 3)
     : 3;
   const limit = Math.min(10, Math.max(1, requestedLimit));
-  const attemptedCount = Math.min(limit, pendingBefore);
+  // Direct evaluations always target exactly 1 URL and don't consume the queue.
+  const attemptedCount = directUrl ? 1 : Math.min(limit, pendingBefore);
+  const job = createPipelineJob({
+    attemptedCount,
+    pendingBefore,
+    requestedLimit: directUrl ? 1 : limit,
+  });
 
   if (!attemptedCount) {
-    return {
-      attemptedCount: 0,
-      pendingBefore: 0,
-      pendingAfter: 0,
-      resolvedCount: 0,
-      summary: "There are no pending pipeline items to process right now.",
+    const completedJob: PipelineProcessJob = {
+      ...job,
+      finishedAt: new Date().toISOString(),
       output: "No pending items in data/pipeline.md.",
+      pendingAfter: 0,
+      progressLabel: "Nothing queued",
+      progressPercent: 100,
+      resolvedCount: 0,
+      stage: "No pending pipeline items",
+      status: "completed",
+      summary: "There are no pending pipeline items to process right now.",
+      updatedAt: new Date().toISOString(),
+      workerPid: null,
+    };
+
+    await writePipelineJob(completedJob);
+
+    return {
+      job: completedJob,
+      started: false,
     };
   }
 
-  const runId = `pipeline-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-  const summaryPath = `/tmp/${runId}.txt`;
-  const codexCliPath = await resolveCodexCliPath();
-  const prompt = [
-    `Working inside the career-ops repository, process only the first ${attemptedCount} pending entries from data/pipeline.md using the Career-Ops pipeline workflow.`,
-    "Follow the checked-in instructions from AGENTS.md, docs/CODEX.md, CLAUDE.md, and modes/pipeline.md.",
-    `Do not process more than ${attemptedCount} pending items even if more remain in the inbox.`,
-    "Use /opt/homebrew/bin/node when you need to invoke repository Node scripts.",
-    "If tracker TSV additions are created during the run, merge them and verify integrity before finishing.",
-    "At the end, output only a concise operator summary describing what was processed, what reports or PDFs were created, and any blockers encountered.",
-  ].join("\n");
+  await writePipelineJob(job);
 
-  try {
-    await execFileAsync(
-      codexCliPath,
-      [
-        "exec",
-        "-C",
-        getCareerOpsPath(),
-        "--full-auto",
-        "--ephemeral",
-        "--output-last-message",
-        summaryPath,
-        prompt,
-      ],
-      {
-        cwd: getCareerOpsPath(),
-        env: buildLocalExecEnv(),
-        maxBuffer: 1024 * 1024 * 20,
-        timeout: 1000 * 60 * 30,
-      },
-    );
-  } catch (error) {
-    const summary = (await readOptionalTextFile(summaryPath)).trim();
-    const normalized = normalizeExecError(
-      error,
-      "Unable to run the pending pipeline processor.",
-    );
+  const summaryPath = join(PIPELINE_JOBS_DIR, `${job.id}.summary.txt`);
+  const pipelinePath =
+    (await resolvePipelinePath()) ?? resolveCareerOpsFile("data", "pipeline.md");
 
-    throw new Error(summary || normalized.message);
+  // Resolve the worker script and its arguments based on the configured provider.
+  // PIPELINE_PROVIDER=claude (default) uses the Anthropic SDK worker.
+  // PIPELINE_PROVIDER=codex falls back to the legacy Codex CLI runner.
+  const provider = process.env.PIPELINE_PROVIDER ?? "claude";
+  let workerPath: string;
+  let workerArgs: string[];
+
+  if (provider === "codex") {
+    const codexCliPath = await resolveCodexCliPath();
+    workerPath = resolvePath(process.cwd(), "scripts", "workers", "run-pipeline-job-codex.mjs");
+    workerArgs = [
+      workerPath,
+      "--job-path", getPipelineJobPath(job.id),
+      "--codex-cli", codexCliPath,
+      "--career-ops-path", getCareerOpsPath(),
+      "--summary-path", summaryPath,
+      "--pipeline-path", pipelinePath,
+      "--attempted", String(attemptedCount),
+    ];
+  } else {
+    // Default: claude — uses the Anthropic SDK agentic loop
+    workerPath = resolvePath(process.cwd(), "scripts", "workers", "run-pipeline-job-claude.mjs");
+    workerArgs = [
+      workerPath,
+      "--job-path", getPipelineJobPath(job.id),
+      "--career-ops-path", getCareerOpsPath(),
+      "--summary-path", summaryPath,
+      "--pipeline-path", pipelinePath,
+      "--attempted", String(attemptedCount),
+      ...(directUrl ? ["--direct-url", directUrl] : []),
+    ];
   }
 
-  const summary = (await readOptionalTextFile(summaryPath)).trim();
-  clearCache();
+  const child = spawn(
+    process.execPath,
+    workerArgs,
+    {
+      cwd: process.cwd(),
+      detached: true,
+      env: buildLocalExecEnv(),
+      stdio: "ignore",
+    },
+  );
 
-  const inboxAfter = await getPipelineInbox();
-  const pendingAfter = inboxAfter.pending.length;
-  const resolvedCount = Math.max(0, pendingBefore - pendingAfter);
-  const fallbackSummary =
-    resolvedCount > 0
-      ? `${resolvedCount} pending pipeline item${resolvedCount === 1 ? "" : "s"} moved out of the inbox.`
-      : "Pipeline processor finished, but no pending items moved out of the inbox.";
+  child.unref();
+
+  await writePipelineJob({
+    ...job,
+    progressLabel: "Worker launched",
+    progressPercent: 8,
+    stage: "Background processor is starting",
+    updatedAt: new Date().toISOString(),
+    workerPid: child.pid ?? null,
+  });
 
   return {
-    attemptedCount,
-    pendingBefore,
-    pendingAfter,
-    resolvedCount,
-    summary: summary || fallbackSummary,
-    output: summary || fallbackSummary,
+    job: {
+      ...job,
+      progressLabel: "Worker launched",
+      progressPercent: 8,
+      stage: "Background processor is starting",
+      updatedAt: new Date().toISOString(),
+      workerPid: child.pid ?? null,
+    },
+    started: true,
   };
 }
 

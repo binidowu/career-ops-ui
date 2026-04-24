@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(echo \"\")",
+      "Bash(echo \"# Career-Ops UI job state\")",
+      "Bash(echo \".career-ops-ui/\")",
+      "Bash(mkdir -p /Users/binidowu/career-ops/.career-ops-ui/jobs)",
+      "Bash(cp /tmp/career-ops-ui-pipeline-jobs/*.json /Users/binidowu/career-ops/.career-ops-ui/jobs/)",
+      "Bash(cp /tmp/career-ops-ui-pipeline-jobs/*.txt /Users/binidowu/career-ops/.career-ops-ui/jobs/)"
+    ]
+  }
+}

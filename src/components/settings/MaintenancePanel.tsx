@@ -29,6 +29,8 @@ const TRACKER_COMMANDS: CommandDef[] = [
     description:
       "Detect duplicate entries by company and role. Keeps the highest-scored row and merges notes from discarded duplicates.",
     hasDryRun: true,
+    warning:
+      "Duplicate rows are permanently deleted from applications.md. Always preview first and verify the diff before applying.",
   },
   {
     id: "merge",
@@ -123,6 +125,10 @@ function CommandCard({ def, disabled, onBusy }: CommandCardProps) {
         )}
       </div>
 
+      {def.warning && state === "idle" ? (
+        <p className={styles.commandWarning}>{def.warning}</p>
+      ) : null}
+
       {result ? (
         <p className={styles.commandSummary}>{result.summary}</p>
       ) : null}
@@ -160,16 +166,23 @@ function CommandCard({ def, disabled, onBusy }: CommandCardProps) {
               </button>
             ) : confirming ? (
               <>
-                <span className={styles.confirmPrompt}>
-                  This will modify applications.md — are you sure?
+                <span
+                  className={styles.confirmPrompt}
+                  data-destructive={def.id === "dedup"}
+                >
+                  {def.id === "dedup"
+                    ? `Permanently delete ${result?.changesFound} duplicate row${result?.changesFound !== 1 ? "s" : ""} from applications.md?`
+                    : def.id === "normalize"
+                      ? `Apply ${result?.changesFound} status correction${result?.changesFound !== 1 ? "s" : ""} to applications.md?`
+                      : `Merge ${result?.changesFound} entr${result?.changesFound !== 1 ? "ies" : "y"} into applications.md?`}
                 </span>
                 <button
-                  className={styles.applyBtn}
+                  className={def.id === "dedup" ? styles.destructiveBtn : styles.applyBtn}
                   disabled={disabled}
                   onClick={() => void run("apply")}
                   type="button"
                 >
-                  Yes, apply
+                  {def.id === "dedup" ? "Yes, delete duplicates" : "Yes, apply"}
                 </button>
                 <button
                   className={styles.ghostBtn}
@@ -222,6 +235,7 @@ function UpdateCard({ disabled, onBusy }: UpdateCardProps) {
   const notify = useToast();
   const [running, setRunning] = useState<MaintenanceCommandId | null>(null);
   const [checkResult, setCheckResult] = useState<MaintenanceResult | null>(null);
+  const [updateApplied, setUpdateApplied] = useState(false);
   const [confirming, setConfirming] = useState<"update-apply" | "rollback" | null>(null);
 
   async function run(commandId: MaintenanceCommandId) {
@@ -245,6 +259,9 @@ function UpdateCard({ disabled, onBusy }: UpdateCardProps) {
       if (commandId === "update-check") {
         setCheckResult(data);
       } else {
+        if (commandId === "update-apply" && data.status !== "error") {
+          setUpdateApplied(true);
+        }
         notify({
           title: commandId === "rollback" ? "Rollback complete" : "Update applied",
           description: data.summary,
@@ -266,6 +283,8 @@ function UpdateCard({ disabled, onBusy }: UpdateCardProps) {
   }
 
   const isRunning = running !== null;
+  const updateAvailable = checkResult !== null && checkResult.changesFound > 0;
+  const checkedAndCurrent = checkResult !== null && checkResult.changesFound === 0;
 
   return (
     <article className={styles.commandCard}>
@@ -279,7 +298,7 @@ function UpdateCard({ disabled, onBusy }: UpdateCardProps) {
         </div>
         {checkResult ? (
           <span className={styles.statusBadge} data-status={checkResult.status}>
-            {checkResult.changesFound > 0 ? "Update available" : "Up to date"}
+            {updateAvailable ? "Update available" : "Up to date"}
           </span>
         ) : (
           <span className={styles.statusBadge} data-status="idle">Idle</span>
@@ -292,13 +311,16 @@ function UpdateCard({ disabled, onBusy }: UpdateCardProps) {
 
       {confirming ? (
         <div className={styles.confirmRow}>
-          <span className={styles.confirmPrompt}>
+          <span
+            className={styles.confirmPrompt}
+            data-destructive={confirming === "rollback"}
+          >
             {confirming === "rollback"
-              ? "Revert the last system update?"
-              : "Apply the available system update?"}
+              ? "Revert the last system update? System scripts will return to the previous version."
+              : "Apply the available system update to career-ops system files?"}
           </span>
           <button
-            className={styles.applyBtn}
+            className={confirming === "rollback" ? styles.destructiveBtn : styles.applyBtn}
             disabled={isRunning || disabled}
             onClick={() => void run(confirming)}
             type="button"
@@ -307,7 +329,7 @@ function UpdateCard({ disabled, onBusy }: UpdateCardProps) {
               ? "Running…"
               : confirming === "rollback"
                 ? "Yes, rollback"
-                : "Yes, apply"}
+                : "Yes, apply update"}
           </button>
           <button
             className={styles.ghostBtn}
@@ -329,20 +351,23 @@ function UpdateCard({ disabled, onBusy }: UpdateCardProps) {
           </button>
           <button
             className={styles.applyBtn}
-            disabled={isRunning || disabled}
+            disabled={isRunning || disabled || checkedAndCurrent}
             onClick={() => setConfirming("update-apply")}
+            title={checkedAndCurrent ? "System is already up to date" : undefined}
             type="button"
           >
             Apply update
           </button>
-          <button
-            className={styles.ghostBtn}
-            disabled={isRunning || disabled}
-            onClick={() => setConfirming("rollback")}
-            type="button"
-          >
-            Rollback
-          </button>
+          {updateApplied ? (
+            <button
+              className={styles.ghostBtn}
+              disabled={isRunning || disabled}
+              onClick={() => setConfirming("rollback")}
+              type="button"
+            >
+              Rollback
+            </button>
+          ) : null}
         </div>
       )}
     </article>
