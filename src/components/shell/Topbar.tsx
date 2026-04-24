@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 
 import type { ToastMessage } from "@/components/common/Toast";
@@ -10,6 +10,7 @@ import { PRIMARY_NAV_ITEMS } from "./shell-data";
 import styles from "./Topbar.module.css";
 
 interface TopbarProps {
+  authEnabled: boolean;
   onNotify: (toast: Omit<ToastMessage, "id">) => void;
   onOpenPalette: () => void;
 }
@@ -22,9 +23,16 @@ function isActive(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-export default function Topbar({ onNotify, onOpenPalette }: TopbarProps) {
+export default function Topbar({ authEnabled, onNotify, onOpenPalette }: TopbarProps) {
   const pathname = usePathname();
+  const router = useRouter();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  async function handleLogout() {
+    await fetch("/api/auth/logout", { method: "POST" });
+    router.push("/login");
+    router.refresh();
+  }
 
   function handleUnavailable(label: string) {
     onNotify({
@@ -74,11 +82,12 @@ export default function Topbar({ onNotify, onOpenPalette }: TopbarProps) {
 
         <div className={styles.tools}>
           <button
+            aria-label="Open command menu for more routes, settings, and workflows"
             className={styles.paletteTrigger}
             onClick={onOpenPalette}
             type="button"
           >
-            <span>Jump to</span>
+            <span>More</span>
             <kbd>⌘K</kbd>
           </button>
 
@@ -88,9 +97,21 @@ export default function Topbar({ onNotify, onOpenPalette }: TopbarProps) {
             </svg>
           </button>
 
-          <button className={styles.avatar} aria-label="User profile" type="button">
-            BO
-          </button>
+          {authEnabled ? (
+            <button
+              aria-label="Sign out"
+              className={styles.avatar}
+              onClick={() => void handleLogout()}
+              title="Sign out"
+              type="button"
+            >
+              BO
+            </button>
+          ) : (
+            <button className={styles.avatar} aria-label="User profile" type="button">
+              BO
+            </button>
+          )}
 
           <button
             aria-expanded={mobileMenuOpen}

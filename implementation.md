@@ -1,155 +1,392 @@
-# Career-Ops UI — Frontend / Backend Parity Ledger
+# Career-Ops UI — Code-Verified Implementation Ledger
 
-Last updated: 2026-04-22
+Last updated: 2026-04-24
 
-## Objective
+## Purpose
 
-This file tracks one rule: if a workflow exists in the `career-ops` backend, the user should not need the terminal to benefit from it. The frontend should expose the workflow, surface the important data it returns, and make the current parity gaps explicit.
+This file is the working implementation ledger for the UI repo.
 
-This ledger did not previously exist in the UI repo. It is now the source of truth for parity work.
+It is not a planning wish list. It is a code-verified snapshot of what is currently:
 
-## Audit Summary
+- shipped,
+- partially complete,
+- still missing,
+- and next in line.
 
-The backend currently contains four broad classes of capability:
+The rule for this project remains the same:
 
-1. Core workspace data and evaluation artifacts
-   - Tracker ingestion from `applications.md`
-   - Report parsing from `reports/*.md`
-   - Profile loading from `config/profile.yml`
-   - Resume source material from `cv.md` and other local resume files
-2. Job discovery and intake operations
-   - URL / JD intake through the auto-pipeline flow
-   - Pending inbox management through `data/pipeline.md`
-   - Portal scanning via `scan.mjs`
-3. Asset generation and decision support
-   - Opportunity detail evaluation
-   - Side-by-side comparison
-   - Resume draft + PDF generation
-4. Operator / terminal-first flows
-   - Apply assistant
-   - Contact / outreach research
-   - Interview prep mode
-   - Batch maintenance scripts such as `doctor`, `verify`, `normalize`, `dedup`, `merge`, `update`, `rollback`, and `liveness`
-   - Research / training / project evaluation modes
+If a workflow exists in the `career-ops` backend, the user should not need the terminal to benefit from it.
 
-## Current Parity Status
+## Verification Method
 
-### Exposed in the frontend now
+This ledger was checked against the codebase, not just older planning notes.
 
-- Dashboard
-  - Live stats
-  - Attention queue
-  - Workspace health
-- Pipeline
-  - Tracker-backed table
-  - Sorting, filtering, selection
-  - Detail route and drawer-backed evaluation review
-  - Status and notes mutations
-- Compare
-  - Multi-role comparison workspace
-  - Backend report data surfaced side-by-side
-- Resume Studio
-  - Backend-backed draft regeneration
-  - Resume source selection
-  - PDF export path
-- Settings / profile
-  - Profile editing
-  - Multiple resume source registration
-- Operations / verification
-  - Browser-triggered workspace doctor
-  - Browser-triggered pipeline verify
-  - Browser-triggered resume sync check
-  - Browser-triggered job link liveness check over tracked URLs
-- Interview prep
-  - Dedicated per-role interview prep workspace
-  - STAR story map from parsed evaluation data
-  - Rehearsal checklist and risk-area surfacing
-  - Browser editing for `interview-prep/story-bank.md`
-  - Existing interview-prep reports surfaced when present
-  - Browser-triggered generation for fresh company-specific interview intel from the backend report parser
-- Discovery / intake
-  - URL paste queue via `/api/pipeline`
-  - Backend scanner trigger via `/api/scan`
-  - Inbox visibility on the dashboard
-  - Dedicated `/scans` route for queueing, scanning, and inspecting pending / processed inbox items
+Relevant routes, APIs, and implementation files reviewed for this update include:
 
-### Partially exposed or still uneven
+- `src/middleware.ts`
+- `src/lib/auth.ts`
+- `src/app/login/page.tsx`
+- `src/app/pipeline/page.tsx`
+- `src/app/pipeline/[id]/page.tsx`
+- `src/app/pipeline/[id]/apply/page.tsx`
+- `src/app/pipeline/[id]/interview/page.tsx`
+- `src/app/compare/page.tsx`
+- `src/app/resumes/page.tsx`
+- `src/app/apply/page.tsx`
+- `src/app/scans/page.tsx`
+- `src/app/settings/page.tsx`
+- `src/app/api/auth/login/route.ts`
+- `src/app/api/auth/logout/route.ts`
+- `src/app/api/apply/[id]/route.ts`
+- `src/app/api/interview-prep/generate/route.ts`
+- `src/app/api/interview-prep/story-bank/route.ts`
+- `src/app/api/profile/resume-sources/route.ts`
+- `src/app/api/resumes/draft/route.ts`
+- `src/app/api/resumes/export/route.ts`
+- `src/app/api/scan/route.ts`
+- `src/app/api/pipeline/route.ts`
+- `src/app/api/system/checks/route.ts`
+- `src/app/api/system/maintenance/route.ts`
 
-- Resume generation quality
-  - The frontend can now trigger real draft generation, but final resume quality still depends on backend prompt logic and the richness of the uploaded source resumes.
-  - If output is thin, that is not purely a frontend rendering bug; it is a parity issue between backend drafting rules, source material, and the UI controls.
-- Compare experience
-  - Functional parity exists, but visual refinement is still in progress.
-- Resume editing controls
-  - Regeneration is connected; editing ergonomics still need a dedicated polish pass to ensure each control maps cleanly to backend behavior and updates the preview consistently.
-- Interview prep generation depth
-  - The UI can now trigger fresh company-specific interview intel generation, but the current backend generator is deterministic and report-driven.
-  - It does not yet perform live external research or source-cited company-specific interview harvesting.
+## Executive Summary
 
-### Still backend-only
+The project is further along than some earlier docs suggest.
 
-- Apply assistant workflows
-- Contact / outreach workflows
-- Full interview research orchestration with external company-specific sourcing beyond static report sections
-- Mutating maintenance commands
-  - `normalize`
-  - `dedup`
-  - `merge`
-  - `update`
-  - `rollback`
-- Research / training / project evaluation modes that are still terminal-driven
-- Authentication / multi-user protection
+The app is no longer in a "build the missing shell" phase. Core routes, auth, browser-triggered ops checks, scans, apply surfaces, resume generation plumbing, and interview prep all exist in code.
 
-## Broken or Missing Data Risks
+The biggest remaining work is now:
 
-- Resume drafts can appear incomplete when:
-  - the selected opportunity report is sparse,
-  - the selected resume source lacks depth,
-  - the backend drafting prompt is not extracting enough structured material.
-- Some backend scripts return operator-oriented stdout rather than structured JSON. The UI can call them, but long-term parity is stronger when the backend exposes stable machine-readable responses.
-- The UI now surfaces safe read-only health checks, but mutating maintenance commands still remain terminal-only by design.
+1. hardening,
+2. workflow depth,
+3. data contract reliability,
+4. and product polish.
 
-## What Shipped In This Parity Pass
+## Current Status
 
-- Added backend-backed resume source management in Settings so multiple resume files can be registered and selected.
-- Connected Resume Studio draft regeneration to the backend generator instead of relying on static local shaping alone.
-- Added frontend API routes for:
-  - `POST /api/pipeline`
-  - `POST /api/scan`
-- Added dashboard intake controls so users can:
-  - paste job URLs,
-  - queue backend pipeline entries,
-  - run the real backend scanner,
-  - see pending inbox state without touching the terminal.
-- Added a dedicated `Scans` page and enabled it in navigation / command palette.
-- Added a Settings operations panel that runs safe backend health checks from the browser:
-  - `doctor`
-  - `verify`
-  - `sync-check`
-  - `liveness`
-- Added a dedicated interview prep route for each tracked role so prep is no longer buried inside the raw evaluation report.
-- Added browser editing for the backend interview story bank and surfaced existing `interview-prep/*.md` reports when they already exist.
-- Added a backend interview intel generator script and a frontend trigger so users can generate a fresh `interview-prep/*.md` brief directly from the browser.
-- Upgraded the interview intel generator so browser-triggered drafts now pull from the evaluation report, `cv.md`, `config/profile.yml`, and the story bank instead of emitting a thin placeholder-style summary.
+### Shipped
 
-## Recommended Next Parity Queue
+#### App shell and navigation
 
-1. Expose apply and outreach / research flows as first-class UI workspaces.
-2. Decide which mutating maintenance flows are safe enough for the browser.
-   - `normalize`
-   - `dedup`
-   - `merge`
-   - `update`
-   - `rollback`
-3. Strengthen Resume Studio end-to-end.
-   - Make preview edits deterministic.
-   - Add clearer regenerate variants and source selection feedback.
-   - Tighten the backend drafting contract so the UI can trust the response shape.
-4. Add auth and protected routes so parity work is happening inside the eventual real application shell, not an open local workspace.
+- Root application shell exists.
+- Top navigation is intentionally trimmed to core routes.
+- Secondary routes are available through the command palette.
+- Command palette supports grouped navigation and context-aware ranking.
 
-## Definition of Done Tracking
+#### Authentication and route protection
+
+- Login route exists.
+- Auth helpers exist.
+- Protected-route middleware exists.
+- Unauthenticated API requests return `401`.
+- Unauthenticated page requests redirect to `/login`.
+
+Status: implemented
+
+#### Dashboard
+
+- Dashboard route exists.
+- Dashboard surfaces live workspace and opportunity summaries.
+- Dashboard reflects tracker-backed data rather than static placeholders.
+
+Status: implemented
+
+#### Pipeline
+
+- Pipeline table route exists.
+- Opportunity detail route exists.
+- Status and notes mutation flows exist.
+- Evaluation-backed dossier review exists.
+
+Status: implemented
+
+#### Apply workspace
+
+- Top-level apply route exists.
+- Per-opportunity apply workspace exists.
+- Apply data can be fetched and patched through the UI.
+- Users can work with cover letter notes, outreach draft material, and applied date fields without the terminal.
+
+Status: implemented
+
+#### Compare workspace
+
+- Compare route exists.
+- Backend evaluation data is rendered side-by-side.
+- Selection is URL-driven and shareable through query params.
+
+Status: implemented, but still needs product polish
+
+#### Resume Studio
+
+- Resume route exists.
+- Backend-backed draft generation exists.
+- Resume export endpoint exists.
+- Resume source upload endpoint exists.
+- Multiple resume sources are supported in the data model and settings flow.
+
+Status: implemented, but still uneven in quality and reliability
+
+#### Interview prep workspace
+
+- Dedicated per-opportunity interview prep route exists.
+- Browser-triggered interview intel generation exists.
+- Existing interview-prep assets are surfaced in the UI.
+- Story bank editing exists in-browser.
+- Structured interview intel rendering exists instead of raw markdown dumping.
+
+Status: implemented, with room for deeper research capabilities
+
+#### Scans and intake
+
+- Dedicated scans route exists.
+- Users can paste URLs or pipeline-style intake lines from the browser.
+- Browser-triggered scanner execution exists.
+- Pending and processed inbox states are visible in the UI.
+
+Status: implemented
+
+#### Settings and operations
+
+- Profile editing exists.
+- Resume source registration exists.
+- Workspace health checks exist.
+- Browser-triggered maintenance actions exist.
+- Browser-triggered liveness checks exist.
+
+Status: implemented
+
+### Partially Complete
+
+#### Resume Studio product quality
+
+What exists:
+
+- real draft generation,
+- source selection,
+- export path,
+- inline editing controls,
+- backend connectivity.
+
+What still needs work:
+
+- stronger and more predictable draft quality,
+- clearer regenerate behavior,
+- better edit-state consistency,
+- tighter contract between backend generation output and frontend rendering,
+- better trust that what the user edits is what the final asset reflects.
+
+Status: partial
+
+#### Apply and outreach depth
+
+What exists:
+
+- apply route,
+- per-role apply workspace,
+- notes and outreach-related fields,
+- links to adjacent flows.
+
+What still needs work:
+
+- deeper assistant behavior,
+- stronger draft generation,
+- more deliberate outreach research support,
+- better continuity between resume, apply, and interview-prep workflows.
+
+Status: partial
+
+#### Compare UX maturity
+
+What exists:
+
+- comparison route,
+- selection model,
+- evaluation-backed signals,
+- readable comparison structure.
+
+What still needs work:
+
+- cleaner decision framing,
+- more confidence in the visual model,
+- stronger product polish so it feels like a finished prioritization tool.
+
+Status: partial
+
+#### Interview research depth
+
+What exists:
+
+- backend-connected intel generation,
+- structured rendering,
+- role-specific preparation workspace.
+
+What still needs work:
+
+- richer company-specific research,
+- stronger sourcing model,
+- deeper intelligence beyond deterministic report-derived generation.
+
+Status: partial
+
+#### Auth hardening
+
+What exists:
+
+- auth implementation,
+- session cookie checks,
+- login flow,
+- protected routing.
+
+What still needs work:
+
+- production-readiness validation,
+- edge-case testing,
+- confidence around session lifecycle behavior and environment toggles.
+
+Status: partial
+
+#### Ops safety and operator clarity
+
+What exists:
+
+- maintenance actions in-browser,
+- checks and verification in-browser.
+
+What still needs work:
+
+- stronger safeguards around destructive actions,
+- clearer operator warnings,
+- better confirmation UX,
+- clearer distinction between safe checks and mutating operations.
+
+Status: partial
+
+### Missing or Thin
+
+#### Mature outreach and contact research desk
+
+There is apply support, but there is not yet a clearly mature browser workspace for:
+
+- outreach strategy,
+- contact intelligence,
+- reusable networking research,
+- and a polished end-to-end contact workflow.
+
+Status: thin
+
+#### Research, training, and project-evaluation modes
+
+Some backend/operator workflows still do not appear to have first-class UI exposure.
+
+These need a deliberate audit in the backend repo and then a decision on:
+
+- whether they belong in the browser,
+- where they should live,
+- and what shape they should take for normal users.
+
+Status: missing or not yet confirmed in the UI
+
+#### Documentation parity
+
+`implementation.md` itself had fallen behind the codebase before this rewrite.
+
+Status: now corrected, but must be maintained continuously
+
+## Important Corrections to Older Assumptions
+
+The following assumptions were stale and should no longer be used for planning:
+
+- Auth is not backend-only. It is implemented in the UI repo.
+- Apply workflows are not backend-only. They already have browser surfaces.
+- Scans/intake are not backend-only. They already have a dedicated browser workspace.
+- Mutating maintenance commands are not terminal-only anymore. They are already exposed in settings.
+
+That changes the roadmap substantially. The project is now mostly about hardening and depth, not initial exposure.
+
+## Current Risks
+
+### Resume quality can still feel like a frontend bug when it is actually a cross-stack issue
+
+Thin or incomplete resume drafts may come from:
+
+- sparse opportunity reports,
+- weak resume source material,
+- backend prompt behavior,
+- or a brittle response shape.
+
+This remains one of the main cross-stack risks in the product.
+
+### Browser-exposed maintenance actions need disciplined safeguards
+
+Because mutating operations are already in the UI, safety and clarity matter more now than before.
+
+### Some workflows are present but not yet trustworthy enough to feel finished
+
+This is especially true for:
+
+- resumes,
+- compare,
+- apply/outreach depth,
+- and interview research depth.
+
+## Recommended Next Sprint
+
+### 1. Resume Studio hardening
+
+Goals:
+
+- make generation more deterministic,
+- clarify source selection and regenerate flows,
+- make inline edits more trustworthy,
+- tighten the frontend-backend contract for draft shape and export behavior.
+
+### 2. Apply and outreach depth
+
+Goals:
+
+- improve the quality of apply assistance,
+- strengthen outreach-related generation and research support,
+- and create better continuity between pipeline, resumes, apply, and interview prep.
+
+### 3. Compare polish
+
+Goals:
+
+- improve readability,
+- sharpen decision framing,
+- and make the route feel like a finished prioritization tool.
+
+### 4. Ops safety pass
+
+Goals:
+
+- review every mutating maintenance action exposed in the UI,
+- improve confirmations,
+- improve warnings,
+- and make the consequences clearer.
+
+### 5. Auth hardening
+
+Goals:
+
+- validate real protected-route behavior end-to-end,
+- test edge cases,
+- and tighten session handling confidence.
+
+### 6. Backend capability audit for remaining terminal-first modes
+
+Goals:
+
+- review backend-only research / training / evaluation workflows,
+- decide which should become browser features,
+- and plan their UI exposure intentionally instead of ad hoc.
+
+## Definition of Done
 
 - [ ] A user can complete every core workflow entirely from the frontend UI
-- [ ] No data is missing or misrepresented compared to the backend source
-- [x] `implementation.md` reflects the current known state of the application
-- [ ] New features follow the backend -> frontend parity rule from the start
+- [ ] Resume generation, editing, and export feel reliable enough to trust
+- [ ] Apply, outreach, and interview-prep flows feel like connected parts of one system
+- [ ] Mutating maintenance actions have appropriate operator safeguards
+- [ ] Auth is hardened enough for real protected use
+- [x] This ledger reflects the current codebase rather than stale planning assumptions
+- [ ] New backend capabilities are planned with frontend exposure from the start

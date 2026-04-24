@@ -158,7 +158,6 @@ function buildSummary(
   cv: ParsedCvDocument,
   opportunity: Opportunity,
   evaluation: Evaluation | null,
-  keywords: string[],
   tone: number,
   variant: ResumeDraftVariant,
   summaryOverride?: string,
@@ -339,7 +338,6 @@ export function buildResumeDraft(input: {
       cv,
       opportunity,
       evaluation,
-      focusKeywords,
       tone,
       variant,
       summaryOverride,
@@ -488,11 +486,11 @@ export function renderResumeHtml(draft: ResumeDraft) {
       }
       .doc-identity { flex: 1; display: flex; flex-direction: column; gap: 0.25rem; }
       .doc-name {
-        font-size: 2.5rem;
+        font-size: 1.6rem;
         font-weight: 700;
-        letter-spacing: -0.03em;
+        letter-spacing: -0.02em;
         color: #111;
-        line-height: 1.1;
+        line-height: 1.15;
       }
       .doc-title {
         font-size: 1.25rem;
@@ -520,14 +518,14 @@ export function renderResumeHtml(draft: ResumeDraft) {
       .section { margin-bottom: 1.5rem; }
       .section-label {
         font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace;
-        font-size: 0.7rem;
+        font-size: 0.65rem;
         font-weight: 600;
-        letter-spacing: 0.05em;
+        letter-spacing: 0.12em;
         text-transform: uppercase;
-        color: #111;
-        margin-bottom: 1rem;
-        border-bottom: 1px solid #ddd;
-        padding-bottom: 0.5rem;
+        color: #666;
+        margin-bottom: 0.9rem;
+        border-bottom: 1px solid #e0e0e0;
+        padding-bottom: 0.45rem;
       }
       .section:last-child {
         border-top: 1px solid #ddd;
@@ -541,7 +539,7 @@ export function renderResumeHtml(draft: ResumeDraft) {
         margin-bottom: 1rem;
       }
       
-      .section p { font-size: 0.85rem; color: #333; line-height: 1.6; }
+      .section p { font-size: 0.82rem; color: #222; line-height: 1.55; }
       
       .entry-list { display: flex; flex-direction: column; gap: 1.5rem; }
       .entry { display: flex; flex-direction: column; gap: 0.5rem; }
@@ -563,38 +561,21 @@ export function renderResumeHtml(draft: ResumeDraft) {
         flex-shrink: 0;
       }
       
-      .bullet-list { list-style: none; display: block; }
+      .bullet-list { list-style: none; display: grid; gap: 0.3rem; margin: 0; padding: 0; }
       .bullet-list li {
         position: relative;
-        padding-left: 1.25rem;
-        padding-bottom: 0.5rem;
-        font-size: 0.85rem;
-        color: #333;
-        line-height: 1.5;
-      }
-      .bullet-list li:last-child {
-        padding-bottom: 0;
+        padding-left: 1.1rem;
+        font-size: 0.82rem;
+        color: #222;
+        line-height: 1.55;
       }
       .bullet-list li::before {
-        content: "";
+        content: "—";
         position: absolute;
-        top: 0.65em;
-        bottom: -0.65em;
         left: 0;
-        width: 1px;
-        background-color: #a3a3a3;
-      }
-      .bullet-list li:last-child::before {
-        display: none;
-      }
-      .bullet-list li::after {
-        content: "";
-        position: absolute;
-        top: 0.65em;
-        left: 0;
-        width: 0.5rem;
-        height: 1px;
-        background-color: #a3a3a3;
+        color: #aaa;
+        font-size: 0.7em;
+        top: 0.15em;
       }
       
       .project-list { display: flex; flex-direction: column; gap: 0.5rem; }
@@ -613,13 +594,13 @@ export function renderResumeHtml(draft: ResumeDraft) {
       .ontology-group { display: flex; flex-direction: column; gap: 0.35rem; }
       .ontology-group-label {
         font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace;
-        font-size: 0.65rem;
+        font-size: 0.6rem;
         font-weight: 600;
-        letter-spacing: 0.05em;
-        text-transform: capitalize;
-        color: #111;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: #666;
       }
-      .ontology-group-items { font-size: 0.85rem; color: #333; line-height: 1.5; }
+      .ontology-group-items { font-size: 0.75rem; color: #333; line-height: 1.5; }
       @media print {
         body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
         .page { padding: 0; }

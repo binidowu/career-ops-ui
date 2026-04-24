@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useSyncExternalStore } from "react";
 
 export type Theme = "light" | "dark" | "system";
 
@@ -9,17 +9,38 @@ const ThemeContext = createContext<{
   setTheme: (t: Theme) => void;
 }>({ theme: "light", setTheme: () => {} });
 
-export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>(() => {
-    if (typeof window === "undefined") {
-      return "light";
-    }
+const THEME_STORAGE_KEY = "career-ops-theme";
+const THEME_EVENT = "career-ops:theme-change";
 
-    const stored = localStorage.getItem("career-ops-theme");
-    return stored === "light" || stored === "dark" || stored === "system"
-      ? stored
-      : "light";
-  });
+function readTheme(): Theme {
+  if (typeof window === "undefined") {
+    return "light";
+  }
+
+  const stored = localStorage.getItem(THEME_STORAGE_KEY);
+  return stored === "light" || stored === "dark" || stored === "system"
+    ? stored
+    : "light";
+}
+
+function subscribeToTheme(onStoreChange: () => void) {
+  if (typeof window === "undefined") {
+    return () => {};
+  }
+
+  const handler = () => onStoreChange();
+
+  window.addEventListener(THEME_EVENT, handler);
+  window.addEventListener("storage", handler);
+
+  return () => {
+    window.removeEventListener(THEME_EVENT, handler);
+    window.removeEventListener("storage", handler);
+  };
+}
+
+export function ThemeProvider({ children }: { children: React.ReactNode }) {
+  const theme = useSyncExternalStore<Theme>(subscribeToTheme, readTheme, () => "light");
 
   useEffect(() => {
     if (theme === "system") {
@@ -31,8 +52,8 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   }, [theme]);
 
   function setTheme(next: Theme) {
-    setThemeState(next);
-    localStorage.setItem("career-ops-theme", next);
+    localStorage.setItem(THEME_STORAGE_KEY, next);
+    window.dispatchEvent(new Event(THEME_EVENT));
   }
 
   return (

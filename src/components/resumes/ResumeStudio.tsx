@@ -71,16 +71,22 @@ interface StoredOverrides {
   expBulletOverrides: Record<number, string[]>;
 }
 
+const EMPTY_OVERRIDES: StoredOverrides = {
+  headlineOverride: "",
+  summaryOverride: "",
+  expBulletOverrides: {},
+};
+
 function loadStoredOverrides(opportunityId: string): StoredOverrides {
   if (typeof window === "undefined") {
-    return { headlineOverride: "", summaryOverride: "", expBulletOverrides: {} };
+    return EMPTY_OVERRIDES;
   }
   try {
     const raw = localStorage.getItem(`${OVERRIDES_PREFIX}${opportunityId}`);
-    if (!raw) return { headlineOverride: "", summaryOverride: "", expBulletOverrides: {} };
+    if (!raw) return EMPTY_OVERRIDES;
     return JSON.parse(raw) as StoredOverrides;
   } catch {
-    return { headlineOverride: "", summaryOverride: "", expBulletOverrides: {} };
+    return EMPTY_OVERRIDES;
   }
 }
 
@@ -152,12 +158,8 @@ export default function ResumeStudio({
   const [debouncedTone, setDebouncedTone] = useState(50);
   const toneDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [variant, setVariant] = useState<ResumeDraftVariant>("balanced");
-  const [headlineOverride, setHeadlineOverride] = useState(() =>
-    initialOpportunity ? loadStoredOverrides(initialOpportunity.id).headlineOverride : "",
-  );
-  const [summaryOverride, setSummaryOverride] = useState(() =>
-    initialOpportunity ? loadStoredOverrides(initialOpportunity.id).summaryOverride : "",
-  );
+  const [headlineOverride, setHeadlineOverride] = useState("");
+  const [summaryOverride, setSummaryOverride] = useState("");
   const [loadingId, setLoadingId] = useState<string | null>(null);
   const [draftLoading, setDraftLoading] = useState(false);
   const [draft, setDraft] = useState<ResumeDraft | null>(null);
@@ -187,11 +189,23 @@ export default function ResumeStudio({
   /* Inline editing state */
   const [editing, setEditing] = useState<string | null>(null);
   const [editBuffer, setEditBuffer] = useState("");
-  const [expBulletOverrides, setExpBulletOverrides] = useState<Record<number, string[]>>(() =>
-    initialOpportunity ? loadStoredOverrides(initialOpportunity.id).expBulletOverrides : {},
-  );
+  const [expBulletOverrides, setExpBulletOverrides] = useState<Record<number, string[]>>({});
   const [lastGeneratedSourceId, setLastGeneratedSourceId] = useState<string | null>(null);
   const editHandleRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
+
+  useEffect(() => {
+    if (!selectedOpportunity) {
+      setHeadlineOverride("");
+      setSummaryOverride("");
+      setExpBulletOverrides({});
+      return;
+    }
+
+    const stored = loadStoredOverrides(selectedOpportunity.id);
+    setHeadlineOverride(stored.headlineOverride);
+    setSummaryOverride(stored.summaryOverride);
+    setExpBulletOverrides(stored.expBulletOverrides);
+  }, [selectedOpportunity]);
 
   async function handleSelectOpportunity(id: string) {
     const next = reportBacked.find((o) => o.id === id);

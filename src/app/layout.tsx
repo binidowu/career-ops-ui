@@ -1,9 +1,11 @@
 import type { Metadata, Viewport } from "next";
 import { Literata, Albert_Sans, JetBrains_Mono } from "next/font/google";
+import Script from "next/script";
 
 import ShellClient from "@/components/shell/ShellClient";
 import { ThemeProvider } from "@/components/common/ThemeProvider";
 import { getCommandPaletteOpportunities } from "@/lib/api/career-ops";
+import { isAuthEnabled } from "@/lib/auth";
 import { buildCommandItems } from "@/components/shell/shell-data";
 
 import "@/styles/reset.css";
@@ -48,23 +50,20 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const commandItems = buildCommandItems(
-    await getCommandPaletteOpportunities(),
-  );
+  const [commandItems, authEnabled] = await Promise.all([
+    getCommandPaletteOpportunities().then(buildCommandItems),
+    Promise.resolve(isAuthEnabled()),
+  ]);
 
   return (
     <html lang="en" suppressHydrationWarning>
-      <head>
-        {/* Set theme before first paint to avoid flash */}
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `(function(){try{var t=localStorage.getItem('career-ops-theme')||'light';if(t!=='system')document.documentElement.setAttribute('data-theme',t);}catch(e){}})();`,
-          }}
-        />
-      </head>
+      <head />
       <body className={`${literata.variable} ${albertSans.variable} ${jetbrainsMono.variable}`}>
+        <Script id="career-ops-theme-init" strategy="beforeInteractive">
+          {`(function(){try{var t=localStorage.getItem('career-ops-theme')||'light';if(t!=='system')document.documentElement.setAttribute('data-theme',t);}catch(e){}})();`}
+        </Script>
         <ThemeProvider>
-          <ShellClient commandItems={commandItems}>{children}</ShellClient>
+          <ShellClient authEnabled={authEnabled} commandItems={commandItems}>{children}</ShellClient>
         </ThemeProvider>
       </body>
     </html>

@@ -11,6 +11,7 @@ import Topbar from "./Topbar";
 import styles from "./ShellClient.module.css";
 
 interface ShellClientProps {
+  authEnabled: boolean;
   children: React.ReactNode;
   commandItems: CommandItem[];
 }
@@ -18,6 +19,7 @@ interface ShellClientProps {
 let nextToastId = 1;
 
 export default function ShellClient({
+  authEnabled,
   children,
   commandItems,
 }: ShellClientProps) {
@@ -71,7 +73,7 @@ export default function ShellClient({
           Skip to main content
         </a>
 
-        <Topbar onNotify={notify} onOpenPalette={() => setPaletteOpen(true)} />
+        <Topbar authEnabled={authEnabled} onNotify={notify} onOpenPalette={() => setPaletteOpen(true)} />
 
         <main className={styles.main} id="main-content">
           {children}
