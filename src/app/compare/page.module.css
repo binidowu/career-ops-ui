@@ -17,71 +17,15 @@
   line-height: 0.94;
 }
 
-.headerMeta {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: var(--space-md);
-}
-
-.protocol {
+.headerSub {
   max-width: none;
-  font-size: var(--text-xs);
-  letter-spacing: 0.09em;
-  text-transform: uppercase;
-  color: var(--color-text-tertiary);
-  font-family: var(--font-mono);
-}
-
-.headerActions {
-  display: flex;
-  gap: var(--space-sm);
-}
-
-.btnOutline,
-.btnSolid {
-  min-height: 2rem;
-  padding: 0 var(--space-md);
-  border-radius: 0;
-  font-size: var(--text-xs);
-  font-weight: var(--weight-semibold);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  cursor: pointer;
-  transition:
-    border-color var(--duration-fast) var(--ease-out),
-    background-color var(--duration-fast) var(--ease-out);
-}
-
-.btnOutline {
-  border: 1px solid color-mix(in oklch, var(--color-line-strong) 58%, var(--color-border));
-  background: none;
-  color: var(--color-text);
-}
-
-.btnOutline:hover {
-  border-color: color-mix(in oklch, var(--color-text) 44%, var(--color-border));
-}
-
-.btnSolid {
-  border: 1px solid var(--color-text);
-  background-color: var(--color-text);
-  color: var(--color-bg);
-}
-
-.btnSolid:hover {
-  opacity: 0.88;
+  color: var(--color-text-secondary);
+  font-size: var(--text-sm);
 }
 
 @media (max-width: 44rem) {
   .header h1 {
     max-width: none;
     font-size: clamp(1.95rem, 11vw, 2.9rem);
-  }
-
-  .headerMeta {
-    flex-direction: column;
-    align-items: flex-start;
   }
 }

@@ -62,13 +62,9 @@ export default async function ComparePage({
     <article className={`app-page ${styles.page}`}>
       <header className={styles.header}>
         <h1>Side-by-Side Prioritization</h1>
-        <div className={styles.headerMeta}>
-          <span className={styles.protocol}>Active Protocol: CMP-88-V2 // Last Sync: Live</span>
-          <div className={styles.headerActions}>
-            <button className={styles.btnOutline} type="button">Export .CSV</button>
-            <button className={styles.btnSolid} type="button">Lock Selection</button>
-          </div>
-        </div>
+        <p className={styles.headerSub}>
+          Compare evaluated roles and decide what deserves the next move.
+        </p>
       </header>
 
       <CompareWorkspace

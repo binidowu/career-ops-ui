@@ -1,6 +1,6 @@
 # Career-Ops UI — Code-Verified Implementation Ledger
 
-Last updated: 2026-04-24 (Resume Studio hardening pass + backend draft quality fixes)
+Last updated: 2026-04-24 (Resume Studio hardening + backend quality fixes + Compare polish)
 
 ## Purpose
 
@@ -222,13 +222,17 @@ What exists:
 - evaluation-backed signals,
 - readable comparison structure.
 
-What still needs work:
+Compare polish pass completed (2026-04-24):
 
-- cleaner decision framing,
-- more confidence in the visual model,
-- stronger product polish so it feels like a finished prioritization tool.
+- Removed fake "Export .CSV" / "Lock Selection" buttons and "Active Protocol: CMP-88-V2" metadata that eroded trust.
+- Replaced the "Weighted Algorithm Output" table (fake weights, "Model: V2.4b") with a ranked "Recommended Moves" list that names each company specifically.
+- Added a "Decision Brief" card with a clear recommended focus role, trajectory signal, and critical gap callout.
+- Added a "Next Action" row to the comparison grid so action intent is visible inline per role.
+- Added contextual per-role action links: Detail, Apply (when not inactive), Prep (when at Interview/Offer stage).
+- Made `getNextStep` text company-specific instead of generic status advice.
+- Cleaned up jargon labels: "Evaluation Vectors" → "Comparison criteria", "Shortlist Console" → "Role Selector", "X/5 locked" → "X of 5 selected", "Compensation Matrix" → "Compensation", "Risk Factor" → "Risk", "Skill Alignment" → "CV Alignment".
 
-Status: partial
+Status: complete
 
 #### Interview research depth
 

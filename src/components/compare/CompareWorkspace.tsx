@@ -165,30 +165,32 @@ function rankForNextMove(entry: CompareEntry) {
 }
 
 function getNextStep(entry: CompareEntry) {
+  const { company } = entry.opportunity;
+
   if (entry.opportunity.status === "Offer") {
-    return "Pressure-test the offer terms, then decide whether to negotiate or close.";
+    return `Pressure-test the ${company} offer terms and decide whether to negotiate or close.`;
   }
 
   if (entry.opportunity.status === "Interview") {
-    return "Prep stories, sharpen proof points, and treat this as the live priority.";
+    return `${company} is live — prep stories, sharpen proof points, and treat this as the current priority.`;
   }
 
   if (
     entry.opportunity.status === "Applied" ||
     entry.opportunity.status === "Responded"
   ) {
-    return "Keep momentum with deliberate follow-up timing and a tighter research brief.";
+    return `${company} is in progress — follow up with deliberate timing and a tighter research brief.`;
   }
 
   if ((entry.opportunity.score ?? 0) >= 4) {
-    return "Tailor the resume and make this the first outbound push in the current batch.";
+    return `High fit — tailor the resume and make ${company} the first outbound push in this batch.`;
   }
 
   if ((entry.evaluation?.gapItems.length ?? 0) >= 3) {
-    return "Only keep it in play if the upside justifies a focused upskilling sprint.";
+    return `Only keep ${company} in play if the upside justifies a focused upskilling sprint.`;
   }
 
-  return "Treat as a secondary option while higher-fit roles move through the funnel.";
+  return `Treat ${company} as a secondary option while higher-fit roles move through the funnel.`;
 }
 
 function getStatusAccent(status: OpportunityStatus) {
@@ -340,29 +342,6 @@ export default function CompareWorkspace({
       entry.opportunity.id === badgeWinners.find((badge) => badge.label === "Momentum")?.id,
   );
 
-  const algorithmVectors = [
-    {
-      label: "Immediate Compensation",
-      weight: "0.25",
-      leader: bestPayEntry,
-    },
-    {
-      label: "Long-term Role Fit",
-      weight: "0.35",
-      leader: bestScoreEntry,
-    },
-    {
-      label: "Process Momentum",
-      weight: "0.15",
-      leader: momentumEntry,
-    },
-    {
-      label: "Execution Stability",
-      weight: "0.25",
-      leader: stabilityEntry,
-    },
-  ];
-
   const criticalVulnerability =
     selectedEntries.flatMap((entry) =>
       (entry.evaluation?.gapItems ?? [])
@@ -438,7 +417,7 @@ export default function CompareWorkspace({
     render: (entry: CompareEntry) => ReactNode;
   }> = [
     {
-      label: "Total Score",
+      label: "Score",
       render: (entry) => {
         const raw =
           typeof entry.opportunity.score === "number"
@@ -454,7 +433,7 @@ export default function CompareWorkspace({
       },
     },
     {
-      label: "Skill Alignment",
+      label: "CV Alignment",
       render: (entry) => {
         const signals = buildAlignmentSignals(entry);
 
@@ -481,7 +460,7 @@ export default function CompareWorkspace({
       },
     },
     {
-      label: "Compensation Matrix",
+      label: "Compensation",
       render: (entry) => {
         const compensation = splitCompensation(entry.opportunity.compensation);
 
@@ -502,9 +481,15 @@ export default function CompareWorkspace({
       },
     },
     {
-      label: "Risk Factor",
+      label: "Risk",
       render: (entry) => (
         <p className={styles.riskCopy}>{getRiskNarrative(entry)}</p>
+      ),
+    },
+    {
+      label: "Next Action",
+      render: (entry) => (
+        <p className={styles.nextActionCopy}>{getNextStep(entry)}</p>
       ),
     },
   ];
@@ -514,12 +499,12 @@ export default function CompareWorkspace({
       <section className={styles.selectionPanel}>
         <div className={styles.selectionHead}>
           <div>
-            <p className={styles.selectionLabel}>Shortlist Console</p>
-            <h2>Keep the best candidates in frame, then read the board below.</h2>
+            <p className={styles.selectionLabel}>Role Selector</p>
+            <h2>Choose up to five scored roles, then read the board below.</h2>
           </div>
           <p className={styles.selectionCount}>
-            {selectedEntries.length}/5 locked
-            {pendingId ? " - Loading role..." : ""}
+            {selectedEntries.length} of 5 selected
+            {pendingId ? " — loading…" : ""}
           </p>
         </div>
 
@@ -571,10 +556,9 @@ export default function CompareWorkspace({
           <div className={styles.boardScroller}>
             <div className={styles.matrix} style={matrixStyle}>
               <div className={`${styles.matrixCell} ${styles.matrixIntro}`}>
-                <p className={styles.matrixKicker}>Evaluation Vectors</p>
-                <h2>Comparison Grid</h2>
+                <h2>Comparison</h2>
                 <p>
-                  Shared criteria held constant across the current shortlist.
+                  Shared criteria across all selected roles.
                 </p>
               </div>
 
@@ -619,12 +603,33 @@ export default function CompareWorkspace({
 
                     <div className={styles.recordLocation}>{summarizeLocation(entry)}</div>
 
-                    <Link
-                      className={styles.recordLink}
-                      href={`/pipeline/${entry.opportunity.id}`}
-                    >
-                      Open full record
-                    </Link>
+                    <div className={styles.recordActions}>
+                      <Link
+                        className={styles.recordLink}
+                        href={`/pipeline/${entry.opportunity.id}`}
+                      >
+                        Detail
+                      </Link>
+                      {entry.opportunity.status !== "Rejected" &&
+                        entry.opportunity.status !== "Discarded" &&
+                        entry.opportunity.status !== "SKIP" ? (
+                        <Link
+                          className={styles.recordLink}
+                          href={`/pipeline/${entry.opportunity.id}/apply`}
+                        >
+                          Apply
+                        </Link>
+                      ) : null}
+                      {entry.opportunity.status === "Interview" ||
+                        entry.opportunity.status === "Offer" ? (
+                        <Link
+                          className={styles.recordLink}
+                          href={`/pipeline/${entry.opportunity.id}/interview`}
+                        >
+                          Prep
+                        </Link>
+                      ) : null}
+                    </div>
                   </div>
                 );
               })}
@@ -659,11 +664,21 @@ export default function CompareWorkspace({
           <div className={styles.insightGrid}>
             <section className={styles.insightCard}>
               <div className={styles.insightHead}>
-                <p className={styles.insightLabel}>Strategic Gap Analysis</p>
+                <p className={styles.insightLabel}>Decision Brief</p>
               </div>
 
+              {leadEntry ? (
+                <div className={styles.recommendedFocus}>
+                  <p className={styles.recommendedFocusLabel}>Recommended focus</p>
+                  <p className={styles.recommendedFocusRole}>
+                    {leadEntry.opportunity.company} — {leadEntry.opportunity.role}
+                  </p>
+                  <p className={styles.analysisBody}>{getNextStep(leadEntry)}</p>
+                </div>
+              ) : null}
+
               <div className={styles.analysisBlock}>
-                <p className={styles.analysisLabel}>Trajectory Alignment</p>
+                <p className={styles.analysisLabel}>Trajectory signal</p>
                 <p className={styles.analysisBody}>
                   {leadEntry
                     ? summarizeStrategy(leadEntry.evaluation)
@@ -671,48 +686,35 @@ export default function CompareWorkspace({
                 </p>
               </div>
 
-              <div className={styles.analysisBlock}>
-                <p className={styles.analysisLabel}>Critical Vulnerability Identified</p>
-                <p className={styles.analysisBody}>
-                  {criticalVulnerability
-                    ? `${criticalVulnerability.entry.opportunity.company}: ${criticalVulnerability.gap.gap}. ${criticalVulnerability.gap.mitigation}`
-                    : "No critical gaps detected across the current selection."}
-                </p>
-              </div>
+              {criticalVulnerability ? (
+                <div className={styles.analysisBlock}>
+                  <p className={styles.analysisLabel} data-tone="critical">Critical gap</p>
+                  <p className={styles.analysisBody}>
+                    {criticalVulnerability.entry.opportunity.company}: {criticalVulnerability.gap.gap}. {criticalVulnerability.gap.mitigation}
+                  </p>
+                </div>
+              ) : null}
             </section>
 
             <section className={styles.insightCard}>
               <div className={styles.insightHead}>
-                <p className={styles.insightLabel}>Weighted Algorithm Output</p>
-                <span className={styles.insightModel}>Model: V2.4b</span>
+                <p className={styles.insightLabel}>Recommended Moves</p>
               </div>
 
-              <table className={styles.algorithmTable}>
-                <thead>
-                  <tr>
-                    <th>Evaluation Vector</th>
-                    <th>Weight</th>
-                    <th>Leading Variable</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {algorithmVectors.map((vector) => (
-                    <tr key={vector.label}>
-                      <td>{vector.label}</td>
-                      <td className={styles.algorithmWeight}>{vector.weight}</td>
-                      <td className={styles.algorithmLeader}>
-                        {vector.leader
-                          ? `${vector.leader.opportunity.company}`
-                          : "-"}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-
-              {leadEntry ? (
-                <p className={styles.algorithmNext}>{getNextStep(leadEntry)}</p>
-              ) : null}
+              <ol className={styles.moveList}>
+                {nextMoveQueue.map((entry, index) => (
+                  <li className={styles.moveItem} key={entry.opportunity.id}>
+                    <span className={styles.moveRank}>{index + 1}</span>
+                    <div className={styles.moveBody}>
+                      <p className={styles.moveRole}>
+                        {entry.opportunity.company}
+                        <span className={styles.moveRoleTitle}> — {entry.opportunity.role}</span>
+                      </p>
+                      <p className={styles.moveAction}>{getNextStep(entry)}</p>
+                    </div>
+                  </li>
+                ))}
+              </ol>
             </section>
           </div>
         </section>
