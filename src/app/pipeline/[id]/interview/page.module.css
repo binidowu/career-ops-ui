@@ -196,13 +196,32 @@
   gap: var(--space-md);
 }
 
-.inlineActions {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--space-xl);
-  padding: var(--space-lg) 0 var(--space-xl);
+.intelIntro {
+  display: grid;
+  gap: var(--space-lg);
+  padding-bottom: var(--space-xl);
   border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.inlineActions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-xl);
+  padding: var(--space-lg);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: calc(var(--radius-lg) * 2);
+  background:
+    radial-gradient(
+      circle at top right,
+      color-mix(in oklch, var(--color-accent-subtle) 42%, transparent),
+      transparent 34%
+    ),
+    linear-gradient(
+      135deg,
+      color-mix(in oklch, var(--color-surface) 82%, var(--color-accent-subtle) 18%),
+      var(--color-surface)
+    );
 }
 
 .inlineCopy {
@@ -221,16 +240,31 @@
 
 .inlineHint {
   margin: 0;
-  max-width: 34rem;
+  max-width: 42rem;
   color: var(--color-text-tertiary);
   font-size: var(--text-sm);
   line-height: var(--leading-relaxed);
+}
+
+.inlineLead {
+  margin: 0;
+  max-width: 26rem;
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semibold);
+  line-height: 1.18;
+  color: var(--color-text);
+  text-wrap: balance;
 }
 
 .cardBody p {
   margin: 0;
   color: var(--color-text-secondary);
   line-height: var(--leading-relaxed);
+}
+
+.intelSurface {
+  padding-top: var(--space-lg);
 }
 
 .intelDocument {
@@ -616,8 +650,8 @@
   }
 
   .inlineActions {
-    flex-direction: column;
-    align-items: stretch;
+    grid-template-columns: 1fr;
+    align-items: flex-start;
   }
 }
 
