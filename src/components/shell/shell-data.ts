@@ -55,6 +55,10 @@ export const NAV_ITEMS: NavItem[] = [
   },
 ];
 
+export const PRIMARY_NAV_ITEMS: NavItem[] = NAV_ITEMS.filter((item) =>
+  ["Dashboard", "Pipeline", "Compare", "Resumes"].includes(item.label),
+);
+
 export const COMMAND_ITEMS: CommandItem[] = [
   ...NAV_ITEMS.map((item) => ({
     id: `nav-${item.label.toLowerCase()}`,

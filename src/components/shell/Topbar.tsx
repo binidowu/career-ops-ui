@@ -6,7 +6,7 @@ import { useState } from "react";
 
 import type { ToastMessage } from "@/components/common/Toast";
 
-import { NAV_ITEMS } from "./shell-data";
+import { PRIMARY_NAV_ITEMS } from "./shell-data";
 import styles from "./Topbar.module.css";
 
 interface TopbarProps {
@@ -46,7 +46,7 @@ export default function Topbar({ onNotify, onOpenPalette }: TopbarProps) {
         </div>
 
         <nav aria-label="Primary" className={styles.navDesktop}>
-          {NAV_ITEMS.map((item) =>
+          {PRIMARY_NAV_ITEMS.map((item) =>
             item.disabled ? (
               <button
                 className={styles.navItem}
@@ -109,7 +109,7 @@ export default function Topbar({ onNotify, onOpenPalette }: TopbarProps) {
         className={styles.mobileNav}
         data-open={mobileMenuOpen}
       >
-        {NAV_ITEMS.map((item) =>
+        {PRIMARY_NAV_ITEMS.map((item) =>
           item.disabled ? (
             <button
               className={styles.mobileItem}
