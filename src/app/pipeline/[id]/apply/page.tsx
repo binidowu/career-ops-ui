@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import type { ApplyEvaluationContext } from "@/components/apply/ApplyWorkspaceClient";
 import ApplyWorkspaceClient from "@/components/apply/ApplyWorkspaceClient";
 import { getApplyData, getOpportunity } from "@/lib/api/career-ops";
 
@@ -12,11 +13,18 @@ export default async function OpportunityApplyPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const { opportunity } = await getOpportunity(id);
+  const { evaluation, opportunity } = await getOpportunity(id);
 
   if (!opportunity) notFound();
 
   const applyData = await getApplyData(id);
+  const evaluationContext: ApplyEvaluationContext | null = evaluation
+    ? {
+        cvMatchItems: evaluation.cvMatchItems.slice(0, 4),
+        keywords: evaluation.keywords.slice(0, 12),
+        personalizationItems: evaluation.personalizationItems.slice(0, 5),
+      }
+    : null;
   const score =
     typeof opportunity.score === "number"
       ? (opportunity.score * 20).toFixed(0)
@@ -83,6 +91,7 @@ export default async function OpportunityApplyPage({
       </header>
 
       <ApplyWorkspaceClient
+        evaluationContext={evaluationContext}
         initialApplyData={applyData}
         opportunity={opportunity}
       />

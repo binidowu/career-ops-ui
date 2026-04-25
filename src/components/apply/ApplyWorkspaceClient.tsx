@@ -4,8 +4,8 @@ import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 
 import { useToast } from "@/components/common/ToastContext";
-import type { ApplyNoteEntry } from "@/lib/api/career-ops";
-import type { Opportunity, OpportunityStatus } from "@/lib/types";
+import type { ApplyDraftKind, ApplyNoteEntry } from "@/lib/api/career-ops";
+import type { CvMatchItem, Opportunity, OpportunityStatus, PersonalizationItem } from "@/lib/types";
 
 import styles from "./ApplyWorkspaceClient.module.css";
 
@@ -29,18 +29,32 @@ const CHECKLIST_STEPS = [
 ];
 
 interface Props {
+  evaluationContext: ApplyEvaluationContext | null;
   opportunity: Opportunity;
   initialApplyData: ApplyNoteEntry;
 }
 
-export default function ApplyWorkspaceClient({ opportunity, initialApplyData }: Props) {
+export interface ApplyEvaluationContext {
+  cvMatchItems: CvMatchItem[];
+  keywords: string[];
+  personalizationItems: PersonalizationItem[];
+}
+
+export default function ApplyWorkspaceClient({
+  evaluationContext,
+  opportunity,
+  initialApplyData,
+}: Props) {
   const router = useRouter();
   const notify = useToast();
 
   const [coverLetter, setCoverLetter] = useState(initialApplyData.coverLetterNotes);
   const [outreach, setOutreach] = useState(initialApplyData.outreachDraft);
+  const [appliedDate, setAppliedDate] = useState(initialApplyData.appliedDate);
   const [status, setStatus] = useState<OpportunityStatus>(opportunity.status);
   const [saving, setSaving] = useState(false);
+  const [generating, setGenerating] = useState<ApplyDraftKind | null>(null);
+  const [updatingDate, setUpdatingDate] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState(false);
   const [checked, setChecked] = useState<Set<string>>(() => {
     if (typeof window === "undefined") return new Set();
@@ -95,7 +109,11 @@ export default function ApplyWorkspaceClient({ opportunity, initialApplyData }: 
       const res = await fetch(`/api/apply/${opportunity.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ coverLetterNotes: coverLetter, outreachDraft: outreach }),
+        body: JSON.stringify({
+          coverLetterNotes: coverLetter,
+          outreachDraft: outreach,
+          appliedDate,
+        }),
       });
       if (!res.ok) throw new Error("Save failed");
       notify({ title: "Notes saved", description: "Cover letter and outreach draft saved.", dismissAfter: 2500 });
@@ -114,17 +132,20 @@ export default function ApplyWorkspaceClient({ opportunity, initialApplyData }: 
   async function handleStatusChange(next: OpportunityStatus) {
     setUpdatingStatus(true);
     const prev = status;
+    const prevAppliedDate = appliedDate;
     setStatus(next);
 
     try {
       const patch: Partial<ApplyNoteEntry> = {};
-      if (next === "Applied" && !initialApplyData.appliedDate) {
+      if (next === "Applied" && !appliedDate) {
         patch.appliedDate = new Date().toISOString().slice(0, 10);
-        await fetch(`/api/apply/${opportunity.id}`, {
+        setAppliedDate(patch.appliedDate);
+        const dateRes = await fetch(`/api/apply/${opportunity.id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(patch),
         });
+        if (!dateRes.ok) throw new Error("Applied date update failed");
       }
 
       const res = await fetch(`/api/opportunities/${opportunity.id}`, {
@@ -138,13 +159,91 @@ export default function ApplyWorkspaceClient({ opportunity, initialApplyData }: 
       router.refresh();
     } catch {
       setStatus(prev);
+      setAppliedDate(prevAppliedDate);
       notify({ title: "Status update failed", description: "Unable to write the new status. Try again.", tone: "error", dismissAfter: null });
     } finally {
       setUpdatingStatus(false);
     }
   }
 
+  async function handleAppliedDateChange(value: string) {
+    const nextDate = value || null;
+    const prevDate = appliedDate;
+    setAppliedDate(nextDate);
+    setUpdatingDate(true);
+
+    try {
+      const res = await fetch(`/api/apply/${opportunity.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ appliedDate: nextDate }),
+      });
+      if (!res.ok) throw new Error("Applied date update failed");
+      notify({
+        title: nextDate ? "Applied date updated" : "Applied date cleared",
+        description: nextDate ? `Saved ${nextDate}.` : "The workspace no longer has an applied date.",
+        dismissAfter: 2200,
+      });
+    } catch {
+      setAppliedDate(prevDate);
+      notify({
+        title: "Date update failed",
+        description: "Unable to save the applied date. Try again.",
+        tone: "error",
+        dismissAfter: null,
+      });
+    } finally {
+      setUpdatingDate(false);
+    }
+  }
+
+  async function handleGenerate(kind: ApplyDraftKind) {
+    setGenerating(kind);
+
+    try {
+      const res = await fetch(`/api/apply/${opportunity.id}/generate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ kind }),
+      });
+      const data = (await res.json()) as { error?: string; text?: string };
+      if (!res.ok || !data.text) {
+        throw new Error(data.error ?? "Generation failed");
+      }
+
+      if (kind === "cover-letter") {
+        setCoverLetter(data.text);
+        scheduleSave({ coverLetterNotes: data.text });
+      } else {
+        setOutreach(data.text);
+        scheduleSave({ outreachDraft: data.text });
+      }
+
+      notify({
+        title: kind === "cover-letter" ? "Cover letter drafted" : "Outreach drafted",
+        description: "Review and edit the generated copy before sending.",
+        dismissAfter: 3000,
+      });
+    } catch (error) {
+      notify({
+        title: "Generation failed",
+        description:
+          error instanceof Error
+            ? error.message
+            : "Unable to generate a draft right now.",
+        tone: "error",
+        dismissAfter: null,
+      });
+    } finally {
+      setGenerating(null);
+    }
+  }
+
   const completedCount = CHECKLIST_STEPS.filter((s) => checked.has(s.id)).length;
+  const hasTalkingPoints =
+    Boolean(evaluationContext?.cvMatchItems.length) ||
+    Boolean(evaluationContext?.personalizationItems.length) ||
+    Boolean(evaluationContext?.keywords.length);
 
   return (
     <div className={styles.layout}>
@@ -178,7 +277,17 @@ export default function ApplyWorkspaceClient({ opportunity, initialApplyData }: 
         <section className={styles.section}>
           <header className={styles.sectionHead}>
             <span className={styles.sectionLabel}>Cover letter &amp; application notes</span>
-            <span className={styles.sectionHint}>Auto-saved as you type</span>
+            <div className={styles.sectionActions}>
+              <span className={styles.sectionHint}>Auto-saved as you type</span>
+              <button
+                className={styles.btnGenerate}
+                disabled={generating !== null}
+                onClick={() => void handleGenerate("cover-letter")}
+                type="button"
+              >
+                {generating === "cover-letter" ? "Generating…" : coverLetter ? "Regenerate" : "Generate"}
+              </button>
+            </div>
           </header>
           <p className={styles.sectionCopy}>
             Draft your cover letter, application statement, or any notes specific to
@@ -200,7 +309,17 @@ export default function ApplyWorkspaceClient({ opportunity, initialApplyData }: 
         <section className={styles.section}>
           <header className={styles.sectionHead}>
             <span className={styles.sectionLabel}>Outreach draft</span>
-            <span className={styles.sectionHint}>LinkedIn connection / email</span>
+            <div className={styles.sectionActions}>
+              <span className={styles.sectionHint}>LinkedIn connection / email</span>
+              <button
+                className={styles.btnGenerate}
+                disabled={generating !== null}
+                onClick={() => void handleGenerate("outreach")}
+                type="button"
+              >
+                {generating === "outreach" ? "Generating…" : outreach ? "Regenerate" : "Generate"}
+              </button>
+            </div>
           </header>
           <p className={styles.sectionCopy}>
             Write a short outreach message to a hiring manager or employee at{" "}
@@ -251,7 +370,67 @@ export default function ApplyWorkspaceClient({ opportunity, initialApplyData }: 
               </button>
             ))}
           </div>
+          <label className={styles.dateField}>
+            <span>Applied date</span>
+            <input
+              disabled={updatingDate}
+              onChange={(event) => void handleAppliedDateChange(event.target.value)}
+              type="date"
+              value={appliedDate ?? ""}
+            />
+          </label>
         </section>
+
+        {/* Evaluation-backed talking points */}
+        {hasTalkingPoints ? (
+          <details className={styles.railCard} open>
+            <summary className={styles.talkingSummary}>
+              <span className={styles.railLabel}>Talking points</span>
+              <span className={styles.summaryToggle}>Toggle</span>
+            </summary>
+
+            {evaluationContext?.cvMatchItems.length ? (
+              <div className={styles.talkingGroup}>
+                <h2>CV strengths to lead with</h2>
+                <ul className={styles.talkingList}>
+                  {evaluationContext.cvMatchItems.map((item, index) => (
+                    <li key={`${item.requirement}-${index}`}>
+                      <strong>{item.requirement}</strong>
+                      <span>{item.match}</span>
+                      {item.source ? <em>{item.source}</em> : null}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+
+            {evaluationContext?.personalizationItems.length ? (
+              <div className={styles.talkingGroup}>
+                <h2>Personalization suggestions</h2>
+                <ul className={styles.talkingList}>
+                  {evaluationContext.personalizationItems.map((item, index) => (
+                    <li key={`${item.section}-${item.index || index}`}>
+                      <strong>{item.section || `Suggestion ${index + 1}`}</strong>
+                      <span>{item.proposedChange || item.current}</span>
+                      {item.why ? <em>{item.why}</em> : null}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+
+            {evaluationContext?.keywords.length ? (
+              <div className={styles.talkingGroup}>
+                <h2>ATS keywords to work in</h2>
+                <div className={styles.keywordList}>
+                  {evaluationContext.keywords.map((keyword) => (
+                    <span key={keyword}>{keyword}</span>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+          </details>
+        ) : null}
 
         {/* Key signals from evaluation */}
         {opportunity.score !== null ? (

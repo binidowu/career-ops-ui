@@ -41,6 +41,14 @@
   white-space: nowrap;
 }
 
+.sectionActions {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
 .sectionCopy {
   font-size: var(--text-sm);
   color: var(--color-text-secondary);
@@ -151,6 +159,36 @@
   cursor: default;
 }
 
+.btnGenerate {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2rem;
+  padding: 0 var(--space-md);
+  border: 1px solid color-mix(in oklch, var(--color-accent) 35%, var(--color-border));
+  border-radius: var(--radius-full);
+  background-color: color-mix(in oklch, var(--color-accent-subtle) 72%, var(--color-surface));
+  color: var(--color-accent-strong);
+  font: inherit;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  cursor: pointer;
+  transition:
+    background-color var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out),
+    opacity var(--duration-fast) var(--ease-out);
+}
+
+.btnGenerate:hover:not(:disabled) {
+  background-color: color-mix(in oklch, var(--color-accent-subtle) 45%, var(--color-surface));
+  border-color: var(--color-accent);
+}
+
+.btnGenerate:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
 /* Rail */
 
 .rail {
@@ -225,6 +263,134 @@
   cursor: default;
 }
 
+.dateField {
+  display: grid;
+  gap: var(--space-xs);
+  padding-top: var(--space-sm);
+  border-top: 1px solid var(--color-border-subtle);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-text-tertiary);
+}
+
+.dateField input {
+  min-height: 2.35rem;
+  box-sizing: border-box;
+  padding: 0 var(--space-md);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-regular);
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.dateField input:focus-visible {
+  outline: 2px solid color-mix(in oklch, var(--color-accent) 40%, transparent);
+  outline-offset: 1px;
+  border-color: var(--color-accent);
+}
+
+.dateField input:disabled {
+  opacity: 0.6;
+}
+
+/* Talking points */
+
+.talkingSummary {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-md);
+  cursor: pointer;
+  list-style: none;
+}
+
+.talkingSummary::-webkit-details-marker {
+  display: none;
+}
+
+.summaryToggle {
+  color: var(--color-text-tertiary);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+}
+
+.talkingGroup {
+  display: grid;
+  gap: var(--space-sm);
+  padding-top: var(--space-md);
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+.talkingGroup h2 {
+  margin: 0;
+  color: var(--color-text);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+}
+
+.talkingList {
+  display: grid;
+  gap: var(--space-sm);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.talkingList li {
+  display: grid;
+  gap: var(--space-xs);
+  padding: var(--space-sm) 0;
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.talkingList li:last-child {
+  border-bottom: 0;
+}
+
+.talkingList strong {
+  color: var(--color-text);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+}
+
+.talkingList span,
+.talkingList em {
+  color: var(--color-text-secondary);
+  font-size: var(--text-xs);
+  font-style: normal;
+  line-height: var(--leading-relaxed);
+}
+
+.talkingList em {
+  color: var(--color-text-tertiary);
+}
+
+.keywordList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+}
+
+.keywordList span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.75rem;
+  padding: 0 var(--space-sm);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-full);
+  background-color: var(--color-bg);
+  color: var(--color-text-secondary);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+}
+
 /* Signal / info rows */
 
 .signalList {
@@ -294,5 +460,16 @@
 
   .rail {
     position: static;
+  }
+}
+
+@media (max-width: 42rem) {
+  .sectionHead {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .sectionActions {
+    justify-content: flex-start;
   }
 }

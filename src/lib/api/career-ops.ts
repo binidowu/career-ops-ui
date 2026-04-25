@@ -2,6 +2,7 @@ import { execFile, spawn } from "node:child_process";
 import { access, mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { basename, extname, join, resolve as resolvePath } from "node:path";
 import { promisify } from "node:util";
+import Anthropic from "@anthropic-ai/sdk";
 import { unstable_noStore as noStore } from "next/cache";
 
 import {
@@ -1493,6 +1494,8 @@ export interface ApplyNoteEntry {
   appliedDate: string | null;
 }
 
+export type ApplyDraftKind = "cover-letter" | "outreach";
+
 function applyNotesPath() {
   return resolveCareerOpsFile("data", "apply-notes.json");
 }
@@ -1530,6 +1533,142 @@ export async function saveApplyData(
   await writeFile(applyNotesPath(), JSON.stringify(all, null, 2), "utf8");
 
   return next;
+}
+
+function truncateForPrompt(value: string, maxChars: number) {
+  if (value.length <= maxChars) return value;
+  return `${value.slice(0, maxChars)}\n\n[Truncated ${value.length - maxChars} characters.]`;
+}
+
+function compactProfileForPrompt(profile: UserProfile | null) {
+  if (!profile) {
+    return null;
+  }
+
+  return {
+    candidate: {
+      fullName: profile.candidate.fullName,
+      location: profile.candidate.location,
+      linkedin: profile.candidate.linkedin,
+      portfolioUrl: profile.candidate.portfolioUrl,
+      github: profile.candidate.github,
+    },
+    targetRoles: profile.targetRoles,
+    narrative: profile.narrative,
+    compensation: profile.compensation,
+    location: profile.location,
+  };
+}
+
+function buildApplyDraftPrompt(input: {
+  kind: ApplyDraftKind;
+  opportunity: Opportunity;
+  profile: UserProfile | null;
+  reportText: string;
+}) {
+  const isCoverLetter = input.kind === "cover-letter";
+  const profileJson = JSON.stringify(compactProfileForPrompt(input.profile), null, 2);
+
+  return [
+    `Draft type: ${isCoverLetter ? "cover letter / application notes" : "short outreach message"}`,
+    "",
+    "Opportunity:",
+    JSON.stringify(
+      {
+        company: input.opportunity.company,
+        role: input.opportunity.role,
+        status: input.opportunity.status,
+        score: input.opportunity.score,
+        archetype: input.opportunity.archetype,
+        remote: input.opportunity.remote,
+        compensation: input.opportunity.compensation,
+        jobUrl: input.opportunity.jobUrl,
+      },
+      null,
+      2,
+    ),
+    "",
+    "Candidate profile:",
+    profileJson,
+    "",
+    "Evaluation report:",
+    truncateForPrompt(input.reportText, 45_000),
+    "",
+    "Instructions:",
+    isCoverLetter
+      ? [
+          "- Write a polished but editable cover letter draft for this specific role.",
+          "- Use concrete fit evidence from the report and profile; do not invent employers, metrics, names, or credentials.",
+          "- Lead with the strongest CV matches, weave in important ATS keywords naturally, and preempt gaps without sounding defensive.",
+          "- Keep it concise: 4 to 6 short paragraphs, plain text only, no markdown headings, no placeholders except [Hiring Manager] if no name is known.",
+          "- Make the voice confident, warm, and specific rather than generic.",
+        ].join("\n")
+      : [
+          "- Write a concise LinkedIn or email outreach draft to someone at the company.",
+          "- Mention the role, one specific reason the candidate is a strong fit, and a clear low-friction ask.",
+          "- Use concrete evaluation context and keywords naturally; do not invent mutual contacts or private company details.",
+          "- Keep it under 130 words, plain text only, no markdown headings.",
+          "- Include a subject line only if the format reads like email; otherwise write the message body directly.",
+        ].join("\n"),
+  ].join("\n");
+}
+
+export async function generateApplyDraft(input: {
+  kind: ApplyDraftKind;
+  opportunityId: string;
+}): Promise<{ text: string }> {
+  noStore();
+
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) {
+    throw new Error("ANTHROPIC_API_KEY is not set. Add it to .env.local and restart the dev server.");
+  }
+
+  const [{ opportunity }, profile] = await Promise.all([
+    getOpportunity(input.opportunityId),
+    getProfile(),
+  ]);
+
+  if (!opportunity?.reportPath) {
+    throw new Error("The selected opportunity does not have a report-backed evaluation yet.");
+  }
+
+  const reportText = await readCareerOpsTextFile(...opportunity.reportPath.split("/"));
+  if (!reportText) {
+    throw new Error("The evaluation report could not be read.");
+  }
+
+  const client = new Anthropic({ apiKey });
+  const response = await client.messages.create({
+    model: process.env.ANTHROPIC_APPLY_MODEL ?? "claude-sonnet-4-6",
+    max_tokens: input.kind === "cover-letter" ? 1400 : 700,
+    temperature: 0.35,
+    system:
+      "You are a senior job-search writing assistant. Produce specific, truthful, ready-to-edit application copy using only the provided report and profile context.",
+    messages: [
+      {
+        role: "user",
+        content: buildApplyDraftPrompt({
+          kind: input.kind,
+          opportunity,
+          profile,
+          reportText,
+        }),
+      },
+    ],
+  });
+
+  const text = response.content
+    .filter((block) => block.type === "text")
+    .map((block) => block.text)
+    .join("\n")
+    .trim();
+
+  if (!text) {
+    throw new Error("Claude did not return draft text.");
+  }
+
+  return { text };
 }
 
 const MAINTENANCE_COMMANDS: Record<
