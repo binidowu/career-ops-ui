@@ -1,6 +1,6 @@
 # Pipeline Worker — Implementation Plan
 
-Last updated: 2026-04-26 (Phase 3 local decision + durable stale-lock recovery)
+Last updated: 2026-04-26 (Phase 5 design patched — path fix, git sync helper, LinkedIn scope correction)
 
 ## Context
 
@@ -223,53 +223,270 @@ Durability hardening added after migration:
 
 ### Phase 5 — Deployment-Ready Worker
 
-**Status:** [ ] Design pending  
+**Status:** [ ] Design complete (patched), implementation pending
 **Depends on:** Phases 1–4 complete
 
-**Goal:** Move from "local CLI subprocess" to a worker model that can run in a deployed
-environment with real users.
+**Goal:** Move from "local CLI subprocess" to a deployed worker accessible from anywhere, with
+the career-ops workspace synced via git.
 
-This phase requires decisions that affect the whole stack. Design separately once Phases 1–4 are
-stable.
+**Single-user assumption:** This is a personal tool. No multi-tenancy, no external queue, no
+per-user billing. The current `spawn({ detached: true })` worker model translates to a container
+without changes.
 
-#### Open questions before designing
+#### Architecture decisions
 
-- What hosts the Next.js app? (Vercel, Railway, VPS, self-hosted)
-- What runs long-running workers? (Serverless cannot hold a 10-minute job)
-- What is the queue mechanism? (Upstash, Inngest, database polling, file-based)
-- How does the worker authenticate with the Anthropic API in a multi-user context?
-- Who pays for API tokens per user?
-- Does the career-ops workspace live on the server or is it user-supplied?
+| Question | Decision | Reason |
+|---|---|---|
+| Hosting | Railway | Long-running Node.js process, persistent volumes, git deploys, no cold starts |
+| Worker model | Keep current spawn pattern | Works inside a container; no queue service needed |
+| Queue | None (file-based, already durable) | Single user, low concurrency, job state already lives in `CAREER_OPS_PATH` |
+| Workspace | Private git repo + deploy key | Worker pulls before each job, pushes after; local machine stays in sync via git pull |
+| Auth | `AUTH_PASSWORD` + `AUTH_SECRET` env vars | Already implemented — middleware + login page are done |
+| API key | Single `ANTHROPIC_API_KEY` env var | Personal tool, one key |
+| Browser capability | Playwright (Phase 3 Option A, now unblocked) | Real server with persistent storage; Chromium installs cleanly in a container |
+| Scale | Single Railway replica only | File-backed job state + spawned workers are not safe under multiple replicas sharing one volume |
 
-#### Likely architecture shape
+---
 
+#### Phase 5A — Containerize
+
+**`railway.toml`** (new file)
+
+```toml
+[build]
+builder = "nixpacks"
+
+[deploy]
+startCommand = "node scripts/startup.mjs && next start -p $PORT"
+healthcheckPath = "/api/health"
+healthcheckTimeout = 30
+restartPolicyType = "on_failure"
 ```
-UI (Next.js)
-  └── POST /api/pipeline/process → enqueue job
-  └── GET /api/pipeline/process?jobId=X → poll status
 
-Queue (Upstash Redis or similar)
-  └── job record with type, provider, capabilities, status
+Nixpacks auto-detects Next.js from `package.json`. No Dockerfile needed unless the Playwright
+install (Phase 5D) requires a custom base image.
 
-Worker (separate long-running process or dedicated server)
-  └── pulls from queue
-  └── runs Claude API agentic loop
-  └── writes results back to job record + workspace files
-  └── signals completion
+**New: `src/app/api/health/route.ts`**
 
-UI
-  └── reads job status
-  └── refreshes workspace data
+```ts
+export function GET() {
+  return Response.json({ ok: true, timestamp: new Date().toISOString() });
+}
 ```
+
+Used by Railway health checks. Public path (no auth required — add `/api/health` to
+`PUBLIC_PATHS` in `middleware.ts`).
+
+**New: `scripts/startup.mjs`**
+
+Runs once before `next start`. Responsibilities:
+- Validate required env vars (`ANTHROPIC_API_KEY`, `AUTH_PASSWORD`, `AUTH_SECRET`, `CAREER_OPS_PATH`)
+- If `CAREER_OPS_GIT_REPO` is set: write deploy key from `CAREER_OPS_GIT_DEPLOY_KEY` (base64)
+  to a temp SSH key file, then clone or pull the career-ops repo into `CAREER_OPS_PATH`
+- Exit 1 on validation failure so Railway surfaces the misconfiguration immediately
+
+**`middleware.ts`** — add `/api/health` to `PUBLIC_PATHS`
+
+---
+
+#### Phase 5B — Workspace Git Sync
+
+The career-ops workspace is a private git repo. The deployed worker reads and writes it, then
+pushes changes back so the local machine can `git pull` to see new reports and tracker updates.
+
+**New env vars:**
+
+| Var | Purpose |
+|---|---|
+| `CAREER_OPS_GIT_REPO` | SSH URL of private career-ops repo (`git@github.com:user/career-ops.git`) |
+| `CAREER_OPS_GIT_DEPLOY_KEY` | Base64-encoded ed25519 private key with write access to the repo |
+| `CAREER_OPS_GIT_USER_NAME` | Git commit author name (e.g. `Career Ops Worker`) |
+| `CAREER_OPS_GIT_USER_EMAIL` | Git commit author email |
+
+**New: `scripts/workspace-sync.mjs`**
+
+A dedicated sync helper instead of inline shell strings. Called as a subprocess from the worker:
+`node scripts/workspace-sync.mjs <careerOpsPath> <action> [commitMessage]`
+
+Actions:
+- `pull` — stash any dirty files, `git pull --ff-only`, pop stash; exit 0 on success, non-zero on conflict
+- `push <message>` — `git add -A`; if nothing staged, exit 0 cleanly; commit with message; `git push`; exit non-zero on push failure
+
+Output contract: writes a single JSON line to stdout:
+```json
+{ "action": "pull", "status": "pulled" | "clean" | "conflict" | "skipped", "detail": "..." }
+{ "action": "push", "status": "pushed" | "nothing_to_commit" | "push_failed", "detail": "..." }
+```
+
+Worker reads this JSON and appends sync status to job output. A `push_failed` status is surfaced
+as a warning in the job output (not a job failure — results are on disk, just not yet in git).
+A `conflict` on pull surfaces as a warning; the worker continues with local state.
+
+**`scripts/workers/run-pipeline-job-claude.mjs`** — call the sync helper:
+
+*Before the agentic loop (after job is marked `running`):*
+```js
+const pullResult = await runWorkspaceSync(uiRoot, careerOpsPath, "pull");
+if (pullResult.status === "conflict") {
+  appendJobOutput(jobPath, `[workspace-sync] pull conflict — continuing with local state: ${pullResult.detail}`);
+}
+```
+
+*After the agentic loop (after job is marked `completed` or `failed`):*
+```js
+const pushResult = await runWorkspaceSync(uiRoot, careerOpsPath, "push",
+  `pipeline: process ${resolvedCount} item(s) [worker]`);
+if (pushResult.status === "push_failed") {
+  appendJobOutput(jobPath, `[workspace-sync] WARNING: push failed — results written locally but not synced to git. Detail: ${pushResult.detail}`);
+}
+```
+
+`uiRoot` is `path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')` — the worker
+already uses `import.meta.url` and this resolves to the UI repo root regardless of `cwd`.
+
+---
+
+#### Phase 5C — Deploy to Railway
+
+1. Create Railway project connected to the UI repo (GitHub integration)
+2. Attach a persistent volume mounted at `/data/career-ops`
+3. Set env vars:
+
+| Var | Value |
+|---|---|
+| `CAREER_OPS_PATH` | `/data/career-ops` |
+| `ANTHROPIC_API_KEY` | existing key |
+| `AUTH_PASSWORD` | strong passphrase |
+| `AUTH_SECRET` | 64-char hex (`node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`) |
+| `CAREER_OPS_GIT_REPO` | SSH URL of career-ops repo |
+| `CAREER_OPS_GIT_DEPLOY_KEY` | base64-encoded deploy key |
+| `CAREER_OPS_GIT_USER_NAME` | `Career Ops Worker` |
+| `CAREER_OPS_GIT_USER_EMAIL` | adebayormide@gmail.com |
+| `NODE_ENV` | `production` |
+
+4. Deploy → `startup.mjs` clones career-ops → Next.js starts → login works
+5. Process one pipeline job end-to-end from deployed URL
+6. Verify the commit appears in the career-ops git repo
+7. `git pull` locally and confirm the report and tracker update are present
+
+---
+
+#### Phase 5D — Playwright Tool (Phase 3 Option A, now unblocked)
+
+The worker now runs on a real server. Chromium installs cleanly. This unblocks JS-rendered public
+pages (Lever, Ashby, some Greenhouse embeds). It does **not** solve login-walled or anti-bot pages
+— LinkedIn, authenticated portals, and CAPTCHA-gated pages still skip with `[!]`. The gating
+detection added in Phase 2 remains the fallback for anything Playwright also cannot access.
+
+**`package.json`** — add dependency:
+```json
+"playwright": "^1.x"
+```
+The `playwright` package is required at runtime; `npx playwright install chromium` only installs
+the browser binary and requires the package to already be present.
+
+**Build change — `nixpacks.toml`** (new file, overrides Nixpacks defaults):
+
+```toml
+[phases.setup]
+aptPkgs = [
+  "libnss3", "libatk1.0-0", "libatk-bridge2.0-0", "libcups2",
+  "libdrm2", "libxkbcommon0", "libxcomposite1", "libxdamage1",
+  "libxfixes3", "libxrandr2", "libgbm1", "libasound2"
+]
+
+[phases.install]
+cmds = ["npm ci", "npx playwright install chromium"]
+```
+
+Verify this list against Railway's base image before deploying — apt package names vary by
+distro version. `playwright install --dry-run` reports missing deps.
+
+**New: `scripts/workers/playwright-fetch.mjs`**
+
+Standalone script invoked via the worker's `bash` tool. Usage:
+`node <UI_ROOT>/scripts/workers/playwright-fetch.mjs <url>`
+
+- Launches headless Chromium via Playwright
+- Navigates to URL, waits for `networkidle` (max 30s)
+- Returns page text to stdout (capped at 8 KB)
+- Exits non-zero on navigation error or timeout
+
+**`scripts/workers/run-pipeline-job-claude.mjs`** — two changes:
+
+*1. Compute `uiRoot` at startup (used for both workspace-sync and playwright-fetch):*
+```js
+import { fileURLToPath } from "node:url";
+const uiRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
+```
+
+*2. System prompt addition:*
+"If `web_fetch` returns thin or empty content for a URL, run the bash command:
+`node <UI_ROOT>/scripts/workers/playwright-fetch.mjs '<url>'`
+(substitute `<UI_ROOT>` with the actual absolute path passed in the system prompt).
+This fetches using a real headless browser. It works for JS-rendered public job pages.
+It does NOT work for login-gated pages — if the result is a login wall, mark the item `[!]`."
+
+The worker interpolates the actual `uiRoot` value into the system prompt at startup, so Claude
+receives an absolute path and the bash tool's `cwd: careerOpsPath` is irrelevant.
+
+No new tool contract needed — Playwright is a capability invoked via the existing `bash` tool.
+
+**After Phase 5D:** re-queue `[!]` items that were marked due to JS rendering (Lever, Ashby) as
+`[ ]` and verify they process. LinkedIn `[!]` items stay as-is.
+
+---
+
+#### Files touched
+
+| File | Change |
+|---|---|
+| `package.json` | add `playwright` runtime dependency (Phase 5D) |
+| `railway.toml` | new — Railway build/deploy config |
+| `nixpacks.toml` | new — Playwright apt deps + Chromium install |
+| `scripts/startup.mjs` | new — env validation + git clone/pull on boot |
+| `scripts/workspace-sync.mjs` | new — pull/push helper with explicit status output |
+| `scripts/workers/playwright-fetch.mjs` | new — headless Chromium page fetcher |
+| `scripts/workers/run-pipeline-job-claude.mjs` | add `uiRoot`, call workspace-sync, add Playwright system prompt |
+| `src/app/api/health/route.ts` | new — health check endpoint |
+| `src/middleware.ts` | add `/api/health` to PUBLIC_PATHS |
 
 #### Checklist
 
-- [ ] Answer the open questions above
-- [ ] Choose hosting and queue mechanism
-- [ ] Design worker deployment (container, VM, or managed)
-- [ ] Plan API key management per user or per deployment
-- [ ] Plan workspace storage for deployed context
-- [ ] Write Phase 5 implementation details once design is settled
+**5A — Containerize:**
+- [ ] Read `node_modules/next/dist/docs/` for any Next.js 16 build/start changes before writing config
+- [ ] Write `scripts/startup.mjs` (env validation, git clone/pull, SSH key setup)
+- [ ] Add `GET /api/health` route
+- [ ] Add `railway.toml`
+- [ ] Add `/api/health` to `PUBLIC_PATHS` in `middleware.ts`
+
+**5B — Workspace sync:**
+- [ ] Generate ed25519 deploy key for career-ops repo with write access
+- [ ] Write `scripts/workspace-sync.mjs` with pull/push actions and JSON status output
+- [ ] Compute `uiRoot` from `import.meta.url` in worker
+- [ ] Call `workspace-sync.mjs pull` before agentic loop; log conflict warnings to job output
+- [ ] Call `workspace-sync.mjs push` after agentic loop; log `push_failed` warnings to job output
+- [ ] Test locally: run worker, verify sync JSON output and that push appears in career-ops repo
+
+**5C — Deploy:**
+- [ ] Create Railway project from UI repo
+- [ ] Attach persistent volume at `/data/career-ops`
+- [ ] Set all env vars listed above
+- [ ] Deploy and verify `startup.mjs` clones career-ops successfully
+- [ ] Verify login works at deployed URL
+- [ ] Run one pipeline job end-to-end from deployed URL
+- [ ] Confirm commit appears in career-ops git repo
+- [ ] `git pull` locally and verify report + tracker update arrived
+
+**5D — Playwright:**
+- [ ] Add `playwright` to `package.json` dependencies
+- [ ] Write `nixpacks.toml` with Chromium apt deps + install step
+- [ ] Verify apt package list with `playwright install --dry-run` against Railway base image
+- [ ] Write `scripts/workers/playwright-fetch.mjs`
+- [ ] Add Playwright bash instruction to worker system prompt (with interpolated `uiRoot` absolute path)
+- [ ] Confirm instruction explicitly says: login-walled/anti-bot pages still skip with `[!]`
+- [ ] Test: process one Lever or Ashby URL that was previously `[!]` due to JS rendering
+- [ ] Re-queue JS-rendered `[!]` items as `[ ]`; leave LinkedIn `[!]` items as-is
 
 ---
 
@@ -281,7 +498,7 @@ UI
 | 2 — Capability Routing | [x] Complete (behavioral, not domain-based) | — |
 | 3 — Browser Capability | [x] Option C selected for local worker | Revisit in Phase 5 |
 | 4 — Durable Job State | [x] Complete | — |
-| 5 — Deployment Worker | [ ] Design pending | Phases 1–4 |
+| 5 — Deployment Worker | [ ] Design complete — 5A/5B/5C/5D pending | Phases 1–4 ✓ |
 
 ## Key Files Reference
 
@@ -296,3 +513,8 @@ UI
 | `.env.local` | `ANTHROPIC_API_KEY`, `PIPELINE_PROVIDER` |
 | `career-ops/modes/pipeline.md` | Pipeline workflow instructions (unchanged) |
 | `career-ops/modes/auto-pipeline.md` | Single-role evaluation instructions (unchanged) |
+| `railway.toml` | Railway build/deploy config (Phase 5) |
+| `nixpacks.toml` | Nixpacks overrides — Chromium install (Phase 5D) |
+| `scripts/startup.mjs` | Container boot — env validation + git clone/pull (Phase 5) |
+| `scripts/workers/playwright-fetch.mjs` | Headless Chromium page fetcher (Phase 5D) |
+| `src/app/api/health/route.ts` | Railway health check endpoint (Phase 5A) |

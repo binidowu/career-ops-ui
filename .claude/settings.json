@@ -6,7 +6,8 @@
       "Bash(echo \".career-ops-ui/\")",
       "Bash(mkdir -p /Users/binidowu/career-ops/.career-ops-ui/jobs)",
       "Bash(cp /tmp/career-ops-ui-pipeline-jobs/*.json /Users/binidowu/career-ops/.career-ops-ui/jobs/)",
-      "Bash(cp /tmp/career-ops-ui-pipeline-jobs/*.txt /Users/binidowu/career-ops/.career-ops-ui/jobs/)"
+      "Bash(cp /tmp/career-ops-ui-pipeline-jobs/*.txt /Users/binidowu/career-ops/.career-ops-ui/jobs/)",
+      "Bash(grep -n \" $\" /Users/binidowu/career-ops-ui/pipeline-worker-plan.md)"
     ]
   }
 }
