@@ -14,6 +14,8 @@ import type {
 
 import styles from "./ScansWorkspace.module.css";
 
+const PROCESS_STALE_MS = 1000 * 60 * 8;
+
 interface ScansWorkspaceProps {
   opportunitiesCount: number;
   pipelineInbox: {
@@ -351,19 +353,22 @@ export default function ScansWorkspace({
   const processIsActive = processJob
     ? ["queued", "running"].includes(processJob.status)
     : false;
-  const processIsStale =
-    processJob?.status === "running" &&
+  const processLastSignalAt = processJob
+    ? processJob.heartbeatAt ?? processJob.updatedAt ?? processJob.startedAt ?? processJob.createdAt
+    : null;
+  const processLastSignalMs = processLastSignalAt
+    ? new Date(processLastSignalAt).getTime()
+    : 0;
+  const processIsStale = Boolean(
+    processJob &&
+    processIsActive &&
     (
-      // Broken state: finishedAt is set but status is still "running" — heartbeat
-      // re-corrupted the job after a manual clear. Show the clear button unconditionally.
-      Boolean(processJob.finishedAt) ||
-      (
-        Boolean(processJob.startedAt) &&
-        Date.now() - new Date(processJob.startedAt ?? "").getTime() > 1000 * 60 * 8 &&
-        !processJob.summary &&
-        processJob.pendingAfter == null
-      )
-    );
+      // Broken state: finishedAt is set but status is still active. Show the
+      // clear button unconditionally.
+      processJob.finishedAt ||
+      Date.now() - processLastSignalMs > PROCESS_STALE_MS
+    ),
+  );
 
   function renderInboxRows(items: PipelineInboxItem[], emptyTitle: string, emptyBody: string) {
     if (!items.length) {
@@ -482,7 +487,7 @@ export default function ScansWorkspace({
           <div className={styles.actions}>
             <button
               className={styles.primaryButton}
-              disabled={directEvaluating || processIsActive || !directUrl.trim()}
+              disabled={directEvaluating || (processIsActive && !processIsStale) || !directUrl.trim()}
               onClick={() => void handleDirectEvaluate()}
               type="button"
             >
@@ -542,8 +547,8 @@ export default function ScansWorkspace({
             </div>
 
             <p className={styles.copy}>
-              This launches the backend pipeline mode through your local Codex
-              agent. Start with small batches so you can verify report quality,
+              This launches the backend pipeline mode through your configured
+              local worker. Start with small batches so you can verify report quality,
               tracker writes, and PDF output before scaling up.
             </p>
 
@@ -567,11 +572,15 @@ export default function ScansWorkspace({
 
               <button
                 className={styles.primaryButton}
-                disabled={processIsActive || processLoading || pipelineInbox.pending.length === 0}
+                disabled={(processIsActive && !processIsStale) || processLoading || pipelineInbox.pending.length === 0}
                 onClick={() => void handleProcessPending()}
                 type="button"
               >
-                {processIsActive ? "Processing…" : "Process Pending Roles"}
+                {processIsStale
+                  ? "Clear & Process Pending"
+                  : processIsActive
+                    ? "Processing…"
+                    : "Process Pending Roles"}
               </button>
 
               {processIsStale ? (
@@ -628,10 +637,9 @@ export default function ScansWorkspace({
 
                 {processIsStale ? (
                   <p className={styles.processWarning}>
-                    This run has been active for a long time without producing a final
-                    result. It may still recover, but it now looks more like a stuck
-                    backend run than a healthy short batch. Clear it and retry with one
-                    item if needed.
+                    This run has stopped sending heartbeats. Clear it and retry with one
+                    item if needed; starting a fresh run will also clear stale processor
+                    locks automatically.
                   </p>
                 ) : null}
 

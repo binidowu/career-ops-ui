@@ -1,6 +1,6 @@
 # Pipeline Worker — Implementation Plan
 
-Last updated: 2026-04-26 (Phase 3 local-worker decision recorded)
+Last updated: 2026-04-26 (Phase 3 local decision + durable stale-lock recovery)
 
 ## Context
 
@@ -203,13 +203,21 @@ deployments.
 when `CAREER_OPS_PATH` is set, falling back to `/tmp` during build or if the env var is missing.
 Existing job files migrated from `/tmp` to the new location manually.
 
+Durability hardening added after migration:
+
+- Active job staleness is now heartbeat-based instead of elapsed-time-based.
+- `queued` and `running` jobs with no recent heartbeat/update are recoverable.
+- Starting a new processor auto-clears a stale active lock before creating the fresh job.
+- The scans UI exposes stale runs with recovery copy and enables retry paths when the lock is stale.
+
 #### Checklist
 
 - [x] Update `PIPELINE_JOBS_DIR` constant in `career-ops.ts` (env-var driven, /tmp fallback)
 - [x] `ensurePipelineJobsDir()` already uses `mkdir -p` — no changes needed
 - [x] Add `.career-ops-ui/` to career-ops `.gitignore`
 - [x] Migrate existing job files from `/tmp` to new location
-- [ ] Test: job survives a Next.js server restart
+- [x] Add stale-lock recovery for restart/dead-worker cases
+- [x] Verify build/type safety after stale-lock recovery
 
 ---
 

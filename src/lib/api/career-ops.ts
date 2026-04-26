@@ -72,6 +72,7 @@ const PIPELINE_JOBS_DIR = process.env.CAREER_OPS_PATH
   ? join(process.env.CAREER_OPS_PATH, ".career-ops-ui", "jobs")
   : "/tmp/career-ops-ui-pipeline-jobs";
 const PIPELINE_JOBS_LATEST_PATH = join(PIPELINE_JOBS_DIR, "latest.json");
+const PIPELINE_JOB_STALE_MS = 1000 * 60 * 8;
 
 const SYSTEM_CHECKS: Record<
   SystemCheckId,
@@ -269,6 +270,24 @@ async function clearLatestPipelineProcessJobReference(id: string) {
   if (latest?.id?.trim() === id) {
     await writeJsonFile(PIPELINE_JOBS_LATEST_PATH, {});
   }
+}
+
+function getPipelineJobLastSignalMs(job: PipelineProcessJob) {
+  const signal = job.heartbeatAt ?? job.updatedAt ?? job.startedAt ?? job.createdAt;
+  const value = new Date(signal).getTime();
+  return Number.isFinite(value) ? value : 0;
+}
+
+function isPipelineProcessJobStale(job: PipelineProcessJob, now = Date.now()) {
+  if (!["queued", "running"].includes(job.status)) {
+    return false;
+  }
+
+  if (job.finishedAt) {
+    return true;
+  }
+
+  return now - getPipelineJobLastSignalMs(job) > PIPELINE_JOB_STALE_MS;
 }
 
 export async function abandonPipelineProcessJob(input?: {
@@ -1296,8 +1315,24 @@ export async function startPendingPipelineProcess(input?: {
 
   const activeJob = await getLatestPipelineProcessJob();
   if (activeJob && ["queued", "running"].includes(activeJob.status)) {
+    if (isPipelineProcessJobStale(activeJob)) {
+      await abandonPipelineProcessJob({
+        id: activeJob.id,
+        reason:
+          "The previous pipeline processor stopped sending heartbeats and was cleared automatically before starting a fresh run.",
+      });
+    } else {
+      return {
+        job: activeJob,
+        started: false,
+      };
+    }
+  }
+
+  const refreshedActiveJob = await getLatestPipelineProcessJob();
+  if (refreshedActiveJob && ["queued", "running"].includes(refreshedActiveJob.status)) {
     return {
-      job: activeJob,
+      job: refreshedActiveJob,
       started: false,
     };
   }

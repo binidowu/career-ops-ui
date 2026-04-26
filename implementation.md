@@ -1,6 +1,6 @@
 # Career-Ops UI — Code-Verified Implementation Ledger
 
-Last updated: 2026-04-26 (Apply & Outreach depth + pipeline plan cleanup)
+Last updated: 2026-04-26 (Pipeline stale-lock recovery + Apply & Outreach depth)
 
 ## Purpose
 
@@ -393,11 +393,11 @@ Progress: complete. UX and contract bugs resolved first (sidebar persistence, re
 
 Goals:
 
-- keep job state in workspace-relative storage and verify restart survival,
+- keep job state in workspace-relative storage and recover cleanly from stale locks,
 - explore cost reduction further for large batch runs (1000+ queue),
 - evaluate Phase 3 browser capability decision (Option C — document the gap — is current stance).
 
-Progress: Phase 1, 2, and 4 complete; cost mitigations applied. Phase 3 is now Option C for the local worker: document/browser-heavy URLs remain skipped rather than adding Playwright or computer-use locally. Phase 5 deployment architecture remains open. See `pipeline-worker-plan.md` for full detail.
+Progress: Phase 1, 2, and 4 complete; cost mitigations applied. Durable state now includes heartbeat-based stale-lock recovery: active jobs without recent heartbeats can be cleared from the UI, and the API auto-clears stale locks before starting a fresh run. Phase 3 is now Option C for the local worker: document/browser-heavy URLs remain skipped rather than adding Playwright or computer-use locally. Phase 5 deployment architecture remains open. See `pipeline-worker-plan.md` for full detail.
 
 ### 3. Apply and outreach depth
 
