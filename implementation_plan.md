@@ -1,5 +1,9 @@
 # Career-Ops Web UI — Implementation Plan
 
+> Status note, 2026-04-26: this is the original Phase 1 build plan and is now mostly historical.
+> Use `implementation.md` as the current code-verified ledger and `pipeline-worker-plan.md` as
+> the current worker roadmap.
+
 ## Goal
 
 Build the Phase 1 (Foundation) web UI for Career-Ops: a Next.js application in a separate repo that wraps the existing CLI tools via an API layer, reads from the file system, and delivers 7 screens with multi-user auth, system-adaptive theming, and WCAG AAA accessibility.

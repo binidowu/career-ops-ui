@@ -1,6 +1,6 @@
 # Pipeline Worker — Implementation Plan
 
-Last updated: 2026-04-24 (Phase 1 + 2 complete, cost mitigations applied)
+Last updated: 2026-04-26 (Phase 3 local-worker decision recorded)
 
 ## Context
 
@@ -143,12 +143,16 @@ as new gating patterns appeared.
 
 ### Phase 3 — Browser Capability
 
-**Status:** [ ] Decision pending  
+**Status:** [x] Option C selected for local worker
 **Depends on:** Phase 2 complete
 
-**Goal:** Solve the remaining ~20% of URLs that require a real browser (LinkedIn, dynamic SPAs).
+**Goal:** Decide how to handle the remaining ~20% of URLs that require a real browser
+(LinkedIn, login walls, dynamic SPAs).
 
-Three options. A decision is needed before implementing.
+Decision: do not add local browser capability now. The worker already detects gated/browser-heavy
+URLs behaviorally and marks them `[!]` with a clear skip reason. Browser automation should be
+revisited with Phase 5 deployment architecture, because local Playwright may be throwaway work
+if the eventual worker runs in a different environment.
 
 #### Option A — Playwright tool in the Claude worker
 
@@ -173,14 +177,14 @@ browser-heavy items. The UI handles everything else.
 - Pros: no implementation cost, correct behaviour (honest about the limitation)
 - Cons: LinkedIn items cannot be processed from the UI at all
 
-**Recommendation:** Option C for now. Both A and B need revisiting once the deployment
-architecture is clear (a cloud worker changes the calculus entirely). Do not build browser
-capability into the local worker if it will be thrown away in Phase 5.
+**Selected for now.** Both A and B should be revisited once deployment architecture is clear
+(a cloud worker changes the calculus entirely).
 
 #### Checklist
 
-- [ ] Make decision: A, B, or C
-- [ ] If C: update `classify-url.ts` with clear skip message for LinkedIn
+- [x] Make decision: A, B, or C
+- [x] If C: document browser-heavy URL limitation in this plan
+- [x] If C: rely on worker prompt gating message rather than a domain classifier
 - [ ] If A: implement Playwright tool, add capability flag to worker
 - [ ] If B: implement computer use loop, document token cost implications
 
@@ -267,7 +271,7 @@ UI
 |---|---|---|
 | 1 — Claude API Worker | [x] Complete + cost mitigations applied | — |
 | 2 — Capability Routing | [x] Complete (behavioral, not domain-based) | — |
-| 3 — Browser Capability | [ ] Decision pending | Phase 2 |
+| 3 — Browser Capability | [x] Option C selected for local worker | Revisit in Phase 5 |
 | 4 — Durable Job State | [x] Complete | — |
 | 5 — Deployment Worker | [ ] Design pending | Phases 1–4 |
 
@@ -278,7 +282,7 @@ UI
 | `scripts/workers/run-pipeline-job-claude.mjs` | New Claude API worker (Phase 1) |
 | `scripts/workers/run-pipeline-job-codex.mjs` | Renamed legacy Codex worker |
 | `src/lib/api/career-ops.ts:1320` | Provider routing in `startPendingPipelineProcess` |
-| `src/lib/pipeline/classify-url.ts` | URL capability classifier (Phase 2) |
+| `scripts/workers/run-pipeline-job-claude.mjs` | Behavioral gated URL detection and `[!]` skip instructions |
 | `src/lib/types.ts` | Job state type extensions (Phase 2) |
 | `src/components/scans/ScansWorkspace.tsx` | UI — surfaces skip/error info |
 | `.env.local` | `ANTHROPIC_API_KEY`, `PIPELINE_PROVIDER` |

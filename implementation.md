@@ -1,6 +1,6 @@
 # Career-Ops UI — Code-Verified Implementation Ledger
 
-Last updated: 2026-04-24 (Resume Studio hardening + backend quality fixes + Compare polish + Pipeline worker)
+Last updated: 2026-04-26 (Apply & Outreach depth + pipeline plan cleanup)
 
 ## Purpose
 
@@ -38,6 +38,7 @@ Relevant routes, APIs, and implementation files reviewed for this update include
 - `src/app/api/auth/login/route.ts`
 - `src/app/api/auth/logout/route.ts`
 - `src/app/api/apply/[id]/route.ts`
+- `src/app/api/apply/[id]/generate/route.ts`
 - `src/app/api/interview-prep/generate/route.ts`
 - `src/app/api/interview-prep/story-bank/route.ts`
 - `src/app/api/profile/resume-sources/route.ts`
@@ -105,8 +106,11 @@ Status: implemented
 - Per-opportunity apply workspace exists.
 - Apply data can be fetched and patched through the UI.
 - Users can work with cover letter notes, outreach draft material, and applied date fields without the terminal.
+- The per-opportunity workspace now surfaces evaluation-backed talking points inline: top CV matches, personalization suggestions, and ATS keywords.
+- Cover letter and outreach drafts can be generated from the role evaluation report plus the user profile via Claude, then edited and autosaved normally.
+- Applied date is visible and editable from the workspace rail.
 
-Status: implemented
+Status: implemented, with contact research still intentionally out of scope
 
 #### Compare workspace
 
@@ -205,16 +209,27 @@ What exists:
 - apply route,
 - per-role apply workspace,
 - notes and outreach-related fields,
-- links to adjacent flows.
+- links to adjacent flows,
+- evaluation-backed talking points inside the apply workspace,
+- Claude-backed draft generation for cover letter / application notes,
+- Claude-backed draft generation for LinkedIn or email outreach,
+- applied date editing alongside status,
+- normal autosave still owns persistence after generation.
+
+Depth pass completed (2026-04-26):
+
+- `src/app/pipeline/[id]/apply/page.tsx` now loads the evaluation instead of discarding it and passes a compact client-safe context.
+- `src/components/apply/ApplyWorkspaceClient.tsx` renders a collapsible Talking points rail card with CV strengths, personalization suggestions, and ATS keywords.
+- `src/app/api/apply/[id]/generate/route.ts` adds focused draft generation for `cover-letter` and `outreach`.
+- `src/lib/api/career-ops.ts` adds `generateApplyDraft()`, reading the report text with `readCareerOpsTextFile()`, loading `getProfile()`, and calling Claude server-side.
 
 What still needs work:
 
-- deeper assistant behavior,
-- stronger draft generation,
-- more deliberate outreach research support,
-- better continuity between resume, apply, and interview-prep workflows.
+- more deliberate contact research support,
+- reusable networking/contact tracking,
+- deeper continuity between generated resume claims, apply copy, and interview prep.
 
-Status: partial
+Status: substantially complete for this sprint — contact research remains a separate thin area
 
 #### Compare UX maturity
 
@@ -358,8 +373,8 @@ This is especially true for:
 
 - resumes,
 - compare,
-- apply/outreach depth,
-- and interview research depth.
+- interview research depth,
+- and contact research.
 
 ## Recommended Next Sprint
 
@@ -378,11 +393,11 @@ Progress: complete. UX and contract bugs resolved first (sidebar persistence, re
 
 Goals:
 
-- move job state from `/tmp` to workspace-relative storage (survives restarts),
+- keep job state in workspace-relative storage and verify restart survival,
 - explore cost reduction further for large batch runs (1000+ queue),
 - evaluate Phase 3 browser capability decision (Option C — document the gap — is current stance).
 
-Progress: Phase 1 and 2 complete, cost mitigations applied. Phase 4 (durable state) and Phase 5 (deployment architecture) remain open. See `pipeline-worker-plan.md` for full detail.
+Progress: Phase 1, 2, and 4 complete; cost mitigations applied. Phase 3 is now Option C for the local worker: document/browser-heavy URLs remain skipped rather than adding Playwright or computer-use locally. Phase 5 deployment architecture remains open. See `pipeline-worker-plan.md` for full detail.
 
 ### 3. Apply and outreach depth
 
@@ -392,7 +407,9 @@ Goals:
 - strengthen outreach-related generation and research support,
 - and create better continuity between pipeline, resumes, apply, and interview prep.
 
-### 3. Compare polish
+Progress: sprint depth pass complete. The remaining work is contact research and reusable networking workflow, not basic apply drafting.
+
+### 4. Compare polish
 
 Goals:
 
@@ -400,7 +417,7 @@ Goals:
 - sharpen decision framing,
 - and make the route feel like a finished prioritization tool.
 
-### 4. Ops safety pass
+### 5. Ops safety pass
 
 Goals:
 
@@ -409,7 +426,7 @@ Goals:
 - improve warnings,
 - and make the consequences clearer.
 
-### 5. Auth hardening
+### 6. Auth hardening
 
 Goals:
 
@@ -417,7 +434,7 @@ Goals:
 - test edge cases,
 - and tighten session handling confidence.
 
-### 6. Backend capability audit for remaining terminal-first modes
+### 7. Backend capability audit for remaining terminal-first modes
 
 Goals:
 
