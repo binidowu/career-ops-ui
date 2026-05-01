@@ -61,7 +61,8 @@ export default async function ComparePage({
   return (
     <article className={`app-page ${styles.page}`}>
       <header className={styles.header}>
-        <h1>Side-by-Side Prioritization</h1>
+        <p className={styles.eyebrow}>Prioritization</p>
+        <h1>Side-by-Side Comparison</h1>
         <p className={styles.headerSub}>
           Compare evaluated roles and decide what deserves the next move.
         </p>

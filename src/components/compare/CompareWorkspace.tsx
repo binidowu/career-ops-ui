@@ -337,11 +337,6 @@ export default function CompareWorkspace({
     (entry) =>
       entry.opportunity.id === badgeWinners.find((badge) => badge.label === "Stable")?.id,
   );
-  const momentumEntry = selectedEntries.find(
-    (entry) =>
-      entry.opportunity.id === badgeWinners.find((badge) => badge.label === "Momentum")?.id,
-  );
-
   const criticalVulnerability =
     selectedEntries.flatMap((entry) =>
       (entry.evaluation?.gapItems ?? [])
