@@ -1,11 +1,12 @@
 "use client";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { startTransition, useDeferredValue, useMemo, useState } from "react";
+import { startTransition, useDeferredValue, useEffect, useMemo, useState } from "react";
 
 import { useToast } from "@/components/common/ToastContext";
-import type { Opportunity } from "@/lib/types";
+import type { Evaluation, Opportunity } from "@/lib/types";
 
-import OpportunityDrawer from "./OpportunityDrawer";
+import OpportunityStatusEditor from "./OpportunityStatusEditor";
 import styles from "./PipelineWorkspace.module.css";
 
 type SortKey = "company" | "date" | "role" | "score" | "status";
@@ -13,6 +14,11 @@ type SortKey = "company" | "date" | "role" | "score" | "status";
 interface PipelineWorkspaceProps {
   opportunities: Opportunity[];
   statusOptions: string[];
+}
+
+interface OpportunityResponse {
+  evaluation: Evaluation | null;
+  opportunity: Opportunity | null;
 }
 
 function compareValues(left: Opportunity, right: Opportunity, sortKey: SortKey) {
@@ -51,6 +57,158 @@ function statusTone(status: string): string {
   if (status === "Applied") return "neutral";
   if (status === "Rejected" || status === "Discarded" || status === "SKIP") return "quiet";
   return "default";
+}
+
+function InlineOpportunityPreview({
+  onClose,
+  opportunity,
+  statusOptions,
+}: {
+  onClose: () => void;
+  opportunity: Opportunity | null;
+  statusOptions: string[];
+}) {
+  const [data, setData] = useState<OpportunityResponse | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const activeOpportunity = data?.opportunity ?? opportunity;
+  const evaluation = data?.evaluation ?? null;
+
+  useEffect(() => {
+    if (!opportunity) {
+      setData(null);
+      return;
+    }
+
+    const controller = new AbortController();
+    const currentOpportunity = opportunity;
+
+    async function loadDetails() {
+      setLoading(true);
+      try {
+        const response = await fetch(`/api/opportunities/${currentOpportunity.id}`, {
+          signal: controller.signal,
+        });
+        if (!response.ok) throw new Error("Unable to load opportunity details.");
+        const payload = (await response.json()) as OpportunityResponse;
+        setData(payload);
+      } catch {
+        if (!controller.signal.aborted) {
+          setData({ evaluation: null, opportunity: currentOpportunity });
+        }
+      } finally {
+        if (!controller.signal.aborted) setLoading(false);
+      }
+    }
+
+    void loadDetails();
+    return () => controller.abort();
+  }, [opportunity]);
+
+  if (!activeOpportunity) return null;
+
+  const scoreDisplay = typeof activeOpportunity.score === "number"
+    ? `${Math.round(activeOpportunity.score * 20)}/100`
+    : activeOpportunity.scoreRaw || "N/A";
+  const compBand = activeOpportunity.compensation || "—";
+  const timeline = activeOpportunity.date ? `Added ${activeOpportunity.date}` : "—";
+  const summary =
+    evaluation?.summary ??
+    activeOpportunity.summary ??
+    (activeOpportunity.notes.trim() || "No report summary has been captured yet.");
+
+  return (
+    <aside aria-label="Quick Preview" className={styles.previewPane}>
+      <header className={styles.previewHeader}>
+        <div className={styles.previewHeaderTop}>
+          <span className={styles.previewLabel}>Quick Preview</span>
+          <div className={styles.previewActions}>
+            <Link
+              aria-label={`Open ${activeOpportunity.company} dossier`}
+              className={styles.previewIconBtn}
+              href={`/pipeline/${activeOpportunity.id}`}
+              title="Open full page"
+            >
+              ↗
+            </Link>
+            <button
+              aria-label="Close preview"
+              className={styles.previewIconBtn}
+              onClick={onClose}
+              type="button"
+            >
+              ×
+            </button>
+          </div>
+        </div>
+        <h2 className={styles.previewTitle}>{activeOpportunity.role}</h2>
+        <p className={styles.previewCompany}>{activeOpportunity.company}</p>
+        <div className={styles.previewStatusRow}>
+          <span
+            className={styles.statusPill}
+            data-tone={statusTone(activeOpportunity.status)}
+          >
+            {activeOpportunity.status}
+          </span>
+          <span className={styles.previewId}>
+            ID: {activeOpportunity.id.toUpperCase().slice(0, 8)}
+          </span>
+        </div>
+      </header>
+
+      <div className={styles.previewMetrics}>
+        <div>
+          <span>Fit Score</span>
+          <strong>{scoreDisplay}</strong>
+        </div>
+        <div>
+          <span>Archetype</span>
+          <strong>{activeOpportunity.archetype ?? "Pending"}</strong>
+        </div>
+        <div>
+          <span>Comp Band</span>
+          <strong>{compBand}</strong>
+        </div>
+        <div>
+          <span>Timeline</span>
+          <strong>{timeline}</strong>
+        </div>
+      </div>
+
+      <div className={styles.previewBody}>
+        <section className={styles.previewBlock}>
+          <p className={styles.previewLabel}>Latest Intelligence</p>
+          <p className={styles.previewText}>
+            {loading ? "Loading report…" : summary}
+          </p>
+          {evaluation ? (
+            <p className={styles.previewMeta}>
+              {evaluation.cvMatchItems.length} CV matches · {evaluation.gapItems.length} gaps · {evaluation.interviewItems.length} stories
+            </p>
+          ) : null}
+        </section>
+
+        <section className={styles.previewBlock}>
+          <p className={styles.previewLabel}>Status &amp; Notes</p>
+          <OpportunityStatusEditor
+            initialNotes={activeOpportunity.notes}
+            initialStatus={activeOpportunity.status}
+            opportunityId={activeOpportunity.id}
+            statusOptions={statusOptions}
+          />
+        </section>
+      </div>
+
+      <footer className={styles.previewFooter}>
+        <Link className={styles.previewPrimary} href={`/pipeline/${activeOpportunity.id}/interview`}>
+          Prep Interview
+        </Link>
+        <Link className={styles.previewSecondary} href={`/pipeline/${activeOpportunity.id}`}>
+          Open Dossier
+        </Link>
+      </footer>
+    </aside>
+  );
 }
 
 export default function PipelineWorkspace({
@@ -119,6 +277,9 @@ export default function PipelineWorkspace({
   }
 
   const selectedCount = selectedIds.length;
+  const activeOpportunity = activeId
+    ? opportunities.find((opportunity) => opportunity.id === activeId) ?? null
+    : null;
 
   return (
     <>
@@ -182,87 +343,97 @@ export default function PipelineWorkspace({
 
         {/* TABLE */}
         {filteredOpportunities.length ? (
-          <div className={styles.tableFrame}>
-            <div className={styles.tableHead}>
-              <button className={styles.sortBtn} onClick={() => changeSort("role")} type="button">
-                Role
-              </button>
-              <button className={styles.sortBtn} onClick={() => changeSort("company")} type="button">
-                Company
-              </button>
-              <button className={styles.sortBtn} onClick={() => changeSort("score")} type="button">
-                Score
-              </button>
-              <span className={styles.colHeader}>Grade</span>
-              <button className={styles.sortBtn} onClick={() => changeSort("status")} type="button">
-                Status
-              </button>
-              <span className={styles.colHeader}>Location</span>
+          <div className={styles.tableFrame} data-preview={Boolean(activeOpportunity)}>
+            <div className={styles.tablePanel}>
+              <div className={styles.tableHead}>
+                <span aria-hidden="true" className={styles.checkboxHeader} />
+                <button className={styles.sortBtn} onClick={() => changeSort("role")} type="button">
+                  Role
+                </button>
+                <button className={`${styles.sortBtn} ${styles.companyHeader}`} onClick={() => changeSort("company")} type="button">
+                  Company
+                </button>
+                <button className={styles.sortBtn} onClick={() => changeSort("score")} type="button">
+                  Score
+                </button>
+                <span className={styles.colHeader}>Grade</span>
+                <button className={styles.sortBtn} onClick={() => changeSort("status")} type="button">
+                  Status
+                </button>
+                <span className={`${styles.colHeader} ${styles.locationHeader}`}>Location</span>
+              </div>
+
+              <div className={styles.tableBody}>
+                {filteredOpportunities.map((opportunity) => (
+                  <div
+                    className={styles.row}
+                    data-active={opportunity.id === activeId}
+                    key={opportunity.id}
+                    onClick={() => setActiveId((current) => current === opportunity.id ? null : opportunity.id)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        setActiveId((current) => current === opportunity.id ? null : opportunity.id);
+                      }
+                    }}
+                    role="button"
+                    tabIndex={0}
+                  >
+                    <label className={styles.checkboxLabel} onClick={(e) => e.stopPropagation()}>
+                      <input
+                        checked={selectedIds.includes(opportunity.id)}
+                        onChange={() => toggleSelection(opportunity.id)}
+                        type="checkbox"
+                      />
+                      <span className="visually-hidden">
+                        Select {opportunity.company} {opportunity.role}
+                      </span>
+                    </label>
+
+                    <div className={styles.roleCell}>
+                      <strong>{opportunity.role}</strong>
+                      <span>{opportunity.company}</span>
+                    </div>
+
+                    <div className={styles.companyCell}>
+                      {opportunity.company}
+                    </div>
+
+                    <div className={styles.scoreCell}>
+                      {scoreToDisplay(opportunity)}
+                    </div>
+
+                    <div className={styles.gradeCell}>
+                      <span
+                        className={styles.gradeBadge}
+                        data-grade={scoreToGrade(opportunity.score)[0]}
+                      >
+                        {scoreToGrade(opportunity.score)}
+                      </span>
+                    </div>
+
+                    <div className={styles.statusCell}>
+                      <span
+                        className={styles.statusPill}
+                        data-tone={statusTone(opportunity.status)}
+                      >
+                        {opportunity.status}
+                      </span>
+                    </div>
+
+                    <div className={styles.locationCell}>
+                      {opportunity.remote ?? "—"}
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
 
-            <div className={styles.tableBody}>
-              {filteredOpportunities.map((opportunity) => (
-                <div
-                  className={styles.row}
-                  data-active={opportunity.id === activeId}
-                  key={opportunity.id}
-                  onClick={() => setActiveId(opportunity.id)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault();
-                      setActiveId(opportunity.id);
-                    }
-                  }}
-                  role="button"
-                  tabIndex={0}
-                >
-                  <label className={styles.checkboxLabel} onClick={(e) => e.stopPropagation()}>
-                    <input
-                      checked={selectedIds.includes(opportunity.id)}
-                      onChange={() => toggleSelection(opportunity.id)}
-                      type="checkbox"
-                    />
-                    <span className="visually-hidden">
-                      Select {opportunity.company} {opportunity.role}
-                    </span>
-                  </label>
-
-                  <div className={styles.roleCell}>
-                    <strong>{opportunity.role}</strong>
-                  </div>
-
-                  <div className={styles.companyCell}>
-                    {opportunity.company}
-                  </div>
-
-                  <div className={styles.scoreCell}>
-                    {scoreToDisplay(opportunity)}
-                  </div>
-
-                  <div className={styles.gradeCell}>
-                    <span
-                      className={styles.gradeBadge}
-                      data-grade={scoreToGrade(opportunity.score)[0]}
-                    >
-                      {scoreToGrade(opportunity.score)}
-                    </span>
-                  </div>
-
-                  <div className={styles.statusCell}>
-                    <span
-                      className={styles.statusPill}
-                      data-tone={statusTone(opportunity.status)}
-                    >
-                      {opportunity.status}
-                    </span>
-                  </div>
-
-                  <div className={styles.locationCell}>
-                    {opportunity.remote ?? "—"}
-                  </div>
-                </div>
-              ))}
-            </div>
+            <InlineOpportunityPreview
+              onClose={() => setActiveId(null)}
+              opportunity={activeOpportunity}
+              statusOptions={statusOptions}
+            />
           </div>
         ) : (
           <section className="empty-state">
@@ -304,15 +475,6 @@ export default function PipelineWorkspace({
         </div>
       )}
 
-      <OpportunityDrawer
-        opportunity={
-          activeId
-            ? opportunities.find((o) => o.id === activeId) ?? null
-            : null
-        }
-        onClose={() => setActiveId(null)}
-        statusOptions={statusOptions}
-      />
     </>
   );
 }

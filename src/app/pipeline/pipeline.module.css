@@ -1,10 +1,10 @@
 .page {
-  gap: var(--space-2xl);
+  gap: var(--space-3xl);
 }
 
 .pageHead {
   display: grid;
-  gap: var(--space-xs);
+  gap: var(--space-sm);
   padding-bottom: var(--space-xl);
   border-bottom: 1px solid var(--color-border-subtle);
 }
@@ -12,13 +12,17 @@
 .breadcrumb {
   max-width: none;
   font-size: var(--text-xs);
-  letter-spacing: 0.1em;
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-label);
   text-transform: uppercase;
   color: var(--color-text-tertiary);
 }
 
 .pageHead h1 {
-  font-size: clamp(var(--text-xl), 4vw, 2.6rem);
-  font-weight: var(--weight-bold);
-  letter-spacing: var(--tracking-tight);
+  font-family: var(--font-display);
+  font-size: var(--heading-1-size);
+  font-weight: var(--heading-1-weight);
+  line-height: var(--heading-1-leading);
+  letter-spacing: var(--heading-1-tracking);
+  color: var(--color-text);
 }
