@@ -37,7 +37,8 @@ export default async function SettingsPage() {
   return (
     <article className={`app-page ${styles.page}`}>
       <header className={styles.pageHead}>
-        <h1>Career-Ops Configuration Hub</h1>
+        <p className={styles.eyebrow}>Profile &amp; Configuration</p>
+        <h1>Settings</h1>
         <p className={styles.subtitle}>
           Calibrate the AI with your career context, target roles, preferred scoring weights, and
           backend verification flows.

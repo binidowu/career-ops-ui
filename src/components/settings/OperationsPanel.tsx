@@ -119,8 +119,8 @@ export default function OperationsPanel({ snapshot }: OperationsPanelProps) {
     <section className={styles.panel}>
       <div className={styles.panelHead}>
         <div>
-          <p className={styles.eyebrow}>Operations</p>
-          <h2>Run backend health checks without dropping to the terminal.</h2>
+          <p className={styles.eyebrow}>Health Checks</p>
+          <h2>Read-only diagnostics. No data is modified.</h2>
         </div>
         <span className={styles.workspacePath}>{snapshot.workspacePath}</span>
       </div>

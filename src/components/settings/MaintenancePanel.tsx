@@ -384,14 +384,20 @@ export default function MaintenancePanel() {
 
   return (
     <section className={styles.panel}>
+      <div className={styles.cautionHeader}>
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true" style={{ color: "var(--color-warning)", flexShrink: 0 }}>
+          <path d="M8 1.5L1.5 13.5h13L8 1.5z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/>
+          <path d="M8 6v3.5M8 11.25v.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+        </svg>
+        <span className={styles.cautionLabel}>Write Operations — Mutates pipeline data</span>
+      </div>
       <div className={styles.panelHead}>
         <div>
-          <p className={styles.eyebrow}>Maintenance</p>
-          <h2>Tracker and system maintenance</h2>
+          <p className={styles.eyebrow}>Maintenance Operations</p>
+          <h2>These operations mutate data. Review each action before running.</h2>
         </div>
         <p className={styles.panelSubtitle}>
-          Mutating operations. Preview before applying — a backup is written automatically before
-          any change is committed to disk.
+          Preview before applying — a backup is written automatically before any change is committed to disk.
         </p>
       </div>
 
