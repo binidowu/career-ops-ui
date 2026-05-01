@@ -1,9 +1,12 @@
 .dialog {
   width: min(calc(100vw - (var(--space-lg) * 2)), 48rem);
+  max-height: 84vh;
+  margin: 8vh auto auto;
   padding: 0;
   border: 0;
   background: transparent;
   color: inherit;
+  overflow: visible;
 }
 
 .dialog::backdrop {
@@ -28,6 +31,7 @@
     );
   box-shadow: var(--shadow-overlay);
   overflow: hidden;
+  animation: slide-up var(--duration-normal) var(--ease-out) both;
 }
 
 .header {
@@ -132,6 +136,8 @@
 .results {
   display: grid;
   gap: 0;
+  max-height: 50vh;
+  overflow-y: auto;
   padding: 0 var(--space-xl) var(--space-xl);
 }
 

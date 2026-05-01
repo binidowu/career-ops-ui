@@ -1,0 +1,159 @@
+/* ============================================================
+   Card.module.css
+   Variants:  base / interactive / recessed / flagged / gradient
+   Sizes:     default / sm / lg
+   ============================================================ */
+
+.card {
+  display: grid;
+  gap: var(--space-md);
+  padding: var(--card-padding);
+  border: var(--card-border);
+  border-radius: var(--card-radius);
+  background-color: var(--card-bg);
+  box-shadow: var(--card-shadow);
+}
+
+.card--sm {
+  padding: var(--card-padding-sm);
+  border-radius: var(--radius-md);
+}
+
+.card--lg {
+  padding: var(--space-2xl);
+  border-radius: var(--card-radius-lg);
+}
+
+.card--interactive {
+  cursor: pointer;
+  transition:
+    box-shadow      var(--duration-fast) var(--ease-out),
+    transform       var(--duration-fast) var(--ease-out),
+    border-color    var(--duration-fast) var(--ease-out),
+    background-color var(--duration-fast) var(--ease-out);
+}
+
+.card--interactive:hover {
+  box-shadow: var(--card-hover-shadow);
+  transform: translateY(var(--card-hover-translate));
+  border-color: var(--color-border);
+}
+
+.card--interactive:active {
+  transform: translateY(0);
+  box-shadow: var(--card-shadow);
+}
+
+.card--interactive:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+}
+
+.card--selected {
+  border-color: color-mix(in oklch, var(--color-accent-strong) 60%, transparent);
+  background-color: var(--color-surface-selected);
+  box-shadow: 0 0 0 1px color-mix(in oklch, var(--color-accent-strong) 30%, transparent),
+              var(--card-shadow);
+}
+
+.card--recessed {
+  background-color: var(--color-surface-recessed);
+  border-color: var(--color-border-subtle);
+  box-shadow: none;
+}
+
+.card--flagged {
+  border-left-width: 3px;
+  padding-left: calc(var(--card-padding) - 2px);
+}
+
+.card--flagged-warn {
+  border-left-color: var(--color-warning);
+  background-color: color-mix(in oklch, var(--color-warning-subtle) 60%, var(--color-surface));
+}
+
+.card--flagged-error {
+  border-left-color: var(--color-error);
+  background-color: color-mix(in oklch, var(--color-error-subtle) 60%, var(--color-surface));
+}
+
+.card--flagged-info {
+  border-left-color: var(--color-info);
+  background-color: color-mix(in oklch, var(--color-info-subtle) 60%, var(--color-surface));
+}
+
+.card--flagged-success {
+  border-left-color: var(--color-success);
+  background-color: color-mix(in oklch, var(--color-success-subtle) 60%, var(--color-surface));
+}
+
+.card--gradient {
+  background: linear-gradient(
+    145deg,
+    color-mix(in oklch, var(--color-accent-strong) 90%, var(--color-accent-subtle)),
+    color-mix(in oklch, var(--color-accent) 75%, var(--color-surface))
+  );
+  border-color: transparent;
+  color: var(--color-text-on-accent);
+  box-shadow: var(--elevation-2);
+}
+
+.card--panel {
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+/* Card anatomy */
+.card__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-md);
+}
+
+.card__eyebrow {
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--color-text-tertiary);
+}
+
+.card__title {
+  font-family: var(--font-display);
+  font-size: var(--heading-3-size);
+  font-weight: var(--heading-3-weight);
+  line-height: var(--heading-3-leading);
+  color: var(--color-text);
+}
+
+.card__body {
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+  line-height: var(--leading-normal);
+}
+
+.card__footer {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding-top: var(--space-md);
+  border-top: 1px solid var(--color-border-subtle);
+  margin-top: auto;
+}
+
+.card__stat {
+  font-family: var(--font-display);
+  font-size: var(--text-2xl);
+  font-weight: var(--weight-bold);
+  line-height: 1;
+  color: var(--color-accent-strong);
+  font-variant-numeric: tabular-nums;
+}
+
+.card__divider {
+  height: 1px;
+  background-color: var(--color-border-subtle);
+  margin: 0 calc(-1 * var(--card-padding));
+}

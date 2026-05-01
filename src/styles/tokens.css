@@ -1,112 +1,155 @@
 /* ============================================================
-   Career-Ops UI — Design Tokens
-   
-   Color palette, typography, spacing, motion, and elevation.
-   All values defined for both light and dark themes via
-   prefers-color-scheme and CSS light-dark().
-   
-   Palette built in OKLCH for perceptual uniformity.
-   WCAG AAA contrast ratios (7:1 normal text, 4.5:1 large text).
+   Career-Ops UI — Design Tokens  v2
+
+   Revised with:
+   - Semantic role aliases (surface-interactive, border-focus, etc.)
+   - 4-level elevation system (flat / raised / floating / overlay)
+   - Component-scoped tokens (badge, button, card, input)
+   - Motion keyframe timing tokens
+   - Refined accent hue (45 → consistent burnt-copper)
+
+   All colors use OKLCH + light-dark() for adaptive theming.
+   WCAG AAA: 7:1 normal text · 4.5:1 large text · 3:1 UI components.
    Color-vision safe: meaning is never conveyed by color alone.
    ============================================================ */
 
-/* ---- Color Palette ----
-   Brand hue: ~250 (a muted slate-indigo — serious, editorial)
-   Neutrals tinted toward brand hue at low chroma.
-   Single accent (warm amber) for primary actions.
-   
-   Grade colors use distinct lightness levels + shapes for CVD safety.
-   ---------------------------------------- */
-
-/* Theme overrides — applied by ThemeProvider via data-theme on <html> */
 html[data-theme="light"] { color-scheme: light; }
-html[data-theme="dark"]  { color-scheme: dark; }
+html[data-theme="dark"]  { color-scheme: dark;  }
 
 :root {
   color-scheme: light dark;
 
-  /* ---- Brand ---- */
-  --hue-brand: 260;
-  --hue-accent: 45; /* Burnt Copper / Rust */
-
-  /* ---- Neutrals (light mode) ---- */
-  --color-bg:         light-dark(oklch(0.985 0.005 var(--hue-brand)), oklch(0.145 0.01 var(--hue-brand)));
-  --color-surface:    light-dark(oklch(0.97 0.005 var(--hue-brand)),  oklch(0.185 0.01 var(--hue-brand)));
-  --color-surface-2:  light-dark(oklch(0.94 0.008 var(--hue-brand)),  oklch(0.22 0.012 var(--hue-brand)));
-  --color-border:     light-dark(oklch(0.88 0.008 var(--hue-brand)),  oklch(0.30 0.012 var(--hue-brand)));
-  --color-border-subtle: light-dark(oklch(0.92 0.005 var(--hue-brand)), oklch(0.25 0.008 var(--hue-brand)));
-  --color-line-strong: light-dark(oklch(0.80 0.01 var(--hue-brand)), oklch(0.38 0.012 var(--hue-brand)));
-
-  /* ---- Text ---- */
-  --color-text:       light-dark(oklch(0.20 0.015 var(--hue-brand)),  oklch(0.92 0.008 var(--hue-brand)));
-  --color-text-secondary: light-dark(oklch(0.42 0.012 var(--hue-brand)), oklch(0.68 0.01 var(--hue-brand)));
-  --color-text-tertiary:  light-dark(oklch(0.55 0.01 var(--hue-brand)),  oklch(0.52 0.008 var(--hue-brand)));
-
-  /* ---- Accent (Burnt Copper - primary actions) ---- */
-  --color-accent:     light-dark(oklch(0.55 0.15 var(--hue-accent)),  oklch(0.68 0.14 var(--hue-accent)));
-  --color-accent-hover: light-dark(oklch(0.47 0.15 var(--hue-accent)), oklch(0.75 0.12 var(--hue-accent)));
-  --color-accent-subtle: light-dark(oklch(0.93 0.10 var(--hue-accent)), oklch(0.20 0.05 var(--hue-accent)));
-  --color-accent-text: light-dark(oklch(0.99 0.005 var(--hue-accent)), oklch(0.12 0.02 var(--hue-accent)));
-  --color-accent-strong: light-dark(oklch(0.46 0.15 var(--hue-accent)), oklch(0.72 0.14 var(--hue-accent)));
-
-  /* ---- Focus indicator ---- */
-  --color-focus: light-dark(oklch(0.50 0.14 var(--hue-accent)), oklch(0.70 0.12 var(--hue-accent)));
-
-  /* ---- Semantic: Grades (A-F) ---- 
-     Each grade has a distinct lightness + chroma so they remain
-     distinguishable under deuteranopia/protanopia/tritanopia.
-     Shape differentiation is handled in components, not here.  */
-  --color-grade-a: light-dark(oklch(0.45 0.12 155), oklch(0.70 0.12 155));  /* teal-green */
-  --color-grade-b: light-dark(oklch(0.48 0.10 220), oklch(0.68 0.10 220));  /* blue */
-  --color-grade-c: light-dark(oklch(0.50 0.08 var(--hue-brand)), oklch(0.62 0.08 var(--hue-brand)));  /* neutral indigo */
-  --color-grade-d: light-dark(oklch(0.50 0.10 55),  oklch(0.65 0.10 55));   /* amber */
-  --color-grade-f: light-dark(oklch(0.50 0.12 25),  oklch(0.65 0.12 25));   /* red-brown */
-
-  /* ---- Semantic: Status ---- */
-  --color-success: light-dark(oklch(0.48 0.10 155), oklch(0.68 0.10 155));
-  --color-warning: light-dark(oklch(0.52 0.10 75),  oklch(0.70 0.10 75));
-  --color-error:   light-dark(oklch(0.50 0.12 25),  oklch(0.68 0.12 25));
-  --color-info:    light-dark(oklch(0.48 0.08 240), oklch(0.65 0.08 240));
-
-  /* ---- Overlay / Scrim ---- */
-  --color-scrim: light-dark(oklch(0.20 0.01 var(--hue-brand) / 0.4), oklch(0.05 0.01 var(--hue-brand) / 0.6));
+  /* ──────────────────────────────────────────
+     HUE ANCHORS
+     260 = muted slate-indigo (brand)
+      45 = burnt copper (accent / action)
+     ────────────────────────────────────────── */
+  --hue-brand:  260;
+  --hue-accent:  45;
 
 
-  /* ============================================================
-     Typography
-     
-     Font pairing selected via impeccable font procedure:
-     - Display/Heading: Literata (sophisticated digital-first serif)
-     - Body: Albert Sans (precise, legible geometric sans)
-     Both from Google Fonts.
-     
-     Neither appears on the reflex-fonts-to-reject list.
-     Brand words: measured, versatile, precise, editorial.
-     ============================================================ */
+  /* ══════════════════════════════════════════
+     PRIMITIVE PALETTE
+     Raw perceptual stops — not for direct use
+     in components. Prefer semantic tokens below.
+     ══════════════════════════════════════════ */
 
-  /* Font families — loaded via next/font in layout.tsx */
-  --font-display: var(--font-literata), 'Georgia', serif;
-  --font-body: var(--font-albert-sans), system-ui, sans-serif;
-  --font-mono: var(--font-jetbrains-mono), ui-monospace, monospace;
+  /* Background & surface */
+  --color-bg:             light-dark(oklch(0.985 0.005 var(--hue-brand)), oklch(0.140 0.010 var(--hue-brand)));
+  --color-surface:        light-dark(oklch(0.975 0.005 var(--hue-brand)), oklch(0.182 0.010 var(--hue-brand)));
+  --color-surface-2:      light-dark(oklch(0.945 0.008 var(--hue-brand)), oklch(0.218 0.012 var(--hue-brand)));
+  --color-surface-3:      light-dark(oklch(0.920 0.008 var(--hue-brand)), oklch(0.248 0.012 var(--hue-brand)));
 
-  /* Type scale: fixed rem, 1.25 ratio (Major Third)
-     5 steps with strong contrast between levels */
-  --text-xs:   0.75rem;   /* 12px — labels, captions */
+  /* Borders */
+  --color-border-subtle:  light-dark(oklch(0.925 0.005 var(--hue-brand)), oklch(0.248 0.008 var(--hue-brand)));
+  --color-border:         light-dark(oklch(0.875 0.008 var(--hue-brand)), oklch(0.298 0.012 var(--hue-brand)));
+  --color-line-strong:    light-dark(oklch(0.800 0.010 var(--hue-brand)), oklch(0.380 0.012 var(--hue-brand)));
+
+  /* Text */
+  --color-text:           light-dark(oklch(0.195 0.015 var(--hue-brand)), oklch(0.920 0.008 var(--hue-brand)));
+  --color-text-secondary: light-dark(oklch(0.420 0.012 var(--hue-brand)), oklch(0.682 0.010 var(--hue-brand)));
+  --color-text-tertiary:  light-dark(oklch(0.555 0.010 var(--hue-brand)), oklch(0.518 0.008 var(--hue-brand)));
+
+  /* Accent — Burnt Copper */
+  --color-accent:         light-dark(oklch(0.550 0.150 var(--hue-accent)), oklch(0.680 0.140 var(--hue-accent)));
+  --color-accent-hover:   light-dark(oklch(0.468 0.150 var(--hue-accent)), oklch(0.750 0.120 var(--hue-accent)));
+  --color-accent-subtle:  light-dark(oklch(0.935 0.050 var(--hue-accent)), oklch(0.205 0.040 var(--hue-accent)));
+  --color-accent-strong:  light-dark(oklch(0.460 0.150 var(--hue-accent)), oklch(0.720 0.140 var(--hue-accent)));
+  --color-accent-muted:   light-dark(oklch(0.780 0.080 var(--hue-accent)), oklch(0.380 0.080 var(--hue-accent)));
+
+  /* Legacy alias */
+  --color-accent-text: var(--color-text-on-accent);
+
+  /* Scrim */
+  --color-scrim:          light-dark(
+                            oklch(0.20 0.01 var(--hue-brand) / 0.40),
+                            oklch(0.05 0.01 var(--hue-brand) / 0.62)
+                          );
+
+
+  /* ══════════════════════════════════════════
+     SEMANTIC ROLE ALIASES
+     Use these in components, never primitives.
+     ══════════════════════════════════════════ */
+
+  /* Surfaces by interaction role */
+  --color-surface-interactive: light-dark(oklch(0.968 0.006 var(--hue-brand)), oklch(0.196 0.012 var(--hue-brand)));
+  --color-surface-recessed:    light-dark(oklch(0.952 0.007 var(--hue-brand)), oklch(0.155 0.010 var(--hue-brand)));
+  --color-surface-hover:       light-dark(oklch(0.958 0.007 var(--hue-brand)), oklch(0.204 0.012 var(--hue-brand)));
+  --color-surface-selected:    light-dark(oklch(0.942 0.018 var(--hue-accent)), oklch(0.224 0.028 var(--hue-accent)));
+  --color-surface-active:      light-dark(oklch(0.928 0.025 var(--hue-accent)), oklch(0.238 0.035 var(--hue-accent)));
+
+  /* Text on colored surfaces */
+  --color-text-on-accent:      light-dark(oklch(0.995 0.002 20), oklch(0.118 0.015 20));
+  --color-text-on-dark:        oklch(0.975 0.005 var(--hue-brand));
+  --color-text-placeholder:    var(--color-text-tertiary);
+  --color-text-disabled:       light-dark(oklch(0.640 0.008 var(--hue-brand)), oklch(0.440 0.008 var(--hue-brand)));
+
+  /* Focus indicator */
+  --color-focus:               light-dark(oklch(0.500 0.140 var(--hue-accent)), oklch(0.700 0.120 var(--hue-accent)));
+
+  /* Borders by role */
+  --color-border-focus:        light-dark(oklch(0.500 0.140 var(--hue-accent)), oklch(0.700 0.120 var(--hue-accent)));
+  --color-border-error:        var(--color-error);
+  --color-border-input:        light-dark(oklch(0.840 0.010 var(--hue-brand)), oklch(0.318 0.012 var(--hue-brand)));
+  --color-border-input-hover:  light-dark(oklch(0.780 0.012 var(--hue-brand)), oklch(0.368 0.014 var(--hue-brand)));
+
+  /* Status semantic */
+  --color-success:             light-dark(oklch(0.480 0.10 155), oklch(0.680 0.10 155));
+  --color-success-subtle:      light-dark(oklch(0.940 0.05 155), oklch(0.198 0.05 155));
+  --color-warning:             light-dark(oklch(0.520 0.10  75), oklch(0.700 0.10  75));
+  --color-warning-subtle:      light-dark(oklch(0.945 0.05  75), oklch(0.205 0.04  75));
+  --color-error:               light-dark(oklch(0.500 0.12  25), oklch(0.680 0.12  25));
+  --color-error-subtle:        light-dark(oklch(0.945 0.05  25), oklch(0.205 0.04  25));
+  --color-info:                light-dark(oklch(0.480 0.08 240), oklch(0.650 0.08 240));
+  --color-info-subtle:         light-dark(oklch(0.940 0.04 240), oklch(0.200 0.04 240));
+
+  /* Grade scale — shape+color for CVD safety */
+  --color-grade-a:             light-dark(oklch(0.450 0.12 155), oklch(0.700 0.12 155));
+  --color-grade-b:             light-dark(oklch(0.480 0.10 220), oklch(0.680 0.10 220));
+  --color-grade-c:             light-dark(oklch(0.500 0.08 var(--hue-brand)), oklch(0.620 0.08 var(--hue-brand)));
+  --color-grade-d:             light-dark(oklch(0.500 0.10  55), oklch(0.650 0.10  55));
+  --color-grade-f:             light-dark(oklch(0.500 0.12  25), oklch(0.650 0.12  25));
+
+  /* Grade subtle fills */
+  --color-grade-a-subtle:      light-dark(oklch(0.940 0.05 155), oklch(0.196 0.05 155));
+  --color-grade-b-subtle:      light-dark(oklch(0.940 0.04 220), oklch(0.196 0.04 220));
+  --color-grade-c-subtle:      light-dark(oklch(0.938 0.04 var(--hue-brand)), oklch(0.198 0.04 var(--hue-brand)));
+  --color-grade-d-subtle:      light-dark(oklch(0.942 0.05  55), oklch(0.198 0.04  55));
+  --color-grade-f-subtle:      light-dark(oklch(0.940 0.05  25), oklch(0.196 0.04  25));
+
+
+  /* ══════════════════════════════════════════
+     TYPOGRAPHY
+     Literata (display) · Albert Sans (body) · JetBrains Mono
+     ══════════════════════════════════════════ */
+
+  --font-display: var(--font-literata, 'Georgia'), serif;
+  --font-body:    var(--font-albert-sans, system-ui), sans-serif;
+  --font-mono:    var(--font-jetbrains-mono, ui-monospace), monospace;
+
+  /* Type scale — 1.25 Major Third ratio */
+  --text-xs:   0.750rem;  /* 12px — labels, badges, captions */
   --text-sm:   0.875rem;  /* 14px — secondary text, table cells */
-  --text-base: 1rem;      /* 16px — body text */
-  --text-lg:   1.25rem;   /* 20px — section headers */
+  --text-base: 1.000rem;  /* 16px — body text */
+  --text-lg:   1.250rem;  /* 20px — section headers */
   --text-xl:   1.563rem;  /* 25px — page titles */
   --text-2xl:  1.953rem;  /* 31px — hero headings */
+  --text-3xl:  2.441rem;  /* 39px — display */
 
-  /* Line heights — tighter for headings, looser for body */
-  --leading-tight:  1.2;
-  --leading-normal: 1.5;
+  /* Line heights */
+  --leading-none:    1.00;
+  --leading-tight:   1.20;
+  --leading-snug:    1.35;
+  --leading-normal:  1.50;
   --leading-relaxed: 1.65;
 
   /* Letter spacing */
-  --tracking-tight:  -0.02em;
-  --tracking-normal:  0;
-  --tracking-wide:    0.04em;
+  --tracking-tight:   -0.020em;
+  --tracking-normal:   0;
+  --tracking-wide:     0.040em;
+  --tracking-label:    0.080em;  /* UPPERCASE section labels */
+  --tracking-mono:     0.010em;  /* mono strings */
 
   /* Font weights */
   --weight-regular:  400;
@@ -114,67 +157,186 @@ html[data-theme="dark"]  { color-scheme: dark; }
   --weight-semibold: 600;
   --weight-bold:     700;
 
+  /* Formal heading scale */
+  --heading-1-size:     var(--text-2xl);
+  --heading-1-weight:   var(--weight-bold);
+  --heading-1-leading:  var(--leading-tight);
+  --heading-1-tracking: var(--tracking-tight);
 
-  /* ============================================================
-     Spacing — 4pt scale with semantic names
-     ============================================================ */
+  --heading-2-size:     var(--text-xl);
+  --heading-2-weight:   var(--weight-semibold);
+  --heading-2-leading:  var(--leading-tight);
+  --heading-2-tracking: var(--tracking-tight);
+
+  --heading-3-size:     var(--text-lg);
+  --heading-3-weight:   var(--weight-semibold);
+  --heading-3-leading:  var(--leading-snug);
+  --heading-3-tracking: 0;
+
+  --heading-4-size:     var(--text-base);
+  --heading-4-weight:   var(--weight-semibold);
+  --heading-4-leading:  var(--leading-normal);
+  --heading-4-tracking: 0;
+
+
+  /* ══════════════════════════════════════════
+     SPACING — 4pt base scale
+     ══════════════════════════════════════════ */
 
   --space-px:  1px;
-  --space-0:   0;
-  --space-xs:  4px;    /* 4 */
-  --space-sm:  8px;    /* 8 */
-  --space-md:  12px;   /* 12 */
-  --space-lg:  16px;   /* 16 */
-  --space-xl:  24px;   /* 24 */
-  --space-2xl: 32px;   /* 32 */
-  --space-3xl: 48px;   /* 48 */
-  --space-4xl: 64px;   /* 64 */
-  --space-5xl: 96px;   /* 96 */
+  --space-xs:  4px;
+  --space-sm:  8px;
+  --space-md:  12px;
+  --space-lg:  16px;
+  --space-xl:  24px;
+  --space-2xl: 32px;
+  --space-3xl: 48px;
+  --space-4xl: 64px;
+  --space-5xl: 96px;
 
 
-  /* ============================================================
-     Radii
-     ============================================================ */
+  /* ══════════════════════════════════════════
+     BORDER RADIUS
+     ══════════════════════════════════════════ */
 
+  --radius-xs:   2px;
   --radius-sm:   4px;
   --radius-md:   6px;
   --radius-lg:   8px;
+  --radius-xl:   12px;
+  --radius-2xl:  16px;
   --radius-full: 9999px;
 
 
-  /* ============================================================
-     Elevation
-     ============================================================ */
+  /* ══════════════════════════════════════════
+     ELEVATION — 4 levels
 
-  --shadow-raised:
-    0 12px 28px -20px color-mix(in oklch, var(--color-text) 24%, transparent);
-  --shadow-overlay:
+     0 Flat    — blends with page, no separation
+     1 Raised  — cards, panels, table frame
+     2 Floating — dropdowns, tooltips, popovers
+     3 Overlay — drawers, modals, command palette
+     ══════════════════════════════════════════ */
+
+  --elevation-0: none;
+
+  --elevation-1:
+    0 1px 2px oklch(0 0 0 / 0.05),
+    0 1px 4px oklch(0 0 0 / 0.03);
+
+  --elevation-2:
+    0 4px 8px  -2px oklch(0 0 0 / 0.08),
+    0 8px 24px -4px oklch(0 0 0 / 0.05);
+
+  --elevation-3:
+    0 8px  24px -8px  color-mix(in oklch, var(--color-text) 12%, transparent),
     0 24px 60px -28px color-mix(in oklch, var(--color-text) 36%, transparent);
 
-
-  /* ============================================================
-     Motion
-     Exponential easing (ease-out-quart) for natural deceleration.
-     Collapses to 0ms under prefers-reduced-motion (see reset.css).
-     ============================================================ */
-
-  --duration-fast:   120ms;
-  --duration-normal: 200ms;
-  --duration-slow:   350ms;
-  --ease-out:        cubic-bezier(0.25, 1, 0.5, 1);       /* ease-out-quart */
-  --ease-in-out:     cubic-bezier(0.76, 0, 0.24, 1);      /* ease-in-out-quart */
+  /* Legacy aliases — keeps existing components working */
+  --shadow-raised:  var(--elevation-2);
+  --shadow-overlay: var(--elevation-3);
 
 
-  /* ============================================================
-     Layout
-     ============================================================ */
+  /* ══════════════════════════════════════════
+     MOTION
+     ══════════════════════════════════════════ */
+
+  --duration-instant: 0ms;
+  --duration-fast:    120ms;
+  --duration-normal:  200ms;
+  --duration-slow:    350ms;
+  --duration-enter:   var(--duration-normal);
+  --duration-exit:    var(--duration-fast);
+
+  --ease-linear:   linear;
+  --ease-out:      cubic-bezier(0.25, 1.00, 0.50, 1);
+  --ease-in:       cubic-bezier(0.50, 0.00, 0.75, 0);
+  --ease-in-out:   cubic-bezier(0.76, 0.00, 0.24, 1);
+  --ease-spring:   cubic-bezier(0.34, 1.56, 0.64, 1);
+
+
+  /* ══════════════════════════════════════════
+     COMPONENT TOKENS
+     ══════════════════════════════════════════ */
+
+  /* Badge */
+  --badge-height:         1.500rem;
+  --badge-height-lg:      1.750rem;
+  --badge-padding-x:      var(--space-sm);
+  --badge-radius:         var(--radius-sm);
+  --badge-radius-pill:    var(--radius-full);
+  --badge-font-size:      var(--text-xs);
+  --badge-font-weight:    var(--weight-semibold);
+  --badge-letter-spacing: 0.040em;
+
+  /* Button */
+  --btn-height-sm:        2.000rem;
+  --btn-height-md:        2.500rem;
+  --btn-height-lg:        3.000rem;
+  --btn-padding-x-sm:     var(--space-md);
+  --btn-padding-x-md:     var(--space-lg);
+  --btn-padding-x-lg:     var(--space-xl);
+  --btn-font-size:        var(--text-sm);
+  --btn-font-weight:      var(--weight-medium);
+  --btn-radius:           var(--radius-md);
+  --btn-gap:              var(--space-sm);
+  --btn-transition:
+    background-color var(--duration-fast) var(--ease-out),
+    color            var(--duration-fast) var(--ease-out),
+    border-color     var(--duration-fast) var(--ease-out),
+    box-shadow       var(--duration-fast) var(--ease-out);
+
+  /* Card */
+  --card-padding:         var(--space-xl);
+  --card-padding-sm:      var(--space-lg);
+  --card-radius:          var(--radius-lg);
+  --card-radius-lg:       var(--radius-2xl);
+  --card-border:          1px solid var(--color-border-subtle);
+  --card-bg:              var(--color-surface);
+  --card-shadow:          var(--elevation-1);
+  --card-hover-shadow:    var(--elevation-2);
+  --card-hover-translate: -1px;
+
+  /* Input */
+  --input-height:         2.500rem;
+  --input-height-sm:      2.000rem;
+  --input-height-lg:      3.000rem;
+  --input-padding-x:      var(--space-md);
+  --input-radius:         var(--radius-md);
+  --input-font-size:      var(--text-sm);
+  --input-bg:             var(--color-bg);
+  --input-bg-focus:       var(--color-surface);
+  --input-border:         1px solid var(--color-border-input);
+  --input-transition:
+    border-color var(--duration-fast) var(--ease-out),
+    box-shadow   var(--duration-fast) var(--ease-out),
+    background   var(--duration-fast) var(--ease-out);
+  --input-focus-ring:     0 0 0 3px color-mix(in oklch, var(--color-border-focus) 22%, transparent);
+  --input-error-ring:     0 0 0 3px color-mix(in oklch, var(--color-error) 18%, transparent);
+
+  /* Toast */
+  --toast-width:          min(24rem, calc(100vw - var(--space-2xl)));
+  --toast-padding:        var(--space-md) var(--space-lg);
+  --toast-radius:         var(--radius-lg);
+  --toast-shadow:         var(--elevation-3);
+
+  /* Table */
+  --table-row-height:      3.000rem;
+  --table-head-height:     2.500rem;
+  --table-head-bg:         var(--color-surface);
+  --table-row-bg:          var(--color-bg);
+  --table-row-bg-hover:    var(--color-surface-hover);
+  --table-row-bg-selected: var(--color-surface-selected);
+
+
+  /* ══════════════════════════════════════════
+     LAYOUT
+     ══════════════════════════════════════════ */
 
   --content-max-width: 1280px;
-  --content-narrow:    720px;
-  --topbar-height:     64px;
-  --drawer-width:      480px;
-  --page-gutter:       clamp(var(--space-lg), 2.5vw, var(--space-2xl));
-
-  /* Measure: max line length for readable body text */
-  --measure: 68ch;
+  --content-narrow:     720px;
+  --topbar-height:       64px;
+  --drawer-width:       480px;
+  --page-gutter:        clamp(var(--space-lg), 2.5vw, var(--space-2xl));
+  --measure:             68ch;
+  --measure-narrow:      52ch;
 }
