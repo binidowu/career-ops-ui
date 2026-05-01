@@ -8,6 +8,8 @@ import { getInterviewPrepWorkspace, getOpportunity } from "@/lib/api/career-ops"
 
 import styles from "./page.module.css";
 
+const STAGES = ["Evaluated", "Applied", "Responded", "Interview", "Offer", "Rejected"];
+
 function buildPrepChecklist(input: {
   gaps: Array<{ gap: string; mitigation: string }>;
   interviewItems: Array<{ requirement: string; story: string }>;
@@ -87,17 +89,15 @@ export default async function OpportunityInterviewPrepPage({
   return (
     <article className={`app-page ${styles.page}`}>
       <header className={styles.head}>
-        <p className={styles.breadcrumb}>
-          <Link href="/pipeline">Pipeline</Link>
-          {" // "}
-          <Link href={`/pipeline/${opportunity.id}`}>Analysis Dossier</Link>
-          {" // "}
-          Interview Prep
-        </p>
-
         <div className={styles.hero}>
           <div className={styles.heroCopy}>
-            <p className={styles.eyebrow}>Interview workspace</p>
+            <p className={styles.eyebrow}>
+              <Link href="/pipeline">Pipeline</Link>
+              {" // "}
+              <Link href={`/pipeline/${opportunity.id}`}>Analysis Dossier</Link>
+              {" // "}
+              Interview Prep
+            </p>
             <h1>
               {opportunity.company} · {opportunity.role}
             </h1>
@@ -135,6 +135,22 @@ export default async function OpportunityInterviewPrepPage({
           </div>
         </div>
       </header>
+
+      <div className={styles.statusBadges}>
+        <span className={styles.statusPill}>{opportunity.status}</span>
+        {typeof opportunity.score === "number" ? (
+          <span className={styles.tag}>Score {(opportunity.score * 20).toFixed(0)}/100</span>
+        ) : null}
+      </div>
+
+      <div className={styles.stageStrip} aria-label="Application stage">
+        {STAGES.map((stage, index) => (
+          <div className={styles.stageStep} key={stage}>
+            <span data-active={opportunity.status === stage}>{stage}</span>
+            {index < STAGES.length - 1 ? <b aria-hidden="true">›</b> : null}
+          </div>
+        ))}
+      </div>
 
       {!evaluation ? (
         <section className={styles.emptyState}>
@@ -287,6 +303,44 @@ export default async function OpportunityInterviewPrepPage({
               </div>
             </section>
 
+            {evaluation.gapItems.length ? (
+              <section className={`${styles.card} ${styles.concernSection}`}>
+                <div className={styles.cardHead}>
+                  <span className={styles.cardLabel}>Background framing</span>
+                  <span className={styles.cardTitle}>Questions you should expect to navigate carefully.</span>
+                </div>
+                <div className={styles.concernList}>
+                  {evaluation.gapItems.map((gap, index) => (
+                    <div className={styles.concernCard} key={`${gap.gap}-${gap.mitigation}`}>
+                      <div className={styles.concernCardHead}>
+                        <span className={styles.concernNumber}>
+                          Concern {String(index + 1).padStart(2, "0")}
+                        </span>
+                        <svg
+                          aria-hidden="true"
+                          className={styles.concernIcon}
+                          fill="none"
+                          height="15"
+                          viewBox="0 0 16 16"
+                          width="15"
+                        >
+                          <path d="M8 1.5L1.5 13.5h13L8 1.5z" stroke="currentColor" strokeLinejoin="round" strokeWidth="1.5"/>
+                          <path d="M8 6v3.5M8 11.25v.5" stroke="currentColor" strokeLinecap="round" strokeWidth="1.5"/>
+                        </svg>
+                      </div>
+                      <p className={styles.concernBody}>{gap.gap}</p>
+                      {gap.mitigation ? (
+                        <div className={styles.concernMitigation}>
+                          <span className={styles.concernMitLabel}>Mitigation</span>
+                          <p>{gap.mitigation}</p>
+                        </div>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+              </section>
+            ) : null}
+
             <StoryBankEditor
               initialContent={prepWorkspace.storyBankContent}
               path={prepWorkspace.storyBankPath}
@@ -318,29 +372,6 @@ export default async function OpportunityInterviewPrepPage({
                 </div>
               </div>
             </section>
-
-            {evaluation.gapItems.length ? (
-              <section className={styles.railCard}>
-                <div className={styles.railCardHead}>
-                  <span className={styles.railLabel}>Risk areas</span>
-                  <h2 className={styles.railTitle}>Questions you should expect to navigate carefully.</h2>
-                  <p className={styles.railSupport}>
-                    These are the places where the report already suggests you may need firmer
-                    framing or clearer trade-off language.
-                  </p>
-                </div>
-                <div className={styles.railBody}>
-                  <ul className={styles.gapList}>
-                    {evaluation.gapItems.map((gap) => (
-                      <li key={`${gap.gap}-${gap.mitigation}`}>
-                        <strong>{gap.gap}</strong>
-                        <span>{gap.mitigation || "Prepare a forward-looking framing."}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              </section>
-            ) : null}
 
             {evaluation.keywords.length ? (
               <section className={styles.railCard}>
