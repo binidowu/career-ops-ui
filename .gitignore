@@ -36,6 +36,9 @@ yarn-error.log*
 # local MCP connector config; may contain personal access tokens
 .mcp.json
 
+# local Claude-generated worktrees; contain duplicated repo state
+.claude/worktrees/
+
 # vercel
 .vercel
 
