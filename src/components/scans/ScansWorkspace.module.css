@@ -14,13 +14,10 @@
 .ledgerColumn,
 .helpCard,
 .scanCard {
-  background: linear-gradient(
-    180deg,
-    color-mix(in oklch, var(--color-surface) 94%, var(--color-bg)),
-    var(--color-surface)
-  );
+  background-color: var(--color-surface);
   border: 1px solid var(--color-border-subtle);
   border-radius: var(--radius-lg);
+  box-shadow: var(--elevation-1);
 }
 
 .summaryCard {
@@ -119,16 +116,14 @@
 .textarea,
 .input,
 .select {
-  background-color: var(--color-bg);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
+  background-color: var(--input-bg);
+  border: var(--input-border);
+  border-radius: var(--input-radius);
   color: var(--color-text);
   font: inherit;
-  font-size: var(--text-sm);
-  padding: 0.75rem 1rem;
-  transition:
-    border-color var(--duration-fast) var(--ease-out),
-    background-color var(--duration-fast) var(--ease-out);
+  font-size: var(--input-font-size);
+  padding: var(--space-sm) var(--input-padding-x);
+  transition: var(--input-transition);
   width: 100%;
   box-sizing: border-box;
 }
@@ -136,14 +131,20 @@
 .textarea {
   min-height: 12rem;
   resize: vertical;
+  padding: var(--space-md) var(--input-padding-x);
+  line-height: var(--leading-relaxed);
 }
 
 .textarea:focus-visible,
+.textarea:focus,
 .input:focus-visible,
-.select:focus-visible {
-  border-color: var(--color-accent);
-  outline: 2px solid color-mix(in oklch, var(--color-accent) 40%, transparent);
-  outline-offset: 1px;
+.input:focus,
+.select:focus-visible,
+.select:focus {
+  outline: none;
+  border-color: var(--color-border-focus);
+  background-color: var(--input-bg-focus);
+  box-shadow: var(--input-focus-ring);
 }
 
 .select {
@@ -161,20 +162,17 @@
 .secondaryButton,
 .secondaryLink {
   align-items: center;
-  border-radius: var(--radius-full);
+  border-radius: var(--btn-radius);
   display: inline-flex;
-  font: inherit;
-  font-size: var(--text-sm);
-  font-weight: var(--weight-medium);
+  font-family: var(--font-body);
+  font-size: var(--btn-font-size);
+  font-weight: var(--btn-font-weight);
   justify-content: center;
-  min-height: 2.75rem;
-  padding: 0 var(--space-xl);
+  height: var(--btn-height-md);
+  padding: 0 var(--btn-padding-x-md);
   text-decoration: none;
-  transition:
-    transform var(--duration-fast) var(--ease-out),
-    border-color var(--duration-fast) var(--ease-out),
-    background-color var(--duration-fast) var(--ease-out),
-    opacity var(--duration-fast) var(--ease-out);
+  white-space: nowrap;
+  transition: var(--btn-transition);
 }
 
 .primaryButton,
@@ -184,33 +182,33 @@
 
 .primaryButton:disabled,
 .secondaryButton:disabled {
-  cursor: wait;
-  opacity: 0.68;
+  cursor: not-allowed;
+  opacity: 0.48;
+  pointer-events: none;
 }
 
 .primaryButton {
-  background-color: var(--color-accent);
-  border: 1px solid color-mix(in oklch, var(--color-accent) 80%, var(--color-bg));
-  color: var(--color-accent-text);
+  background-color: var(--color-accent-strong);
+  border: 1px solid transparent;
+  color: var(--color-text-on-accent);
 }
 
 .primaryButton:hover:not(:disabled) {
   background-color: var(--color-accent-hover);
-  transform: translateY(-1px);
 }
 
 .secondaryButton,
 .secondaryLink {
-  background: transparent;
+  background-color: var(--color-surface);
   border: 1px solid var(--color-border);
-  color: var(--color-text-secondary);
+  color: var(--color-text);
+  box-shadow: var(--elevation-1);
 }
 
 .secondaryButton:hover:not(:disabled),
 .secondaryLink:hover {
-  border-color: var(--color-accent);
-  color: var(--color-text);
-  transform: translateY(-1px);
+  border-color: var(--color-line-strong);
+  background-color: var(--color-surface-hover);
 }
 
 .helpCard,

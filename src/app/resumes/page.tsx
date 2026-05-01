@@ -38,14 +38,7 @@ export default async function ResumesPage({
     : { opportunity: null, evaluation: null };
 
   return (
-    <article className={`app-page ${styles.page}`}>
-      <header className={styles.pageHead}>
-        <div>
-          <h1>The Asset Laboratory</h1>
-          <p className={styles.subtitle}>Refined Resume Studio V2.1</p>
-        </div>
-      </header>
-
+    <article className={styles.page}>
       <ResumeStudio
         initialEvaluation={initialDetail.evaluation}
         initialOpportunity={initialDetail.opportunity}
