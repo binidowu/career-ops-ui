@@ -1,6 +1,6 @@
-import MaintenancePanel from "@/components/settings/MaintenancePanel";
-import OperationsPanel from "@/components/settings/OperationsPanel";
-import ProfileSettingsForm from "@/components/settings/ProfileSettingsForm";
+import SettingsShell, {
+  type ReadinessSnapshot,
+} from "@/components/settings/SettingsShell";
 import {
   getDashboardStats,
   getOpportunities,
@@ -9,8 +9,6 @@ import {
   getWorkspaceSignals,
 } from "@/lib/api/career-ops";
 import type { UserProfile } from "@/lib/types";
-
-import styles from "./settings.module.css";
 
 function createBlankProfile(): UserProfile {
   return {
@@ -32,36 +30,28 @@ export default async function SettingsPage() {
     getPipelineInbox(),
   ]);
   const editableProfile = profile ?? createBlankProfile();
-  const urlsAvailableForLiveness = opportunities.filter((opportunity) => opportunity.jobUrl).length;
+
+  const readiness: ReadinessSnapshot = {
+    profileReady: workspace.profileReady,
+    resumeReady: workspace.resumeReady,
+    resumeSourceCount: workspace.resumeSourceCount,
+    trackerReady: workspace.trackerReady,
+    reportsReady: workspace.reportsReady,
+    cvReady: workspace.cvReady,
+    pendingQueue: pipelineInbox.pending.length,
+    trackedRoles: stats.totalEvaluated,
+    reportCount: stats.reportCount,
+    workspacePath: workspace.careerOpsPath,
+  };
+
+  // Touch unused returns to keep server fetches stable for future use.
+  void opportunities;
 
   return (
-    <article className={`app-page ${styles.page}`}>
-      <header className={styles.pageHead}>
-        <p className={styles.eyebrow}>Profile &amp; Configuration</p>
-        <h1>Settings</h1>
-        <p className={styles.subtitle}>
-          Calibrate the AI with your career context, target roles, preferred scoring weights, and
-          backend verification flows.
-        </p>
-      </header>
-
-      <ProfileSettingsForm
-        hasExistingProfile={Boolean(profile)}
-        initialProfile={editableProfile}
-      />
-
-      <OperationsPanel
-        snapshot={{
-          pendingQueue: pipelineInbox.pending.length,
-          reportCount: stats.reportCount,
-          resumeSourceCount: workspace.resumeSourceCount,
-          trackedRoles: stats.totalEvaluated,
-          urlsAvailableForLiveness,
-          workspacePath: workspace.careerOpsPath,
-        }}
-      />
-
-      <MaintenancePanel />
-    </article>
+    <SettingsShell
+      hasExistingProfile={Boolean(profile)}
+      initialProfile={editableProfile}
+      readiness={readiness}
+    />
   );
 }
