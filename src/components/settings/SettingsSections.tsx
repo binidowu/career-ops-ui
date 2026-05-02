@@ -624,6 +624,7 @@ export function ResumesSection({ id, registerRef, value, onChange }: ResumesSect
   const notify = useToast();
   const [editing, setEditing] = useState<{ index: number; draft: ResumeSource } | null>(null);
   const [confirmRemove, setConfirmRemove] = useState<number | null>(null);
+  const [showUpload, setShowUpload] = useState(false);
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [uploadLabel, setUploadLabel] = useState("");
   const [uploadRoles, setUploadRoles] = useState("");
@@ -675,6 +676,7 @@ export function ResumesSection({ id, registerRef, value, onChange }: ResumesSect
       setUploadLabel("");
       setUploadRoles("");
       setUploadDefault(false);
+      setShowUpload(false);
       notify({
         title: "Resume source uploaded",
         description: "Save settings to persist it in profile.yml.",
@@ -702,10 +704,14 @@ export function ResumesSection({ id, registerRef, value, onChange }: ResumesSect
       <SectionHead
         title="Resume Sources"
         desc="All resume files available for evaluation and tailoring. Upload different versions for different role tracks."
-      />
+      >
+        <Btn size="sm" variant="accent" icon={ICON_UPLOAD} onClick={() => setShowUpload((v) => !v)}>
+          Upload resume
+        </Btn>
+      </SectionHead>
 
-      <div className={styles.cardStack}>
-        <div className={styles.uploadPanel}>
+      {showUpload ? (
+        <div className={styles.uploadPanel} style={{ marginBottom: "var(--space-lg)" }}>
           <p className={styles.cardEyebrow}>Upload new source</p>
           <p style={{ fontSize: "var(--text-xs)", color: "var(--color-text-tertiary)" }}>
             Markdown or plain-text resume files. PDF/DOCX ingestion still needs backend parsing
@@ -726,33 +732,20 @@ export function ResumesSection({ id, registerRef, value, onChange }: ResumesSect
           </label>
           <FieldRow>
             <Input label="Display label" value={uploadLabel} onChange={setUploadLabel} placeholder="Frontend master resume" />
-            <Input
-              label="Target roles"
-              value={uploadRoles}
-              onChange={setUploadRoles}
-              placeholder="Frontend Engineer, Product Engineer"
-            />
+            <Input label="Target roles" value={uploadRoles} onChange={setUploadRoles} placeholder="Frontend Engineer, Product Engineer" />
           </FieldRow>
           <label className={styles.checkboxRow}>
-            <input
-              type="checkbox"
-              checked={uploadDefault}
-              onChange={(event) => setUploadDefault(event.target.checked)}
-            />
+            <input type="checkbox" checked={uploadDefault} onChange={(event) => setUploadDefault(event.target.checked)} />
             <span>Make this the default resume source</span>
           </label>
-          <div>
-            <Btn
-              variant="primary"
-              onClick={handleUpload}
-              loading={uploading}
-              icon={ICON_UPLOAD}
-            >
-              Upload resume
-            </Btn>
+          <div className={styles.actionsRow}>
+            <Btn variant="primary" onClick={handleUpload} loading={uploading} icon={ICON_UPLOAD}>Upload resume</Btn>
+            <Btn variant="ghost" size="sm" onClick={() => setShowUpload(false)}>Cancel</Btn>
           </div>
         </div>
+      ) : null}
 
+      <div className={styles.cardStack}>
         {value.length === 0 ? (
           <div className={styles.emptyState}>
             No resume sources yet. Resume Studio will fall back to the root-level <code>cv.md</code>.
@@ -764,44 +757,23 @@ export function ResumesSection({ id, registerRef, value, onChange }: ResumesSect
                 <div className={styles.resumeCardHead}>
                   <span className={styles.resumeCardTitle}>{source.label}</span>
                   {source.default ? <StatusPill label="Default" tone="accent" /> : null}
+                  <StatusPill label="Valid" tone="success" />
                 </div>
                 <span className={styles.resumeCardPath}>{source.path}</span>
                 {source.targetRoles.length ? (
                   <div className={styles.resumeRolesRow}>
                     {source.targetRoles.map((role) => (
-                      <span key={role} className={styles.resumeRoleChip}>
-                        {role}
-                      </span>
+                      <span key={role} className={styles.resumeRoleChip}>{role}</span>
                     ))}
                   </div>
                 ) : null}
               </div>
               <div className={styles.resumeCardActions}>
                 {!source.default ? (
-                  <Btn size="sm" variant="ghost" onClick={() => setDefault(source.id)}>
-                    Set default
-                  </Btn>
+                  <Btn size="sm" variant="ghost" onClick={() => setDefault(source.id)}>Set default</Btn>
                 ) : null}
-                <Btn
-                  size="sm"
-                  variant="ghost"
-                  onClick={() =>
-                    setEditing({
-                      index,
-                      draft: { ...source, targetRoles: [...source.targetRoles] },
-                    })
-                  }
-                >
-                  Edit
-                </Btn>
-                <Btn
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => setConfirmRemove(index)}
-                  style={{ color: "var(--color-error)" }}
-                >
-                  Remove
-                </Btn>
+                <Btn size="sm" variant="ghost" onClick={() => setEditing({ index, draft: { ...source, targetRoles: [...source.targetRoles] } })}>Edit</Btn>
+                <Btn size="sm" variant="ghost" onClick={() => setConfirmRemove(index)} style={{ color: "var(--color-error)" }}>Remove</Btn>
               </div>
             </div>
           ))
@@ -811,42 +783,12 @@ export function ResumesSection({ id, registerRef, value, onChange }: ResumesSect
       {editing ? (
         <Modal title="Edit resume source" onClose={() => setEditing(null)}>
           <div style={{ display: "grid", gap: "var(--space-lg)" }}>
-            <Input
-              label="Label"
-              value={editing.draft.label}
-              onChange={(v) =>
-                setEditing({ ...editing, draft: { ...editing.draft, label: v } })
-              }
-            />
-            <Input
-              label="ID"
-              value={editing.draft.id}
-              onChange={(v) =>
-                setEditing({ ...editing, draft: { ...editing.draft, id: v } })
-              }
-            />
-            <TagInput
-              label="Target roles"
-              values={editing.draft.targetRoles}
-              onChange={(v) =>
-                setEditing({ ...editing, draft: { ...editing.draft, targetRoles: v } })
-              }
-              placeholder="Add role…"
-            />
+            <Input label="Label" value={editing.draft.label} onChange={(v) => setEditing({ ...editing, draft: { ...editing.draft, label: v } })} />
+            <TagInput label="Target roles" values={editing.draft.targetRoles} onChange={(v) => setEditing({ ...editing, draft: { ...editing.draft, targetRoles: v } })} placeholder="Add role…" />
           </div>
           <div className={styles.actionsRow} style={{ justifyContent: "flex-end", marginTop: "var(--space-xl)", paddingTop: "var(--space-lg)", borderTop: "1px solid var(--color-border-subtle)" }}>
-            <Btn variant="secondary" onClick={() => setEditing(null)}>
-              Cancel
-            </Btn>
-            <Btn
-              variant="accent"
-              onClick={() => {
-                onChange(value.map((source, i) => (i === editing.index ? editing.draft : source)));
-                setEditing(null);
-              }}
-            >
-              Save
-            </Btn>
+            <Btn variant="secondary" onClick={() => setEditing(null)}>Cancel</Btn>
+            <Btn variant="accent" onClick={() => { onChange(value.map((source, i) => (i === editing.index ? editing.draft : source))); setEditing(null); }}>Save</Btn>
           </div>
         </Modal>
       ) : null}
@@ -857,18 +799,8 @@ export function ResumesSection({ id, registerRef, value, onChange }: ResumesSect
             This will remove <strong style={{ color: "var(--color-text)" }}>{value[confirmRemove]?.label}</strong>. The file will not be deleted.
           </p>
           <div className={styles.actionsRow} style={{ justifyContent: "flex-end", marginTop: "var(--space-xl)" }}>
-            <Btn variant="secondary" onClick={() => setConfirmRemove(null)}>
-              Cancel
-            </Btn>
-            <Btn
-              variant="destructive"
-              onClick={() => {
-                onChange(value.filter((_, i) => i !== confirmRemove));
-                setConfirmRemove(null);
-              }}
-            >
-              Remove
-            </Btn>
+            <Btn variant="secondary" onClick={() => setConfirmRemove(null)}>Cancel</Btn>
+            <Btn variant="destructive" onClick={() => { onChange(value.filter((_, i) => i !== confirmRemove)); setConfirmRemove(null); }}>Remove</Btn>
           </div>
         </Modal>
       ) : null}
@@ -1104,16 +1036,16 @@ export function CompensationSection({
       <div className={styles.cardBlock}>
         <FieldRow cols={3}>
           <Input
-            label="Target compensation range"
-            value={value.targetRange}
-            onChange={set("targetRange")}
-            placeholder="e.g. 120,000 – 180,000"
+            label="Target comp (min)"
+            value={value.compMin}
+            onChange={set("compMin")}
+            placeholder="e.g. 120,000"
           />
           <Input
-            label="Minimum acceptable"
-            value={value.minimum}
-            onChange={set("minimum")}
-            placeholder="e.g. 110,000"
+            label="Target comp (max)"
+            value={value.compMax}
+            onChange={set("compMax")}
+            placeholder="e.g. 180,000"
           />
           <Select
             label="Currency"
@@ -1122,11 +1054,14 @@ export function CompensationSection({
             options={CURRENCY_OPTIONS}
           />
         </FieldRow>
+        <Input
+          label="Minimum acceptable compensation"
+          value={value.minimum}
+          onChange={set("minimum")}
+          placeholder="Hard floor — AI flags roles below this"
+          hint="The AI will flag any role with listed comp below this value."
+        />
         <Divider />
-        <FieldRow>
-          <Input label="Country" value={value.country} onChange={set("country")} placeholder="Canada" />
-          <Input label="City" value={value.city} onChange={set("city")} placeholder="Toronto" />
-        </FieldRow>
         <Select
           label="Remote preference"
           value={value.remote}

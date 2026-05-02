@@ -76,7 +76,8 @@ export interface ProofRow {
 }
 
 export interface CompensationState {
-  targetRange: string;
+  compMin: string;
+  compMax: string;
   minimum: string;
   currency: string;
   remote: string;
@@ -164,8 +165,12 @@ function profileToProofPoints(profile: UserProfile): ProofRow[] {
 }
 
 function profileToCompensation(profile: UserProfile): CompensationState {
+  const [compMin = "", compMax = ""] = profile.compensation.targetRange
+    .split(/\s*[-–—]\s*/)
+    .map((s) => s.trim());
   return {
-    targetRange: profile.compensation.targetRange,
+    compMin,
+    compMax,
     minimum: profile.compensation.minimum,
     currency: profile.compensation.currency,
     remote: "",
@@ -360,7 +365,9 @@ export default function SettingsShell({
       },
       compensation: {
         ...initialProfile.compensation,
-        targetRange: compensation.targetRange.trim(),
+        targetRange: [compensation.compMin.trim(), compensation.compMax.trim()]
+          .filter(Boolean)
+          .join(" – "),
         currency: compensation.currency.trim(),
         minimum: compensation.minimum.trim(),
         locationFlexibility: compensation.locationFlexibility.trim() || undefined,
