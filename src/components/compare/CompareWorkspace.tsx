@@ -199,6 +199,8 @@ function getStatusAccent(status: OpportunityStatus) {
       return "offer";
     case "Interview":
       return "interview";
+    case "Evaluated":
+      return "evaluated";
     case "Applied":
     case "Responded":
       return "active";
@@ -404,7 +406,7 @@ export default function CompareWorkspace({
   }
 
   const matrixStyle: CSSProperties = {
-    gridTemplateColumns: `minmax(12rem, 15rem) repeat(${Math.max(selectedEntries.length, 1)}, minmax(18rem, 1fr))`,
+    gridTemplateColumns: `10rem repeat(${Math.max(selectedEntries.length, 1)}, 1fr)`,
   };
 
   const comparisonRows: Array<{
@@ -518,6 +520,12 @@ export default function CompareWorkspace({
         <div className={styles.selectorGrid}>
           {opportunities.map((opportunity) => {
             const isSelected = selectedIds.includes(opportunity.id);
+            const cardBadges = badgeWinners
+              .filter((b) => b.id === opportunity.id)
+              .map((b) => b.label);
+            const primaryBadge = isSelected && cardBadges.length > 0
+              ? cardBadges[0]
+              : null;
 
             return (
               <button
@@ -529,15 +537,17 @@ export default function CompareWorkspace({
                 onClick={() => void toggleSelection(opportunity.id)}
                 type="button"
               >
-                <div className={styles.selectorTop}>
-                  <span className={styles.selectorStatus}>{opportunity.status}</span>
-                  <span className={styles.selectorScore}>{formatScoreRaw(opportunity)}</span>
-                </div>
+                {primaryBadge ? (
+                  <span className={styles.selectorBadge}>{primaryBadge}</span>
+                ) : null}
+                <span className={styles.selectorMeta}>
+                  {opportunity.status} · {formatScoreRaw(opportunity)}
+                </span>
                 <div className={styles.selectorBody}>
                   <strong className={styles.selectorTitle}>{opportunity.role}</strong>
                   <p className={styles.selectorSubline}>
                     {opportunity.company}
-                    {opportunity.archetype ? ` | ${opportunity.archetype}` : ""}
+                    {opportunity.archetype ? ` · ${opportunity.archetype}` : ""}
                   </p>
                 </div>
               </button>
@@ -557,33 +567,19 @@ export default function CompareWorkspace({
                 </p>
               </div>
 
-              {selectedEntries.map((entry) => {
+              {selectedEntries.map((entry, colIdx) => {
                 const badges = badgeWinners
                   .filter((badge) => badge.id === entry.opportunity.id)
                   .map((badge) => badge.label);
                 const primaryBadge = getPrimaryWinnerLabel(badges);
+                const idTag = `ID: ${String(entry.opportunity.id).slice(-3).toUpperCase().padStart(3, "0")}`;
 
                 return (
                   <div
                     className={`${styles.matrixCell} ${styles.recordHead}`}
-                    data-highlight={primaryBadge.toLowerCase().replace(/\s+/g, "-")}
+                    data-highlight={colIdx === 0 ? "best-fit" : undefined}
                     key={entry.opportunity.id}
                   >
-                    <div className={styles.recordLead}>
-                      <span
-                        className={styles.recordLeadLabel}
-                        data-kind={primaryBadge.toLowerCase().replace(/\s+/g, "-")}
-                      >
-                        {primaryBadge}
-                      </span>
-                      <span className={styles.recordDate}>{entry.opportunity.date}</span>
-                    </div>
-
-                    <div className={styles.recordHeadline}>
-                      <p className={styles.recordCompany}>{entry.opportunity.company}</p>
-                      <h3>{entry.opportunity.role}</h3>
-                    </div>
-
                     <div className={styles.recordPills}>
                       <span
                         className={styles.statusPill}
@@ -591,12 +587,13 @@ export default function CompareWorkspace({
                       >
                         {entry.opportunity.status}
                       </span>
-                      {entry.opportunity.archetype ? (
-                        <span className={styles.metaPill}>{entry.opportunity.archetype}</span>
-                      ) : null}
+                      <span className={styles.idTag}>{idTag}</span>
                     </div>
 
-                    <div className={styles.recordLocation}>{summarizeLocation(entry)}</div>
+                    <div className={styles.recordHeadline}>
+                      <h3>{entry.opportunity.role}</h3>
+                      <p className={styles.recordCompany}>{entry.opportunity.company}</p>
+                    </div>
 
                     <div className={styles.recordActions}>
                       <Link
@@ -609,19 +606,10 @@ export default function CompareWorkspace({
                         entry.opportunity.status !== "Discarded" &&
                         entry.opportunity.status !== "SKIP" ? (
                         <Link
-                          className={styles.recordLink}
+                          className={`${styles.recordLink} ${styles.recordLinkAccent}`}
                           href={`/pipeline/${entry.opportunity.id}/apply`}
                         >
                           Apply
-                        </Link>
-                      ) : null}
-                      {entry.opportunity.status === "Interview" ||
-                        entry.opportunity.status === "Offer" ? (
-                        <Link
-                          className={styles.recordLink}
-                          href={`/pipeline/${entry.opportunity.id}/interview`}
-                        >
-                          Prep
                         </Link>
                       ) : null}
                     </div>
@@ -649,10 +637,10 @@ export default function CompareWorkspace({
 
           <div className={styles.boardUtilityRow}>
             <Link className={styles.boardLink} href="/pipeline">
-              Open pipeline
+              Open Pipeline
             </Link>
-            <Link className={styles.boardLink} href="/resumes">
-              Tailor resume
+            <Link className={`${styles.boardLink} ${styles.boardLinkAccent}`} href="/resumes">
+              Tailor Resume
             </Link>
           </div>
 

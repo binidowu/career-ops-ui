@@ -1,3 +1,4 @@
 .page {
-  min-height: calc(100dvh - var(--topbar-height));
+  height: calc(100dvh - var(--topbar-height));
+  overflow: hidden;
 }

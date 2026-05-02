@@ -1,9 +1,9 @@
 .studio {
   display: grid;
   grid-template-columns: var(--sidebar-width, 260px) 1fr;
-  align-items: stretch;
-  height: calc(100dvh - var(--topbar-height));
-  min-height: calc(100dvh - var(--topbar-height));
+  grid-template-rows: 1fr;
+  height: 100%;
+  max-height: 100%;
   overflow: hidden;
 }
 
@@ -12,7 +12,7 @@
 .controls {
   display: grid;
   grid-template-rows: 1fr auto;
-  height: 100%;
+  min-height: 0;
   border-right: 1px solid var(--color-border-subtle);
   background-color: var(--color-surface);
 }
@@ -21,6 +21,7 @@
   display: grid;
   gap: 0;
   overflow-y: auto;
+  min-height: 0;
 }
 
 .controlSection {
@@ -315,6 +316,37 @@
   max-width: none;
 }
 
+/* Key-value info rows (Output Format) */
+
+.kvList {
+  display: grid;
+  gap: 0;
+}
+
+.kvRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.kvLabel {
+  font-size: var(--text-xs);
+  color: var(--color-text-tertiary);
+}
+
+.kvValue {
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  color: var(--color-text-secondary);
+}
+
+.formatControls {
+  display: grid;
+  gap: var(--space-sm);
+}
+
 /* Match filter toggle */
 
 .matchToggle {
@@ -356,6 +388,7 @@
   height: 100%;
   background-color: var(--color-surface-2, oklch(0.94 0.008 260));
   overflow: hidden;
+  position: relative;
 }
 
 .previewHead {
@@ -900,6 +933,49 @@
 
 .suggestionChip:hover {
   background: color-mix(in oklch, var(--color-accent) 15%, transparent);
+}
+
+/* Floating zoom overlay (bottom-right of canvas) */
+
+.floatingZoom {
+  position: absolute;
+  bottom: var(--space-xl);
+  right: var(--space-xl);
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: 6px 10px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  box-shadow: var(--shadow-raised);
+  z-index: 5;
+}
+
+.floatingZoomBtn {
+  width: 22px;
+  height: 22px;
+  border: none;
+  background: none;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.floatingZoomBtn:hover {
+  color: var(--color-text);
+}
+
+.floatingZoomLabel {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--color-text-secondary);
+  min-width: 2.5rem;
+  text-align: center;
 }
 
 @media (max-width: 72rem) {

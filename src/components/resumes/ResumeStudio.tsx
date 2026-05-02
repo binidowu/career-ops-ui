@@ -616,8 +616,20 @@ export default function ResumeStudio({
             <div className={styles.panelHead}>
               <p className={styles.sectionLabel}>Output Format</p>
             </div>
-            <label className={styles.field}>
-              <span>Paper size</span>
+            <div className={styles.kvList}>
+              {([
+                ["Paper Size", format === "a4" ? "A4" : "US Letter"],
+                ["Draft Angle", draft?.variantLabel ?? "Balanced emphasis"],
+                ["Profile", workspace.profileReady ? "Included" : "Missing"],
+                ["Keywords active", String(selectedKeywords.length)],
+              ] as const).map(([k, v]) => (
+                <div key={k} className={styles.kvRow}>
+                  <span className={styles.kvLabel}>{k}</span>
+                  <span className={styles.kvValue}>{v}</span>
+                </div>
+              ))}
+            </div>
+            <div className={styles.formatControls}>
               <select
                 className={styles.select}
                 onChange={(e) => setFormat(e.target.value as "a4" | "letter")}
@@ -626,9 +638,6 @@ export default function ResumeStudio({
                 <option value="a4">A4</option>
                 <option value="letter">US Letter</option>
               </select>
-            </label>
-            <label className={styles.field}>
-              <span>Draft angle</span>
               <select
                 className={styles.select}
                 onChange={(e) => setVariant(e.target.value as ResumeDraftVariant)}
@@ -638,33 +647,7 @@ export default function ResumeStudio({
                 <option value="technical">Technical</option>
                 <option value="execution">Execution</option>
               </select>
-            </label>
-            <div className={styles.metaBlock}>
-              <p>
-                Profile:{" "}
-                <strong>{workspace.profileReady ? "Included" : "Optional / missing"}</strong>
-              </p>
-              <p>
-                Existing PDF: <strong>{selectedOpportunity?.hasPdf ? "Yes" : "No"}</strong>
-              </p>
-              <p>
-                Keywords active: <strong>{selectedKeywords.length}</strong>
-              </p>
-              <p>
-                Draft angle: <strong>{draft?.variantLabel ?? "Balanced emphasis"}</strong>
-              </p>
-              <p>
-                Source: <strong>{draftResumeSource?.label ?? workspace.resumePath}</strong>
-              </p>
             </div>
-            <button
-              className={styles.matchToggle}
-              data-active={matchedOnly}
-              onClick={() => setMatchedOnly((v) => !v)}
-              type="button"
-            >
-              {matchedOnly ? "Showing matched only" : "Show matched only"}
-            </button>
           </section>
 
           {/* MANUAL EDITS */}
@@ -1088,6 +1071,25 @@ export default function ResumeStudio({
               </p>
             </div>
           )}
+        </div>
+
+        {/* Floating zoom controls */}
+        <div className={styles.floatingZoom}>
+          <button
+            className={styles.floatingZoomBtn}
+            onClick={() => setZoom((z) => (Math.max(75, z - 25) as ZoomLevel))}
+            type="button"
+          >
+            −
+          </button>
+          <span className={styles.floatingZoomLabel}>{zoom}%</span>
+          <button
+            className={styles.floatingZoomBtn}
+            onClick={() => setZoom((z) => (Math.min(150, z + 25) as ZoomLevel))}
+            type="button"
+          >
+            +
+          </button>
         </div>
       </section>
     </section>
