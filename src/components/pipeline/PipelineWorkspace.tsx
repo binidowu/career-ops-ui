@@ -54,6 +54,7 @@ function scoreToDisplay(opportunity: Opportunity): string {
 function statusTone(status: string): string {
   if (status === "Offer") return "success";
   if (status === "Interview" || status === "Responded") return "accent";
+  if (status === "Evaluated") return "success";
   if (status === "Applied") return "neutral";
   if (status === "Rejected" || status === "Discarded" || status === "SKIP") return "quiet";
   return "default";
