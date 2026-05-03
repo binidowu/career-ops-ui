@@ -290,6 +290,87 @@ export interface Evaluation {
   sections: EvaluationSection[];
 }
 
+export interface OpportunityIntelScoreDimension {
+  evidence: string[];
+  label: string;
+  rationale: string;
+  score: number | null;
+}
+
+export interface OpportunityIntelCvEvidence {
+  evidence: string;
+  requirement: string;
+  source: string;
+  strength: "missing" | "partial" | "strong" | "unknown";
+}
+
+export interface OpportunityIntelRisk {
+  mitigation: string;
+  reason: string;
+  severity: "critical" | "moderate" | "minor";
+  title: string;
+}
+
+export interface OpportunityIntelBackgroundFrame {
+  concern: string;
+  likelyQuestion: string;
+  recommendedAnswer: string;
+}
+
+export interface OpportunityIntelRound {
+  duration: string;
+  focus: string;
+  prepare: string;
+  title: string;
+}
+
+export interface OpportunityIntelQuestion {
+  angle: string;
+  prompt: string;
+  reason: string;
+  type: string;
+}
+
+export interface OpportunityIntelStory {
+  action: string;
+  requirement: string;
+  result: string;
+  situation: string;
+  story: string;
+  task: string;
+}
+
+export interface OpportunityIntel {
+  source: "markdown" | "sidecar";
+  schemaVersion: 1;
+  roleSnapshot: {
+    archetype: string | null;
+    compensation: string | null;
+    company: string;
+    level: string | null;
+    location: string | null;
+    role: string;
+    sourceUrl: string | null;
+    workMode: string | null;
+  };
+  recommendation: {
+    nextActions: string[];
+    summary: string;
+    verdict: string;
+  };
+  scoreBreakdown: OpportunityIntelScoreDimension[];
+  cvEvidence: OpportunityIntelCvEvidence[];
+  risks: OpportunityIntelRisk[];
+  backgroundFraming: OpportunityIntelBackgroundFrame[];
+  interviewPrep: {
+    checklist: string[];
+    likelyQuestions: OpportunityIntelQuestion[];
+    rounds: OpportunityIntelRound[];
+    stories: OpportunityIntelStory[];
+    vocabulary: string[];
+  };
+}
+
 /** User profile from config/profile.yml */
 export interface UserProfile {
   candidate: {

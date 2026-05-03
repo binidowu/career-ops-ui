@@ -28,6 +28,11 @@ import {
   normalizeOpportunityStatus,
   parseStatesYaml,
 } from "@/lib/data/parse-states";
+import {
+  buildOpportunityIntel,
+  getIntelSidecarPath,
+  parseOpportunityIntelSidecar,
+} from "@/lib/intel/view-model";
 import { updateTrackerMarkdown } from "@/lib/data/update-applications";
 import type { ResumeDraft, ResumeDraftVariant } from "@/lib/resume-studio";
 import type {
@@ -46,6 +51,7 @@ import type {
   StateDefinition,
   InterviewPrepWorkspace,
   InterviewPrepDocument,
+  OpportunityIntel,
   SystemCheckId,
   SystemCheckResult,
   UserProfile,
@@ -720,13 +726,19 @@ export async function getOpportunities(): Promise<Opportunity[]> {
           }
 
           const evaluation = parseReportMarkdown(reportText, opportunity.reportPath);
-          opportunity.archetype = evaluation.archetype || null;
-          opportunity.summary = evaluation.summary || null;
-          opportunity.remote = evaluation.roleSummary.Remote ?? null;
-          opportunity.compensation =
-            evaluation.compensationItems[0]?.value ??
-            evaluation.roleSummary.Comp ??
-            null;
+          const sidecarText = await readCareerOpsTextFile(
+            ...getIntelSidecarPath(opportunity.reportPath).split("/"),
+          );
+          const intel = buildOpportunityIntel({
+            opportunity,
+            evaluation,
+            sidecar: parseOpportunityIntelSidecar(sidecarText),
+          });
+
+          opportunity.archetype = intel.roleSnapshot.archetype;
+          opportunity.summary = intel.recommendation.summary;
+          opportunity.remote = intel.roleSnapshot.workMode ?? intel.roleSnapshot.location;
+          opportunity.compensation = intel.roleSnapshot.compensation;
           opportunity.jobUrl = evaluation.url;
         }),
       );
@@ -738,6 +750,7 @@ export async function getOpportunities(): Promise<Opportunity[]> {
 
 export async function getOpportunity(id: string): Promise<{
   evaluation: Evaluation | null;
+  intel: OpportunityIntel | null;
   opportunity: Opportunity | null;
 }> {
   noStore();
@@ -748,19 +761,34 @@ export async function getOpportunity(id: string): Promise<{
     return {
       opportunity,
       evaluation: null,
+      intel: opportunity
+        ? buildOpportunityIntel({ opportunity, evaluation: null })
+        : null,
     };
   }
 
+  const sidecarPath = getIntelSidecarPath(opportunity.reportPath);
   const signature = await getCareerOpsSignature(...opportunity.reportPath.split("/"));
+  const sidecarSignature = await getCareerOpsSignature(...sidecarPath.split("/"));
 
   const evaluation = await readCached(`report:${opportunity.reportPath}`, signature, async () => {
     const raw = await readCareerOpsTextFile(...opportunity.reportPath!.split("/"));
     return raw ? parseReportMarkdown(raw, opportunity.reportPath) : null;
   });
+  const sidecar = await readCached(`intel:${sidecarPath}`, sidecarSignature, async () => {
+    const raw = await readCareerOpsTextFile(...sidecarPath.split("/"));
+    return parseOpportunityIntelSidecar(raw);
+  });
+  const intel = buildOpportunityIntel({
+    opportunity,
+    evaluation: evaluation as Evaluation | null,
+    sidecar: sidecar as OpportunityIntel | null,
+  });
 
   return {
     opportunity,
     evaluation: evaluation as Evaluation | null,
+    intel,
   };
 }
 

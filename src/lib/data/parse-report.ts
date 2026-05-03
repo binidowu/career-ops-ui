@@ -96,7 +96,7 @@ function summarizeParagraphs(paragraphs: string[]) {
 }
 
 function sectionLetter(heading: string) {
-  const match = /^\s*([A-Z])(?:\s*[)\-—:]|\b)/i.exec(heading);
+  const match = /^\s*(?:block\s+)?([A-Z])(?:\s*[)\-—:]|\b)/i.exec(heading);
   return match?.[1]?.toUpperCase() ?? null;
 }
 
@@ -129,6 +129,46 @@ function extractSummaryCandidate(section: string) {
     });
 }
 
+function findSection(
+  sections: EvaluationSection[],
+  sectionsByLetter: Map<string, EvaluationSection>,
+  patterns: RegExp[],
+  letterFallback?: string,
+) {
+  return (
+    sections.find((section) => patterns.some((pattern) => pattern.test(section.heading))) ??
+    (letterFallback ? sectionsByLetter.get(letterFallback) : undefined) ??
+    null
+  );
+}
+
+function firstUsefulLine(section: string, patterns: RegExp[]) {
+  return section
+    .split("\n")
+    .map((line) => stripMarkdownMarkers(line.replace(/^#+\s*/, "")))
+    .find((line) => line && patterns.some((pattern) => pattern.test(line))) ?? null;
+}
+
+function extractInlineValue(section: string, label: RegExp) {
+  const match = new RegExp(
+    `(?:^|\\n)\\s*(?:[-*]\\s*)?(?:\\*\\*)?${label.source}:?(?:\\*\\*)?\\s*(.+)`,
+    "i",
+  ).exec(section);
+  return match?.[1] ? stripMarkdownMarkers(match[1]) : null;
+}
+
+function extractCompensationSignal(section: string) {
+  const value = firstUsefulLine(section, [/\$|CAD|hour|salary|comp|rate/i]);
+  return value?.replace(/^Metric\s+Value\s+Source\s*/i, "") ?? null;
+}
+
+function extractLocationSignal(section: string) {
+  return firstUsefulLine(section, [
+    /\b(remote|hybrid|on-?site|office|location)\b/i,
+    /\b(Toronto|Ottawa|Canada|Ontario)\b/i,
+  ]);
+}
+
 function extractOpportunityNumber(reportPath: string | null) {
   if (!reportPath) {
     return null;
@@ -159,12 +199,60 @@ export function parseReportMarkdown(
   const pdfPath = extractMetadataValue(markdown, "PDF");
   const batchId = extractMetadataValue(markdown, "Batch ID");
 
-  const sectionA = sectionsByLetter.get("A")?.body ?? "";
-  const sectionB = sectionsByLetter.get("B")?.body ?? "";
-  const sectionC = sectionsByLetter.get("C")?.body ?? "";
-  const sectionD = sectionsByLetter.get("D")?.body ?? "";
-  const sectionE = sectionsByLetter.get("E")?.body ?? "";
-  const sectionF = sectionsByLetter.get("F")?.body ?? "";
+  const roleSection = findSection(
+    sections,
+    sectionsByLetter,
+    [/role\s+(summary|snapshot)/i],
+    "A",
+  );
+  const cvMatchSection = findSection(
+    sections,
+    sectionsByLetter,
+    [/\b(match|cv)\b/i],
+    "B",
+  );
+  const levelSection = findSection(
+    sections,
+    sectionsByLetter,
+    [/\b(level|seniority|strategy)\b/i],
+    undefined,
+  );
+  const northStarSection = findSection(
+    sections,
+    sectionsByLetter,
+    [/north\s*star|mission|alignment/i],
+    undefined,
+  );
+  const compensationSection = findSection(
+    sections,
+    sectionsByLetter,
+    [/\b(comp|compensation|salary|pay|demand)\b/i],
+    "D",
+  );
+  const personalizationSection = findSection(
+    sections,
+    sectionsByLetter,
+    [/\b(personalization|application|tailor|resume)\b/i],
+    undefined,
+  );
+  const interviewSection = findSection(
+    sections,
+    sectionsByLetter,
+    [/\b(interview|star)\b/i],
+    undefined,
+  );
+  const redFlagSection = findSection(
+    sections,
+    sectionsByLetter,
+    [/\b(red\s*flags?|risks?)\b/i],
+    undefined,
+  );
+  const sectionA = roleSection?.body ?? "";
+  const sectionB = cvMatchSection?.body ?? "";
+  const sectionC = levelSection?.body ?? "";
+  const sectionD = compensationSection?.body ?? "";
+  const sectionE = personalizationSection?.body ?? "";
+  const sectionF = interviewSection?.body ?? "";
   const keywordsSection =
     sections.find((section) => /^keywords\b/i.test(section.heading))?.body ?? "";
 
@@ -179,6 +267,21 @@ export function parseReportMarkdown(
 
     return record;
   }, {});
+  const inferredArchetype = extractInlineValue(northStarSection?.body ?? "", /Archetype/);
+  const inferredCompensation = extractCompensationSignal(sectionD);
+  const inferredLocation = extractLocationSignal(`${sectionA}\n${sections.find((section) => /culture|signal/i.test(section.heading))?.body ?? ""}`);
+
+  if (inferredArchetype && !roleSummary.Archetype) {
+    roleSummary.Archetype = inferredArchetype;
+  }
+
+  if (inferredCompensation && !roleSummary.Comp && !roleSummary.Compensation) {
+    roleSummary.Comp = inferredCompensation;
+  }
+
+  if (inferredLocation && !roleSummary.Location && !roleSummary.Remote) {
+    roleSummary.Location = inferredLocation;
+  }
 
   const cvMatchTable = parseMarkdownTable(sectionB).map<CvMatchItem>((row) => ({
     requirement: row["JD Requirement"] ?? "",
@@ -186,13 +289,19 @@ export function parseReportMarkdown(
     source: row.Evidence ?? row.Source ?? "",
   }));
 
-  const gapsTable = parseMarkdownTable(
+  const matchGapsTable = parseMarkdownTable(
     sectionB.split(/^###\s+Gaps(?:\s+and\s+Mitigation)?$/im)[1] ?? "",
   ).map((row) => ({
     gap: row.Gap ?? "",
     severity: severityFromText(row.Severity ?? ""),
     mitigation: row.Mitigation ?? "",
   }));
+  const redFlagsTable = parseMarkdownTable(redFlagSection?.body ?? "").map((row) => ({
+    gap: row.Flag ?? row.Gap ?? "",
+    severity: severityFromText(row.Severity ?? ""),
+    mitigation: row.Notes ?? row.Mitigation ?? "",
+  }));
+  const gapsTable = matchGapsTable.length ? matchGapsTable : redFlagsTable;
 
   const sectionCParagraphs = splitParagraphs(sectionC);
   const detectedLevel =
@@ -243,7 +352,7 @@ export function parseReportMarkdown(
     opportunityNum: extractOpportunityNumber(reportPath),
     score,
     grade: scoreToGrade(score),
-    archetype,
+    archetype: archetype === "Unknown" ? (inferredArchetype ?? archetype) : archetype,
     summary,
     date,
     url,
