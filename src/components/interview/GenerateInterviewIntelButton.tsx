@@ -68,7 +68,7 @@ export default function GenerateInterviewIntelButton({
         ↻
       </span>
       <span className={styles.copy}>
-        <span className={styles.label}>{loading ? "Generating intel" : "Generate fresh intel"}</span>
+        <span className={styles.label}>{loading ? "Generating Intel" : "Generate Fresh Intel"}</span>
         <span className={styles.meta}>Report + story bank</span>
       </span>
     </button>

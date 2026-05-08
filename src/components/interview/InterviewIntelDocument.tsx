@@ -7,6 +7,7 @@ import styles from "./InterviewIntelDocument.module.css";
 
 interface InterviewIntelDocumentProps {
   content: string;
+  excludeSectionTitles?: string[];
 }
 
 interface IntelMetaItem {
@@ -463,8 +464,19 @@ function ConcernSection({ cards, title }: { cards: ConcernCard[]; title: string 
 
 /* ── Main document component ─────────────────────────────────── */
 
-export default function InterviewIntelDocument({ content }: InterviewIntelDocumentProps) {
+export default function InterviewIntelDocument({
+  content,
+  excludeSectionTitles,
+}: InterviewIntelDocumentProps) {
   const doc = parseIntelDocument(content);
+  const excludeNormalized = (excludeSectionTitles ?? []).map(normalizeTitle);
+
+  const visibleSections = doc.sections.filter((section) => {
+    const normalized = normalizeTitle(section.title);
+    return !excludeNormalized.some(
+      (skip) => normalized === skip || normalized.includes(skip) || skip.includes(normalized),
+    );
+  });
 
   return (
     <div className={styles.intelDocument}>
@@ -479,7 +491,7 @@ export default function InterviewIntelDocument({ content }: InterviewIntelDocume
         </section>
       ) : null}
 
-      {doc.sections.map((section) => {
+      {visibleSections.map((section) => {
         const normalizedTitle = normalizeTitle(section.title);
 
         if (normalizedTitle.includes("expected interview") || normalizedTitle.includes("round by round")) {

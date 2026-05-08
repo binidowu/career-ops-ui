@@ -1551,10 +1551,43 @@ export async function saveProfile(profile: UserProfile) {
    Each entry is keyed by opportunity id.
    ============================================================ */
 
+export type OutreachChannel = "linkedin" | "email" | "twitter";
+
+export type ApplyActivityKind =
+  | "status-change"
+  | "applied-date"
+  | "draft-generated"
+  | "draft-saved"
+  | "submission"
+  | "resume-generated"
+  | "evaluation-run"
+  | "outreach-sent"
+  | "note";
+
+export interface ApplyActivityEntry {
+  ts: string;
+  event: string;
+  actor: string;
+  kind: ApplyActivityKind;
+}
+
+export interface ApplyTargetContact {
+  name: string;
+  title: string;
+  linkedin: string;
+  email: string;
+}
+
 export interface ApplyNoteEntry {
   coverLetterNotes: string;
+  outreachChannel: OutreachChannel;
+  outreachDrafts: Record<OutreachChannel, string>;
+  /** Legacy single-string draft. Mirrors the active-channel draft on read. */
   outreachDraft: string;
   appliedDate: string | null;
+  privateNotes: string;
+  targetContact: ApplyTargetContact;
+  activity: ApplyActivityEntry[];
 }
 
 export type ApplyDraftKind = "cover-letter" | "outreach";
@@ -1563,19 +1596,108 @@ function applyNotesPath() {
   return resolveCareerOpsFile("data", "apply-notes.json");
 }
 
+const EMPTY_TARGET_CONTACT: ApplyTargetContact = {
+  name: "",
+  title: "",
+  linkedin: "",
+  email: "",
+};
+
+const EMPTY_OUTREACH_DRAFTS: Record<OutreachChannel, string> = {
+  linkedin: "",
+  email: "",
+  twitter: "",
+};
+
+function emptyApplyEntry(): ApplyNoteEntry {
+  return {
+    coverLetterNotes: "",
+    outreachChannel: "linkedin",
+    outreachDrafts: { ...EMPTY_OUTREACH_DRAFTS },
+    outreachDraft: "",
+    appliedDate: null,
+    privateNotes: "",
+    targetContact: { ...EMPTY_TARGET_CONTACT },
+    activity: [],
+  };
+}
+
+function normalizeApplyEntry(value: unknown): ApplyNoteEntry {
+  const entry = emptyApplyEntry();
+  if (!value || typeof value !== "object") return entry;
+  const v = value as Record<string, unknown>;
+
+  if (typeof v.coverLetterNotes === "string") entry.coverLetterNotes = v.coverLetterNotes;
+  if (typeof v.appliedDate === "string" || v.appliedDate === null) {
+    entry.appliedDate = (v.appliedDate as string | null) ?? null;
+  }
+  if (typeof v.privateNotes === "string") entry.privateNotes = v.privateNotes;
+
+  if (v.outreachChannel === "linkedin" || v.outreachChannel === "email" || v.outreachChannel === "twitter") {
+    entry.outreachChannel = v.outreachChannel;
+  }
+
+  // Migration: prefer per-channel drafts; fall back to legacy `outreachDraft` populating `linkedin`
+  if (v.outreachDrafts && typeof v.outreachDrafts === "object") {
+    const drafts = v.outreachDrafts as Record<string, unknown>;
+    entry.outreachDrafts = {
+      linkedin: typeof drafts.linkedin === "string" ? drafts.linkedin : "",
+      email: typeof drafts.email === "string" ? drafts.email : "",
+      twitter: typeof drafts.twitter === "string" ? drafts.twitter : "",
+    };
+  } else if (typeof v.outreachDraft === "string" && v.outreachDraft) {
+    entry.outreachDrafts = { ...EMPTY_OUTREACH_DRAFTS, linkedin: v.outreachDraft };
+  }
+  entry.outreachDraft = entry.outreachDrafts[entry.outreachChannel] ?? "";
+
+  if (v.targetContact && typeof v.targetContact === "object") {
+    const tc = v.targetContact as Record<string, unknown>;
+    entry.targetContact = {
+      name: typeof tc.name === "string" ? tc.name : "",
+      title: typeof tc.title === "string" ? tc.title : "",
+      linkedin: typeof tc.linkedin === "string" ? tc.linkedin : "",
+      email: typeof tc.email === "string" ? tc.email : "",
+    };
+  }
+
+  if (Array.isArray(v.activity)) {
+    entry.activity = v.activity
+      .filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === "object")
+      .map((item) => ({
+        ts: typeof item.ts === "string" ? item.ts : new Date().toISOString(),
+        event: typeof item.event === "string" ? item.event : "",
+        actor: typeof item.actor === "string" ? item.actor : "System",
+        kind: (typeof item.kind === "string" ? (item.kind as ApplyActivityKind) : "note"),
+      }))
+      .filter((item) => Boolean(item.event));
+  }
+
+  return entry;
+}
+
 async function readApplyNotesFile(): Promise<Record<string, ApplyNoteEntry>> {
   try {
     const raw = await readFile(applyNotesPath(), "utf8");
-    return JSON.parse(raw) as Record<string, ApplyNoteEntry>;
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    const out: Record<string, ApplyNoteEntry> = {};
+    for (const [id, value] of Object.entries(parsed)) {
+      out[id] = normalizeApplyEntry(value);
+    }
+    return out;
   } catch {
     return {};
   }
 }
 
+async function writeApplyNotesFile(all: Record<string, ApplyNoteEntry>): Promise<void> {
+  await mkdir(resolveCareerOpsFile("data"), { recursive: true });
+  await writeFile(applyNotesPath(), JSON.stringify(all, null, 2), "utf8");
+}
+
 export async function getApplyData(opportunityId: string): Promise<ApplyNoteEntry> {
   noStore();
   const all = await readApplyNotesFile();
-  return all[opportunityId] ?? { coverLetterNotes: "", outreachDraft: "", appliedDate: null };
+  return all[opportunityId] ?? emptyApplyEntry();
 }
 
 export async function saveApplyData(
@@ -1584,18 +1706,76 @@ export async function saveApplyData(
 ): Promise<ApplyNoteEntry> {
   noStore();
   const all = await readApplyNotesFile();
-  const existing = all[opportunityId] ?? {
-    coverLetterNotes: "",
-    outreachDraft: "",
-    appliedDate: null,
-  };
+  const existing = all[opportunityId] ?? emptyApplyEntry();
   const next: ApplyNoteEntry = { ...existing, ...patch };
+
+  // Keep `outreachDraft` and `outreachDrafts[channel]` in sync.
+  if (patch.outreachDrafts) {
+    next.outreachDraft = next.outreachDrafts[next.outreachChannel] ?? "";
+  } else if (typeof patch.outreachDraft === "string") {
+    next.outreachDrafts = {
+      ...next.outreachDrafts,
+      [next.outreachChannel]: patch.outreachDraft,
+    };
+  }
+  if (patch.outreachChannel) {
+    next.outreachDraft = next.outreachDrafts[patch.outreachChannel] ?? "";
+  }
+
   all[opportunityId] = next;
-
-  await mkdir(resolveCareerOpsFile("data"), { recursive: true });
-  await writeFile(applyNotesPath(), JSON.stringify(all, null, 2), "utf8");
-
+  await writeApplyNotesFile(all);
   return next;
+}
+
+export async function appendApplyActivity(
+  opportunityId: string,
+  entry: { event: string; actor?: string; kind: ApplyActivityKind; ts?: string },
+): Promise<void> {
+  if (!entry.event) return;
+  const all = await readApplyNotesFile();
+  const existing = all[opportunityId] ?? emptyApplyEntry();
+  const next: ApplyNoteEntry = {
+    ...existing,
+    activity: [
+      ...existing.activity,
+      {
+        ts: entry.ts ?? new Date().toISOString(),
+        event: entry.event,
+        actor: entry.actor ?? "System",
+        kind: entry.kind,
+      },
+    ],
+  };
+  all[opportunityId] = next;
+  await writeApplyNotesFile(all);
+}
+
+/**
+ * One-time seed of historical events (evaluation run, role added) when the
+ * activity log is empty for an opportunity. Idempotent: only fires events
+ * whose `kind` is missing from the existing log.
+ */
+export async function seedApplyActivity(
+  opportunityId: string,
+  signals: { evaluationDate?: string | null; addedDate?: string | null },
+): Promise<void> {
+  const existing = await getApplyData(opportunityId);
+  const haveKinds = new Set(existing.activity.map((entry) => entry.kind));
+  const seeds: Array<{ ts: string; event: string; actor: string; kind: ApplyActivityKind }> = [];
+
+  if (!haveKinds.has("evaluation-run") && signals.evaluationDate) {
+    const ts = new Date(`${signals.evaluationDate}T09:00:00`).toISOString();
+    seeds.push({
+      ts,
+      event: "Evaluation report generated",
+      actor: "Backend",
+      kind: "evaluation-run",
+    });
+  }
+
+  for (const seed of seeds) {
+    await appendApplyActivity(opportunityId, seed);
+  }
 }
 
 function truncateForPrompt(value: string, maxChars: number) {

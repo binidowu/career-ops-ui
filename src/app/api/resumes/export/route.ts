@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 
-import { generateResumeDraft } from "@/lib/api/career-ops";
+import { appendApplyActivity, generateResumeDraft } from "@/lib/api/career-ops";
 import { getCareerOpsPath, resolveCareerOpsFile } from "@/lib/data";
 import { renderResumeHtml } from "@/lib/resume-studio";
 
@@ -108,6 +108,12 @@ export async function POST(request: Request) {
     );
 
     const pdf = await readFile(pdfPath);
+
+    await appendApplyActivity(opportunityId, {
+      event: `Tailored resume exported (${draft.fileName})`,
+      actor: "Resume Studio",
+      kind: "resume-generated",
+    });
 
     return new Response(pdf, {
       headers: {
