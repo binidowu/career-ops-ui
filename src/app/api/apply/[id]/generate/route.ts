@@ -1,4 +1,8 @@
-import { generateApplyDraft, type ApplyDraftKind } from "@/lib/api/career-ops";
+import {
+  appendApplyActivity,
+  generateApplyDraft,
+  type ApplyDraftKind,
+} from "@/lib/api/career-ops";
 
 export async function POST(
   request: Request,
@@ -21,6 +25,14 @@ export async function POST(
 
   try {
     const generated = await generateApplyDraft({ opportunityId: id, kind });
+    await appendApplyActivity(id, {
+      event:
+        kind === "cover-letter"
+          ? "Cover letter draft generated"
+          : "Outreach draft generated",
+      actor: "AI",
+      kind: "draft-generated",
+    });
     return Response.json(generated);
   } catch (error) {
     return Response.json(

@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
@@ -12,6 +13,152 @@ interface StoryBankEditorProps {
   path: string;
 }
 
+function renderInline(text: string): ReactNode[] {
+  const parts: ReactNode[] = [];
+  const regex = /(\*\*[^*]+\*\*|`[^`]+`|\*[^*]+\*)/g;
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+  let key = 0;
+  while ((match = regex.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push(text.slice(lastIndex, match.index));
+    }
+    const token = match[0];
+    if (token.startsWith("**")) {
+      parts.push(<strong key={key++}>{token.slice(2, -2)}</strong>);
+    } else if (token.startsWith("`")) {
+      parts.push(<code key={key++}>{token.slice(1, -1)}</code>);
+    } else if (token.startsWith("*")) {
+      parts.push(<em key={key++}>{token.slice(1, -1)}</em>);
+    }
+    lastIndex = match.index + token.length;
+  }
+  if (lastIndex < text.length) parts.push(text.slice(lastIndex));
+  return parts;
+}
+
+interface ListBlock {
+  kind: "ul" | "ol";
+  items: Array<{ text: string; children?: ListBlock }>;
+}
+
+function StoryBankPreview({ content }: { content: string }) {
+  const stripped = content.replace(/<!--[\s\S]*?-->/g, "");
+  const lines = stripped.split("\n");
+  const blocks: ReactNode[] = [];
+  let paragraphLines: string[] = [];
+  let ulBuffer: Array<{ text: string; sub: string[] }> = [];
+  let olBuffer: Array<{ text: string; sub: string[] }> = [];
+  let key = 0;
+
+  const flushParagraph = () => {
+    if (!paragraphLines.length) return;
+    const text = paragraphLines.join(" ").trim();
+    if (text) {
+      blocks.push(<p key={key++}>{renderInline(text)}</p>);
+    }
+    paragraphLines = [];
+  };
+
+  const flushList = () => {
+    if (ulBuffer.length) {
+      blocks.push(
+        <ul key={key++}>
+          {ulBuffer.map((item, i) => (
+            <li key={i}>
+              {renderInline(item.text)}
+              {item.sub.length ? (
+                <ul>
+                  {item.sub.map((s, j) => (
+                    <li key={j}>{renderInline(s)}</li>
+                  ))}
+                </ul>
+              ) : null}
+            </li>
+          ))}
+        </ul>,
+      );
+      ulBuffer = [];
+    }
+    if (olBuffer.length) {
+      blocks.push(
+        <ol key={key++}>
+          {olBuffer.map((item, i) => (
+            <li key={i}>
+              {renderInline(item.text)}
+              {item.sub.length ? (
+                <ul>
+                  {item.sub.map((s, j) => (
+                    <li key={j}>{renderInline(s)}</li>
+                  ))}
+                </ul>
+              ) : null}
+            </li>
+          ))}
+        </ol>,
+      );
+      olBuffer = [];
+    }
+  };
+
+  const flushAll = () => {
+    flushParagraph();
+    flushList();
+  };
+
+  for (const rawLine of lines) {
+    const line = rawLine.replace(/\s+$/, "");
+    if (!line.trim()) {
+      flushAll();
+      continue;
+    }
+    const heading = /^(#{1,6})\s+(.*)$/.exec(line);
+    if (heading) {
+      flushAll();
+      const level = Math.min(heading[1].length + 1, 6);
+      const Tag = `h${level}` as "h2" | "h3" | "h4" | "h5" | "h6";
+      blocks.push(<Tag key={key++}>{renderInline(heading[2].trim())}</Tag>);
+      continue;
+    }
+    const subBullet = /^\s{2,}-\s+(.+)$/.exec(line);
+    if (subBullet) {
+      const lastUl = ulBuffer.length ? ulBuffer[ulBuffer.length - 1] : null;
+      const lastOl = olBuffer.length ? olBuffer[olBuffer.length - 1] : null;
+      if (lastOl) {
+        lastOl.sub.push(subBullet[1].trim());
+        continue;
+      }
+      if (lastUl) {
+        lastUl.sub.push(subBullet[1].trim());
+        continue;
+      }
+    }
+    const ulMatch = /^-\s+(.+)$/.exec(line);
+    if (ulMatch) {
+      flushParagraph();
+      if (olBuffer.length) flushList();
+      ulBuffer.push({ text: ulMatch[1].trim(), sub: [] });
+      continue;
+    }
+    const olMatch = /^\d+\.\s+(.+)$/.exec(line);
+    if (olMatch) {
+      flushParagraph();
+      if (ulBuffer.length) flushList();
+      olBuffer.push({ text: olMatch[1].trim(), sub: [] });
+      continue;
+    }
+    flushList();
+    paragraphLines.push(line.trim());
+  }
+  flushAll();
+
+  if (!blocks.length) {
+    return <p className={styles.emptyPreview}>Story bank is empty. Switch to edit mode to add stories.</p>;
+  }
+
+  return <div className={styles.preview}>{blocks}</div>;
+}
+
 export default function StoryBankEditor({
   initialContent,
   path,
@@ -20,6 +167,7 @@ export default function StoryBankEditor({
   const notify = useToast();
   const [content, setContent] = useState(initialContent);
   const [saving, setSaving] = useState(false);
+  const [mode, setMode] = useState<"preview" | "edit">("preview");
 
   const dirty = content !== initialContent;
 
@@ -71,6 +219,28 @@ export default function StoryBankEditor({
         <div className={styles.meta}>
           <span className={styles.path}>{path}</span>
           <span className={styles.status}>{dirty ? "Unsaved changes" : "In sync with workspace"}</span>
+          <div className={styles.modeToggle} role="tablist" aria-label="Story bank view mode">
+            <button
+              aria-selected={mode === "preview"}
+              className={styles.modeButton}
+              data-active={mode === "preview"}
+              onClick={() => setMode("preview")}
+              role="tab"
+              type="button"
+            >
+              Preview
+            </button>
+            <button
+              aria-selected={mode === "edit"}
+              className={styles.modeButton}
+              data-active={mode === "edit"}
+              onClick={() => setMode("edit")}
+              role="tab"
+              type="button"
+            >
+              Edit
+            </button>
+          </div>
         </div>
       </div>
 
@@ -80,16 +250,22 @@ export default function StoryBankEditor({
       </p>
 
       <div className={styles.editorShell}>
-        <div className={styles.editorNote}>
-          Write in plain language first. The generator can translate tone later, but it needs
-          concrete situations, actions, and outcomes to work from.
-        </div>
-        <textarea
-          className={styles.editor}
-          onChange={(event) => setContent(event.target.value)}
-          rows={18}
-          value={content}
-        />
+        {mode === "edit" ? (
+          <>
+            <div className={styles.editorNote}>
+              Write in plain language first. The generator can translate tone later, but it needs
+              concrete situations, actions, and outcomes to work from.
+            </div>
+            <textarea
+              className={styles.editor}
+              onChange={(event) => setContent(event.target.value)}
+              rows={18}
+              value={content}
+            />
+          </>
+        ) : (
+          <StoryBankPreview content={content} />
+        )}
       </div>
 
       <div className={styles.actions}>
