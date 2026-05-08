@@ -10,6 +10,28 @@ import styles from "./page.module.css";
 
 const STAGES = ["Evaluated", "Applied", "Responded", "Interview", "Offer", "Rejected"];
 
+function cleanText(value: string | null | undefined) {
+  return (
+    value
+      ?.replace(/\*\*(.+?)\*\*/g, "$1")
+      .replace(/`(.+?)`/g, "$1")
+      .replace(/\s*\[inferred from evaluation\]/gi, "")
+      .replace(/\s*\[inferred\]/gi, "")
+      .replace(/\s{2,}/g, " ")
+      .trim() || ""
+  );
+}
+
+function isUseful(value: string | null | undefined) {
+  const cleaned = cleanText(value);
+  return Boolean(cleaned) && !/^(unknown|n\/a|none|null|unavailable|-+)$/i.test(cleaned);
+}
+
+function truncateText(value: string, maxLength = 180) {
+  if (value.length <= maxLength) return value;
+  return `${value.slice(0, maxLength).replace(/\s+\S*$/, "")}...`;
+}
+
 function buildPrepChecklist(input: {
   gaps: Array<{ gap: string; mitigation: string }>;
   interviewItems: Array<{ requirement: string; story: string }>;
@@ -41,6 +63,72 @@ function buildPrepChecklist(input: {
   return [...new Set(items)].slice(0, 10);
 }
 
+function buildStoryMap(input: {
+  evaluation: NonNullable<Awaited<ReturnType<typeof getOpportunity>>["evaluation"]> | null;
+  intel: Awaited<ReturnType<typeof getOpportunity>>["intel"] | null;
+}) {
+  if (input.intel?.interviewPrep.stories.length) {
+    return input.intel.interviewPrep.stories
+      .map((story, index) => ({
+        action: cleanText(story.action),
+        index: String(index + 1),
+        requirement: cleanText(story.requirement) || "Role signal",
+        result: cleanText(story.result),
+        situation: cleanText(story.situation),
+        story: cleanText(story.story) || "Story still needs drafting",
+        task: cleanText(story.task),
+      }))
+      .filter((story) => isUseful(story.requirement) || isUseful(story.story));
+  }
+
+  return (
+    input.evaluation?.interviewItems.map((item) => ({
+      action: cleanText(item.action),
+      index: item.index,
+      requirement: cleanText(item.requirement) || "Role signal",
+      result: cleanText(item.result),
+      situation: cleanText(item.situation),
+      story: cleanText(item.story) || "Story still needs drafting",
+      task: cleanText(item.task),
+    })) ?? []
+  );
+}
+
+function buildConcerns(input: {
+  evaluation: NonNullable<Awaited<ReturnType<typeof getOpportunity>>["evaluation"]> | null;
+  intel: Awaited<ReturnType<typeof getOpportunity>>["intel"] | null;
+  opportunityNotes: string | null | undefined;
+}) {
+  if (input.intel?.backgroundFraming.length) {
+    return input.intel.backgroundFraming.map((frame, index) => ({
+      body: cleanText(frame.concern) || cleanText(frame.likelyQuestion),
+      mitigation: cleanText(frame.recommendedAnswer),
+      number: `Concern ${String(index + 1).padStart(2, "0")}`,
+      title: cleanText(frame.likelyQuestion) || "Prepare concise framing",
+    }));
+  }
+
+  if (input.evaluation?.gapItems.length) {
+    return input.evaluation.gapItems.map((gap, index) => ({
+      body: cleanText(gap.gap),
+      mitigation: cleanText(gap.mitigation),
+      number: `Concern ${String(index + 1).padStart(2, "0")}`,
+      title: "Prepare careful background framing",
+    }));
+  }
+
+  return isUseful(input.opportunityNotes)
+    ? [
+        {
+          body: cleanText(input.opportunityNotes),
+          mitigation: "Turn this into a direct, practical answer before the interview.",
+          number: "Concern 01",
+          title: "Resolve tracker note before rehearsal",
+        },
+      ]
+    : [];
+}
+
 function stripMarkdown(text: string): string {
   return text
     .replace(/^#{1,6}\s+/gm, "")
@@ -55,7 +143,18 @@ function splitInterviewSummary(value: string) {
   return value
     .split(/\n\s*\n/)
     .map((paragraph) => stripMarkdown(paragraph))
-    .filter(Boolean);
+    .filter((paragraph) => paragraph && !/^\s*\|.+\|\s*$/m.test(paragraph));
+}
+
+function sanitizeInterviewBriefContent(value: string) {
+  return value
+    .replace(/\s*Any question marked `?\[inferred from evaluation\]`?.+?\n\n/gi, "\n\n")
+    .replace(/\s*\[inferred from evaluation\]/gi, "")
+    .replace(/\s*\[inferred from JD\]/gi, "")
+    .replace(/\s*\[inferred\]/gi, "")
+    .replace(/^- No strong prompts could be derived for this category yet\.\s*$/gim, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }
 
 export default async function OpportunityInterviewPrepPage({
@@ -64,7 +163,7 @@ export default async function OpportunityInterviewPrepPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const { opportunity, evaluation } = await getOpportunity(id);
+  const { opportunity, evaluation, intel } = await getOpportunity(id);
 
   if (!opportunity) notFound();
 
@@ -74,17 +173,36 @@ export default async function OpportunityInterviewPrepPage({
   });
 
   const hasPrep = Boolean(
-    evaluation && (evaluation.interviewItems.length || evaluation.interviewPrep.trim()),
+    evaluation &&
+      (evaluation.interviewItems.length ||
+        intel?.interviewPrep.checklist.length ||
+        intel?.interviewPrep.likelyQuestions.length ||
+        intel?.interviewPrep.rounds.length ||
+        prepWorkspace.matchedReport?.content),
   );
-  const prepChecklist = evaluation
+  const prepChecklist = intel?.interviewPrep.checklist.length
+    ? intel.interviewPrep.checklist.map(cleanText).filter(Boolean).slice(0, 10)
+    : evaluation
     ? buildPrepChecklist({
         gaps: evaluation.gapItems,
         interviewItems: evaluation.interviewItems,
         keywords: evaluation.keywords,
       })
     : [];
-  const prepSummary = evaluation ? splitInterviewSummary(evaluation.interviewPrep) : [];
-  const matchedReportContent = prepWorkspace.matchedReport?.content ?? null;
+  const prepSummary =
+    evaluation && evaluation.interviewItems.length
+      ? splitInterviewSummary(evaluation.interviewPrep)
+      : [];
+  const matchedReportContent = prepWorkspace.matchedReport?.content
+    ? sanitizeInterviewBriefContent(prepWorkspace.matchedReport.content)
+    : null;
+  const stories = buildStoryMap({ evaluation, intel });
+  const concerns = buildConcerns({ evaluation, intel, opportunityNotes: opportunity.notes });
+  const questionCount = intel?.interviewPrep.likelyQuestions.length ?? 0;
+  const roundCount = intel?.interviewPrep.rounds.length ?? 0;
+  const activeKeywords = intel?.interviewPrep.vocabulary.length
+    ? intel.interviewPrep.vocabulary
+    : evaluation?.keywords ?? [];
 
   return (
     <article className={`app-page ${styles.page}`}>
@@ -110,8 +228,10 @@ export default async function OpportunityInterviewPrepPage({
               {typeof opportunity.score === "number" ? (
                 <span className={styles.pill}>Score {(opportunity.score * 20).toFixed(0)}/100</span>
               ) : null}
-              {evaluation?.detectedLevel ? <span className={styles.pill}>{evaluation.detectedLevel}</span> : null}
-              {evaluation?.candidateLevel ? <span className={styles.pill}>You: {evaluation.candidateLevel}</span> : null}
+              {intel?.roleSnapshot.workMode ? <span className={styles.pill}>{intel.roleSnapshot.workMode}</span> : null}
+              {intel?.roleSnapshot.archetype ? (
+                <span className={styles.pill}>{truncateText(intel.roleSnapshot.archetype, 48)}</span>
+              ) : null}
             </div>
           </div>
 
@@ -135,13 +255,6 @@ export default async function OpportunityInterviewPrepPage({
           </div>
         </div>
       </header>
-
-      <div className={styles.statusBadges}>
-        <span className={styles.statusPill}>{opportunity.status}</span>
-        {typeof opportunity.score === "number" ? (
-          <span className={styles.tag}>Score {(opportunity.score * 20).toFixed(0)}/100</span>
-        ) : null}
-      </div>
 
       <div className={styles.stageStrip} aria-label="Application stage">
         {STAGES.map((stage, index) => (
@@ -181,8 +294,10 @@ export default async function OpportunityInterviewPrepPage({
               <div className={styles.cardBody}>
                 {prepSummary.length ? (
                   prepSummary.map((paragraph) => <p key={paragraph}>{paragraph}</p>)
+                ) : intel?.recommendation.summary ? (
+                  <p>{intel.recommendation.summary}</p>
                 ) : (
-                  <p>{evaluation.interviewPrep}</p>
+                  <p>Use the generated brief below to rehearse likely questions, map stories, and resolve background concerns.</p>
                 )}
               </div>
             </section>
@@ -249,14 +364,14 @@ export default async function OpportunityInterviewPrepPage({
               </div>
             </section>
 
-            {evaluation.interviewItems.length ? (
+            {stories.length ? (
               <section className={styles.card}>
                 <div className={styles.cardHead}>
                   <span className={styles.cardLabel}>Story map</span>
                   <span className={styles.cardTitle}>Which STAR stories already match likely requirements</span>
                 </div>
                 <div className={styles.storyGrid}>
-                  {evaluation.interviewItems.map((item) => (
+                  {stories.map((item) => (
                     <article className={styles.storyCard} key={`${item.index}-${item.requirement}`}>
                       <p className={styles.storyRequirement}>{item.requirement || "Role signal"}</p>
                       <h3>{item.story || "Story still needs drafting"}</h3>
@@ -303,36 +418,24 @@ export default async function OpportunityInterviewPrepPage({
               </div>
             </section>
 
-            {evaluation.gapItems.length ? (
+            {concerns.length ? (
               <section className={`${styles.card} ${styles.concernSection}`}>
                 <div className={styles.cardHead}>
                   <span className={styles.cardLabel}>Background framing</span>
                   <span className={styles.cardTitle}>Questions you should expect to navigate carefully.</span>
                 </div>
                 <div className={styles.concernList}>
-                  {evaluation.gapItems.map((gap, index) => (
-                    <div className={styles.concernCard} key={`${gap.gap}-${gap.mitigation}`}>
+                  {concerns.map((concern) => (
+                    <div className={styles.concernCard} key={`${concern.number}-${concern.body}`}>
                       <div className={styles.concernCardHead}>
-                        <span className={styles.concernNumber}>
-                          Concern {String(index + 1).padStart(2, "0")}
-                        </span>
-                        <svg
-                          aria-hidden="true"
-                          className={styles.concernIcon}
-                          fill="none"
-                          height="15"
-                          viewBox="0 0 16 16"
-                          width="15"
-                        >
-                          <path d="M8 1.5L1.5 13.5h13L8 1.5z" stroke="currentColor" strokeLinejoin="round" strokeWidth="1.5"/>
-                          <path d="M8 6v3.5M8 11.25v.5" stroke="currentColor" strokeLinecap="round" strokeWidth="1.5"/>
-                        </svg>
+                        <span className={styles.concernNumber}>{concern.number}</span>
+                        <strong>{concern.title}</strong>
                       </div>
-                      <p className={styles.concernBody}>{gap.gap}</p>
-                      {gap.mitigation ? (
+                      <p className={styles.concernBody}>{concern.body}</p>
+                      {concern.mitigation ? (
                         <div className={styles.concernMitigation}>
                           <span className={styles.concernMitLabel}>Mitigation</span>
-                          <p>{gap.mitigation}</p>
+                          <p>{concern.mitigation}</p>
                         </div>
                       ) : null}
                     </div>
@@ -359,21 +462,23 @@ export default async function OpportunityInterviewPrepPage({
               </div>
               <div className={styles.railMetricGrid}>
                 <div className={styles.railMetricCard}>
-                  <span className={styles.railMetricValue}>{evaluation.interviewItems.length}</span>
+                  <span className={styles.railMetricValue}>{stories.length}</span>
                   <span className={styles.railMetricLabel}>Stories already mapped</span>
                 </div>
                 <div className={styles.railMetricCard}>
-                  <span className={styles.railMetricValue}>{evaluation.gapItems.length}</span>
+                  <span className={styles.railMetricValue}>{concerns.length}</span>
                   <span className={styles.railMetricLabel}>Risk areas to frame carefully</span>
                 </div>
                 <div className={styles.railMetricCard}>
-                  <span className={styles.railMetricValue}>{evaluation.cvMatchItems.length}</span>
-                  <span className={styles.railMetricLabel}>Resume-to-posting matches surfaced</span>
+                  <span className={styles.railMetricValue}>{questionCount || roundCount || evaluation.cvMatchItems.length}</span>
+                  <span className={styles.railMetricLabel}>
+                    {questionCount ? "Likely questions normalized" : roundCount ? "Rounds outlined" : "Resume-to-posting matches surfaced"}
+                  </span>
                 </div>
               </div>
             </section>
 
-            {evaluation.keywords.length ? (
+            {activeKeywords.length ? (
               <section className={styles.railCard}>
                 <div className={styles.railCardHead}>
                   <span className={styles.railLabel}>Vocabulary</span>
@@ -384,7 +489,7 @@ export default async function OpportunityInterviewPrepPage({
                   </p>
                 </div>
                 <div className={`${styles.keywordList} ${styles.railKeywordList}`}>
-                  {evaluation.keywords.map((keyword) => (
+                  {activeKeywords.map((keyword) => (
                     <span className={styles.keyword} key={keyword}>{keyword}</span>
                   ))}
                 </div>

@@ -53,7 +53,16 @@ function cleanInlineMarkdown(value: string) {
     .replace(/\*\*(.+?)\*\*/g, "$1")
     .replace(/\*(.+?)\*/g, "$1")
     .replace(/`(.+?)`/g, "$1")
+    .replace(/\s*\[inferred from evaluation\]/gi, "")
+    .replace(/\s*\[inferred from JD\]/gi, "")
+    .replace(/\s*\[inferred\]/gi, "")
+    .replace(/^-{3,}$/gm, "")
+    .replace(/\s{2,}/g, " ")
     .trim();
+}
+
+function normalizeTitle(value: string) {
+  return cleanInlineMarkdown(value).toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 }
 
 function stripBoilerplate(text: string) {
@@ -65,7 +74,7 @@ function stripBoilerplate(text: string) {
 
 function parseLabeledLine(line: string) {
   const normalized = line.replace(/^-+\s*/, "").trim();
-  const match = /^\*\*(.+?):\*\*\s*(.+)$/.exec(normalized);
+  const match = /^(?:[-*]\s*)?\*\*(.+?):\*\*\s*(.+)$/.exec(normalized);
   if (!match) return null;
   return {
     label: cleanInlineMarkdown(match[1]),
@@ -74,7 +83,7 @@ function parseLabeledLine(line: string) {
 }
 
 function parseIntelDocument(content: string) {
-  const body = content.replace(/^#\s+.+$/m, "").trim();
+  const body = content.replace(/^#\s+.+$/m, "").replace(/^---$/gm, "").trim();
   const sectionMatches = [...body.matchAll(/^##\s+(.+)$/gm)];
   const introEnd = sectionMatches[0]?.index ?? body.length;
   const intro = body.slice(0, introEnd).trim();
@@ -122,6 +131,9 @@ function parseQuestionGroups(body: string): QuestionGroup[] {
     let activeField: keyof QuestionCard | null = null;
 
     for (const line of lines.slice(1)) {
+      if (/no strong prompts could be derived/i.test(line)) {
+        continue;
+      }
       if (line.startsWith("- **Question:**")) {
         if (current) cards.push(current);
         current = {
@@ -200,6 +212,12 @@ function parseTableFromBody(body: string) {
   return parseMarkdownTableRows(lines);
 }
 
+function hasMarkdownTable(body: string) {
+  return body
+    .split("\n")
+    .some((line) => /^\s*\|.+\|\s*$/.test(line));
+}
+
 function parseBulletDefinitions(body: string) {
   return body
     .split("\n")
@@ -217,8 +235,8 @@ function parseRoundCards(body: string): RoundCard[] {
     const lines = group.split("\n").map((l) => l.trim()).filter(Boolean);
     const title = stripBoilerplate(cleanInlineMarkdown(lines[0] ?? "Round"));
     const duration = lines
-      .find((l) => l.startsWith("- **Estimated duration:**"))
-      ?.replace(/^- \*\*Estimated duration:\*\*\s*/, "");
+      .find((l) => /^- \*\*(Estimated duration|Duration):\*\*/i.test(l))
+      ?.replace(/^- \*\*(Estimated duration|Duration):\*\*\s*/i, "");
     const testing = lines
       .find((l) => l.startsWith("- **What they are likely testing:**"))
       ?.replace(/^- \*\*What they are likely testing:\*\*\s*/, "");
@@ -255,7 +273,7 @@ function renderFallbackProse(body: string, keyPrefix: string): ReactNode[] {
       ];
     }
 
-    const cleaned = cleanInlineMarkdown(block).replace(/^-{3,}$/gm, "").trim();
+    const cleaned = cleanInlineMarkdown(block);
     if (!cleaned) return [];
     return [
       <p className={styles.proseParagraph} key={`${keyPrefix}-${blockIndex}`}>
@@ -462,7 +480,9 @@ export default function InterviewIntelDocument({ content }: InterviewIntelDocume
       ) : null}
 
       {doc.sections.map((section) => {
-        if (section.title === "Expected Interview Shape") {
+        const normalizedTitle = normalizeTitle(section.title);
+
+        if (normalizedTitle.includes("expected interview") || normalizedTitle.includes("round by round")) {
           const rounds = parseRoundCards(section.body);
           return rounds.length ? (
             <ExpectedRoundsStrip key={section.title} rounds={rounds} title={section.title} />
@@ -474,19 +494,22 @@ export default function InterviewIntelDocument({ content }: InterviewIntelDocume
           );
         }
 
-        if (section.title === "Likely Questions") {
+        if (normalizedTitle.includes("likely questions")) {
           const groups = parseQuestionGroups(section.body).filter((g) => g.cards.length);
           return groups.length ? (
             <QuestionSection key={section.title} groups={groups} title={section.title} />
           ) : (
             <section className={styles.intelSection} key={section.title}>
               <h3 className={styles.intelSectionHeading}>{section.title}</h3>
-              {renderFallbackProse(section.body, section.title)}
+              <div className={styles.emptyNotice}>
+                <p>No question clusters were found in this brief yet.</p>
+                <span>Regenerate the interview prep brief after adding stronger story-bank material.</span>
+              </div>
             </section>
           );
         }
 
-        if (section.title === "Background Framing") {
+        if (normalizedTitle.includes("background framing") || normalizedTitle.includes("red flag")) {
           const cards = parseBackgroundCards(section.body);
           return cards.length ? (
             <ConcernSection key={section.title} cards={cards} title={section.title} />
@@ -498,7 +521,7 @@ export default function InterviewIntelDocument({ content }: InterviewIntelDocume
           );
         }
 
-        if (section.title === "Technical Prep Checklist") {
+        if (normalizedTitle.includes("technical prep checklist") || normalizedTitle.includes("prep checklist")) {
           const items = parseChecklistItems(section.body);
           return items.length ? (
             <section className={styles.intelSection} key={section.title}>
@@ -515,7 +538,7 @@ export default function InterviewIntelDocument({ content }: InterviewIntelDocume
           ) : null;
         }
 
-        if (section.title === "Process Overview" || section.title === "Company Signals") {
+        if (normalizedTitle.includes("process overview") || normalizedTitle.includes("company signals")) {
           const definitions = parseBulletDefinitions(section.body);
           return (
             <section className={styles.intelSection} key={section.title}>
@@ -534,7 +557,7 @@ export default function InterviewIntelDocument({ content }: InterviewIntelDocume
           );
         }
 
-        if (section.title === "Questions To Ask Them") {
+        if (normalizedTitle.includes("questions to ask")) {
           const items = section.body
             .split("\n")
             .map((l) => l.trim())
@@ -552,8 +575,9 @@ export default function InterviewIntelDocument({ content }: InterviewIntelDocume
           );
         }
 
-        if (section.title === "Story Bank Mapping" || section.title === "Evaluation Story Map") {
+        if (normalizedTitle.includes("story bank mapping") || normalizedTitle.includes("evaluation story map")) {
           const table = parseTableFromBody(section.body);
+          const tableWasPresent = hasMarkdownTable(section.body);
           return (
             <section className={styles.intelSection} key={section.title}>
               <h3 className={styles.intelSectionHeading}>{section.title}</h3>
@@ -577,6 +601,11 @@ export default function InterviewIntelDocument({ content }: InterviewIntelDocume
                       ))}
                     </tbody>
                   </table>
+                </div>
+              ) : tableWasPresent ? (
+                <div className={styles.emptyNotice}>
+                  <p>No story rows were found in the generated brief yet.</p>
+                  <span>Add or regenerate story-bank entries to populate this mapping.</span>
                 </div>
               ) : (
                 renderFallbackProse(section.body, section.title)
