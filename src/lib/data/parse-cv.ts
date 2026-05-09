@@ -17,14 +17,49 @@ export interface CvSkillGroup {
 }
 
 export interface ParsedCvDocument {
+  awards: string[];
+  certifications: string[];
   contact: Record<string, string>;
   education: string[];
   experiences: CvExperience[];
   name: string;
   projects: CvProject[];
+  publications: string[];
   skills: CvSkillGroup[];
   summary: string;
+  volunteering: string[];
 }
+
+const SECTION_ALIASES = {
+  summary: ["Professional Summary", "Summary", "Profile", "About"],
+  experience: [
+    "Work Experience",
+    "Experience",
+    "Professional Experience",
+    "Employment History",
+    "Employment",
+  ],
+  projects: [
+    "Projects",
+    "Selected Work",
+    "Portfolio",
+    "Case Studies",
+    "Personal Projects",
+    "Side Projects",
+  ],
+  education: ["Education", "Academic Background"],
+  skills: [
+    "Skills",
+    "Technical Skills",
+    "Core Skills",
+    "Core Competencies",
+    "Technologies",
+  ],
+  certifications: ["Certifications", "Licenses", "Credentials"],
+  awards: ["Awards", "Honors"],
+  publications: ["Publications"],
+  volunteering: ["Volunteer Experience", "Volunteering", "Community"],
+} as const;
 
 function extractSection(markdown: string, heading: string) {
   const expression = new RegExp(
@@ -34,10 +69,31 @@ function extractSection(markdown: string, heading: string) {
   return expression.exec(markdown)?.[1]?.trim() ?? "";
 }
 
+function extractAliasedSection(
+  markdown: string,
+  aliases: readonly string[],
+) {
+  for (const alias of aliases) {
+    const section = extractSection(markdown, alias);
+    if (section) {
+      return section;
+    }
+  }
+
+  return "";
+}
+
 function normalizeLines(value: string) {
   return value
     .split("\n")
     .map((line) => line.trim())
+    .filter(Boolean);
+}
+
+function parseListItems(section: string) {
+  return normalizeLines(section)
+    .filter((line) => /^[-•*◦]\s/.test(line))
+    .map((line) => line.replace(/^[-•*◦]\s+/, "").trim())
     .filter(Boolean);
 }
 
@@ -71,8 +127,8 @@ function parseExperiences(section: string) {
       const [companyLine = "", roleLine = "", periodLine = ""] = lines;
       const bullets = lines
         .slice(3)
-        .filter((line) => line.startsWith("- "))
-        .map((line) => line.replace(/^- /, "").trim());
+        .filter((line) => /^[-•*◦]\s/.test(line))
+        .map((line) => line.replace(/^[-•*◦]\s+/, "").trim());
 
       const [company, location = ""] = companyLine.split(/\s+--\s+/);
 
@@ -88,9 +144,7 @@ function parseExperiences(section: string) {
 }
 
 function parseProjects(section: string) {
-  return normalizeLines(section)
-    .filter((line) => line.startsWith("- "))
-    .map((line) => line.replace(/^- /, "").trim())
+  return parseListItems(section)
     .map((line) => {
       const match = /^\*\*(.+?)\*\*\s+--\s+(.+)$/.exec(line);
 
@@ -109,9 +163,7 @@ function parseProjects(section: string) {
 }
 
 function parseSkills(section: string) {
-  return normalizeLines(section)
-    .filter((line) => line.startsWith("- "))
-    .map((line) => line.replace(/^- /, "").trim())
+  return parseListItems(section)
     .map((line) => {
       const match = /^\*\*(.+?):\*\*\s+(.+)$|^\*\*(.+?)\*\*:\s+(.+)$/.exec(line);
 
@@ -136,9 +188,12 @@ function parseSkills(section: string) {
 }
 
 function parseEducation(section: string) {
-  return normalizeLines(section)
-    .filter((line) => line.startsWith("- "))
-    .map((line) => line.replace(/^- /, "").trim());
+  return parseListItems(section);
+}
+
+function parseSimpleListSection(section: string) {
+  const listItems = parseListItems(section);
+  return listItems.length ? listItems : normalizeLines(section);
 }
 
 export function parseCvMarkdown(markdown: string): ParsedCvDocument {
@@ -150,10 +205,28 @@ export function parseCvMarkdown(markdown: string): ParsedCvDocument {
   return {
     name: heading,
     contact: parseHeaderContact(markdown),
-    summary: extractSection(markdown, "Professional Summary"),
-    experiences: parseExperiences(extractSection(markdown, "Work Experience")),
-    projects: parseProjects(extractSection(markdown, "Projects")),
-    education: parseEducation(extractSection(markdown, "Education")),
-    skills: parseSkills(extractSection(markdown, "Skills")),
+    summary: extractAliasedSection(markdown, SECTION_ALIASES.summary),
+    experiences: parseExperiences(
+      extractAliasedSection(markdown, SECTION_ALIASES.experience),
+    ),
+    projects: parseProjects(
+      extractAliasedSection(markdown, SECTION_ALIASES.projects),
+    ),
+    education: parseEducation(
+      extractAliasedSection(markdown, SECTION_ALIASES.education),
+    ),
+    skills: parseSkills(extractAliasedSection(markdown, SECTION_ALIASES.skills)),
+    certifications: parseSimpleListSection(
+      extractAliasedSection(markdown, SECTION_ALIASES.certifications),
+    ),
+    awards: parseSimpleListSection(
+      extractAliasedSection(markdown, SECTION_ALIASES.awards),
+    ),
+    publications: parseSimpleListSection(
+      extractAliasedSection(markdown, SECTION_ALIASES.publications),
+    ),
+    volunteering: parseSimpleListSection(
+      extractAliasedSection(markdown, SECTION_ALIASES.volunteering),
+    ),
   };
 }

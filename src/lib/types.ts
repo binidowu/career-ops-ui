@@ -120,6 +120,56 @@ export interface ResumeSource {
   targetRoles: string[];
 }
 
+export type ResumeEvidenceKind =
+  | "experience"
+  | "project"
+  | "skill"
+  | "education"
+  | "certification"
+  | "award"
+  | "publication"
+  | "volunteering"
+  | "summary"
+  | "contact";
+
+export interface ResumeEvidenceItem {
+  id: string;
+  kind: ResumeEvidenceKind;
+  sourceId: string;
+  sourcePath: string;
+  title: string;
+  organization?: string;
+  role?: string;
+  location?: string;
+  startDate?: string;
+  endDate?: string;
+  skills: string[];
+  actions: string[];
+  outcomes: string[];
+  metrics: string[];
+  originalText: string;
+  confidence: number;
+}
+
+export interface ResumeEvidenceDiagnostic {
+  code:
+    | "missing_contact_info"
+    | "unsupported_source_format"
+    | "weak_bullet_without_outcome"
+    | "duplicate_evidence";
+  duplicateOf?: string;
+  evidenceId?: string;
+  message: string;
+  severity: "info" | "warning" | "error";
+  sourceId: string;
+}
+
+export interface ResumeEvidenceSummary {
+  totalEvidenceItems: number;
+  usedEvidenceItems: number;
+  warnings: string[];
+}
+
 export interface PipelineInboxItem {
   url: string;
   companyHint: string | null;

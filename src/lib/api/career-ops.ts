@@ -47,6 +47,9 @@ import type {
   PipelineProcessJob,
   PipelineProcessStartResponse,
   ResumeSource,
+  ResumeEvidenceDiagnostic,
+  ResumeEvidenceItem,
+  ResumeEvidenceSummary,
   ScanRunResult,
   StateDefinition,
   InterviewPrepWorkspace,
@@ -106,6 +109,11 @@ const SYSTEM_CHECKS: Record<
 };
 
 interface BackendResumeDraftPayload {
+  evidence?: {
+    diagnostics?: ResumeEvidenceDiagnostic[];
+    items?: ResumeEvidenceItem[];
+  };
+  evidenceSummary?: ResumeEvidenceSummary;
   resumeSource: {
     id: string;
     label: string;
@@ -140,6 +148,11 @@ interface BackendResumeDraftPayload {
 
 export interface GeneratedResumeDraft {
   draft: ResumeDraft;
+  evidence?: {
+    diagnostics: ResumeEvidenceDiagnostic[];
+    items: ResumeEvidenceItem[];
+  };
+  evidenceSummary?: ResumeEvidenceSummary;
   resumeSource: ResumeSource;
 }
 
@@ -554,6 +567,13 @@ function toUiResumeDraft(
   profile: UserProfile | null,
 ): GeneratedResumeDraft {
   return {
+    evidence: payload.evidence
+      ? {
+          diagnostics: payload.evidence.diagnostics ?? [],
+          items: payload.evidence.items ?? [],
+        }
+      : undefined,
+    evidenceSummary: payload.evidenceSummary,
     resumeSource: {
       id: payload.resumeSource.id,
       label: payload.resumeSource.label,
