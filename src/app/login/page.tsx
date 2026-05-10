@@ -1,102 +1,145 @@
 "use client";
 
-import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
 
-import styles from "./login.module.css";
+import { AuthLayout } from "@/components/public/AuthLayout";
+import {
+  ArrowRight,
+  Btn,
+  Checkbox,
+  CmdLabel,
+  Field,
+  GithubGlyph,
+  GoogleGlyph,
+  Input,
+  Spinner,
+} from "@/components/public/primitives";
 
-function LoginForm() {
+export default function LoginPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  // Validate the redirect target is a relative path to prevent open redirects.
-  const rawFrom = searchParams.get("from") ?? "/";
-  const from = rawFrom.startsWith("/") && !rawFrom.startsWith("//") ? rawFrom : "/";
-
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
+  const [email, setEmail] = useState("bo@example.com");
+  const [pw, setPw] = useState("");
+  const [showPw, setShowPw] = useState(false);
+  const [remember, setRemember] = useState(true);
+  const [errors, setErrors] = useState<{ email?: string; pw?: string }>({});
   const [loading, setLoading] = useState(false);
 
-  async function handleSubmit(e: React.FormEvent) {
+  function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (!password || loading) return;
+    const errs: { email?: string; pw?: string } = {};
+    if (!email.includes("@")) errs.email = "Enter a valid email address.";
+    if (pw.length < 1) errs.pw = "Password is required.";
+    setErrors(errs);
+    if (Object.keys(errs).length) return;
 
     setLoading(true);
-    setError("");
-
-    try {
-      const response = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password }),
-      });
-
-      if (!response.ok) {
-        const data = (await response.json()) as { error?: string };
-        setError(data.error ?? "Incorrect password.");
-        setPassword("");
-        return;
-      }
-
-      router.replace(from);
-      router.refresh();
-    } catch {
-      setError("Unable to reach the server. Try again.");
-    } finally {
-      setLoading(false);
-    }
+    window.setTimeout(() => {
+      router.push("/app-handoff");
+    }, 900);
   }
 
   return (
-    <div className={styles.card}>
-      <div className={styles.cardHead}>
-        <p className={styles.wordmark}>Career-Ops</p>
-        <h1 className={styles.heading}>Workspace access</h1>
-        <p className={styles.subheading}>
-          This workspace is password-protected. Enter the access key to continue.
-        </p>
-      </div>
+    <AuthLayout kind="login">
+      <CmdLabel>career-ops auth login</CmdLabel>
+      <h1
+        style={{
+          fontFamily: "var(--co-font-d)",
+          fontSize: "clamp(28px, 3.2vw, 36px)",
+          fontWeight: 600,
+          letterSpacing: "-0.02em",
+          color: "var(--co-text)",
+          marginTop: 14,
+          lineHeight: 1.15,
+        }}
+      >
+        Welcome back.
+      </h1>
+      <p style={{ marginTop: 8, fontSize: 14.5, color: "var(--co-text-2)", lineHeight: 1.5 }}>
+        Pick up your pipeline, resumes, and interview prep where you left off.
+      </p>
 
-      <form className={styles.form} onSubmit={(e) => void handleSubmit(e)}>
-        <div className={styles.fieldGroup}>
-          <label className={styles.label} htmlFor="password">
-            Access key
-          </label>
-          <input
-            autoComplete="current-password"
+      <form onSubmit={submit} style={{ marginTop: "var(--co-s-2xl)", display: "grid", gap: 16 }}>
+        <Field label="Email" error={errors.email} required>
+          <Input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="you@example.com"
             autoFocus
-            className={`${styles.input} ${error ? styles.inputError : ""}`}
-            disabled={loading}
-            id="password"
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="Enter your access key"
-            type="password"
-            value={password}
+            error={!!errors.email}
           />
-          {error ? <p className={styles.errorMsg} role="alert">{error}</p> : null}
+        </Field>
+        <Field label="Password" error={errors.pw} required>
+          <Input
+            type={showPw ? "text" : "password"}
+            value={pw}
+            onChange={(e) => setPw(e.target.value)}
+            placeholder="••••••••"
+            error={!!errors.pw}
+            suffix={
+              <button
+                type="button"
+                onClick={() => setShowPw((s) => !s)}
+                style={{
+                  background: "none",
+                  border: 0,
+                  color: "var(--co-text-3)",
+                  cursor: "pointer",
+                  padding: "0 12px",
+                  height: "2.625rem",
+                  fontFamily: "var(--co-font-m)",
+                  fontSize: 11,
+                  letterSpacing: "0.05em",
+                }}
+              >
+                {showPw ? "hide" : "show"}
+              </button>
+            }
+          />
+        </Field>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <Checkbox checked={remember} onChange={() => setRemember((r) => !r)} label="Remember this device" />
+          <a href="#" style={{ fontSize: 13, color: "var(--co-accent-strong)", fontWeight: 500 }}>
+            Forgot password?
+          </a>
         </div>
-
-        <button
-          className={styles.submitBtn}
-          disabled={!password || loading}
+        <Btn
           type="submit"
+          variant="accent"
+          size="lg"
+          fullWidth
+          disabled={loading}
+          iconRight={loading ? <Spinner /> : <ArrowRight />}
         >
-          {loading ? "Verifying…" : "Enter workspace"}
-        </button>
+          {loading ? "Restoring session…" : "Log in"}
+        </Btn>
       </form>
 
-      <p className={styles.hint}>
-        Set <code>AUTH_PASSWORD</code> in <code>.env.local</code> to configure access.
-      </p>
-    </div>
-  );
-}
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: "var(--co-s-2xl)" }}>
+        <div style={{ flex: 1, height: 1, background: "var(--co-border-subtle)" }} />
+        <span
+          style={{
+            fontFamily: "var(--co-font-m)",
+            fontSize: 10,
+            letterSpacing: "0.12em",
+            color: "var(--co-text-3)",
+            textTransform: "uppercase",
+          }}
+        >
+          or continue with
+        </span>
+        <div style={{ flex: 1, height: 1, background: "var(--co-border-subtle)" }} />
+      </div>
 
-export default function LoginPage() {
-  return (
-    <div className={styles.page}>
-      <Suspense>
-        <LoginForm />
-      </Suspense>
-    </div>
+      <div style={{ marginTop: 14, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+        <Btn variant="secondary" size="md">
+          <GoogleGlyph /> Google
+        </Btn>
+        <Btn variant="secondary" size="md">
+          <GithubGlyph /> GitHub
+        </Btn>
+      </div>
+    </AuthLayout>
   );
 }

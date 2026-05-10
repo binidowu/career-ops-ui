@@ -51,7 +51,15 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   const [commandItems, authEnabled] = await Promise.all([
-    getCommandPaletteOpportunities().then(buildCommandItems),
+    getCommandPaletteOpportunities()
+      .then(buildCommandItems)
+      .catch((error) => {
+        console.warn(
+          "Command palette data unavailable:",
+          error instanceof Error ? error.message : error,
+        );
+        return [];
+      }),
     Promise.resolve(isAuthEnabled()),
   ]);
 
