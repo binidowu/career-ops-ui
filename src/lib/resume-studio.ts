@@ -363,6 +363,41 @@ function escapeHtml(value: string) {
 }
 
 // ---------------------------------------------------------------------------
+// Shared helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Extracts a short tech-stack string from a project description sentence.
+ * Looks for "using X, Y, Z [for/to]" or "with X, Y, Z [,/including]" patterns.
+ * Returns null when no short stack can be extracted.
+ */
+export function extractProjectTechStack(description: string): string | null {
+  if (!description) return null;
+
+  const clean = (raw: string) =>
+    raw
+      .replace(/,\s+and\s+/gi, ", ")   // ", and X" → ", X"
+      .replace(/\s+and\s+/gi, ", ")     // " and X" → ", X"
+      .replace(/\s+/g, " ")
+      .trim()
+      .replace(/,\s*$/, "");
+
+  const usingMatch = /\busing\s+([\w.+#/\s,]+?)(?:\s+(?:for|to|in order)\b|$)/i.exec(description);
+  if (usingMatch) {
+    const stack = clean(usingMatch[1]);
+    if (stack.length > 0 && stack.length <= 90) return stack;
+  }
+
+  const withMatch = /\bwith\s+([A-Z][\w.+#/\s,]+?)(?:\s+(?:to|for|including)\b|$)/i.exec(description);
+  if (withMatch) {
+    const stack = clean(withMatch[1]);
+    if (stack.length > 0 && stack.length <= 90) return stack;
+  }
+
+  return null;
+}
+
+// ---------------------------------------------------------------------------
 // ayo-clean-v1 template helpers
 // ---------------------------------------------------------------------------
 
@@ -418,12 +453,12 @@ function renderProjectBlock(block: {
   description: string;
   bullets: Array<{ text: string }>;
 }): string {
-  const bulletsHtml = block.bullets
-    .map((b) => `<li>${escapeHtml(b.text)}</li>`)
-    .join("");
-  const heading = block.description
-    ? `${escapeHtml(block.title)}<span class="entry-sep"> | </span><span class="entry-tech">${escapeHtml(block.description)}</span>`
+  const techStack = extractProjectTechStack(block.description);
+  const heading = techStack
+    ? `${escapeHtml(block.title)}<span class="entry-sep"> | </span><span class="entry-tech">${escapeHtml(techStack)}</span>`
     : escapeHtml(block.title);
+
+  const bulletsHtml = block.bullets.map((b) => `<li>${escapeHtml(b.text)}</li>`).join("");
   return `<li class="project-item">
     <div class="project-head"><strong>${heading}</strong></div>
     ${bulletsHtml ? `<ul class="sub-list">${bulletsHtml}</ul>` : ""}
@@ -576,7 +611,8 @@ export function estimateResumePageCount(document: ResumeDocument): {
 // ayo-clean-v1 renderer
 // ---------------------------------------------------------------------------
 
-export function renderResumeDocumentHtml(document: ResumeDocument): string {
+export function renderResumeDocumentHtml(document: ResumeDocument, options?: { compact?: boolean }): string {
+  const compact = options?.compact ?? false;
   const contactLineHtml = buildContactLine(document.contactLines);
 
   const enabledSections = [...document.sections]
@@ -604,68 +640,67 @@ export function renderResumeDocumentHtml(document: ResumeDocument): string {
         background: #fff;
         color: #1a1a1a;
         font-family: Arial, "Helvetica Neue", Helvetica, sans-serif;
-        font-size: 10pt;
-        line-height: 1.4;
+        font-size: ${compact ? "9.5pt" : "10pt"};
+        line-height: ${compact ? "1.37" : "1.4"};
       }
 
       .page {
         width: ${document.format === "a4" ? "8.27in" : "8.5in"};
         margin: 0 auto;
-        padding: 0.55in 0.6in 0.55in 0.6in;
+        padding: ${compact ? "0.38in 0.5in" : "0.55in 0.6in"};
       }
 
       /* ── Header ── */
       .doc-header {
-        margin-bottom: 0.18in;
-        padding-bottom: 0.1in;
+        margin-bottom: ${compact ? "10pt" : "0.18in"};
+        padding-bottom: ${compact ? "7pt" : "0.1in"};
         border-bottom: 1.5pt solid #1a1a1a;
       }
       .doc-name {
-        font-size: 18pt;
+        font-size: ${compact ? "16pt" : "18pt"};
         font-weight: 700;
         line-height: 1.15;
         letter-spacing: -0.01em;
         color: #1a1a1a;
       }
       .doc-headline {
-        font-size: 10.5pt;
+        font-size: ${compact ? "9.5pt" : "10.5pt"};
         font-weight: 400;
         color: #444;
-        margin-top: 3pt;
-        margin-bottom: 4pt;
+        margin-top: ${compact ? "2pt" : "3pt"};
+        margin-bottom: ${compact ? "3pt" : "4pt"};
       }
       .doc-contact {
-        font-size: 9pt;
+        font-size: ${compact ? "8.5pt" : "9pt"};
         color: #333;
-        margin-top: 4pt;
+        margin-top: ${compact ? "3pt" : "4pt"};
       }
       .doc-contact a { color: #1a1a1a; text-decoration: none; }
-      .doc-contact a:hover { text-decoration: underline; }
       .contact-sep { color: #999; }
 
       /* ── Sections ── */
-      .section { margin-bottom: 0.2in; }
+      .section { margin-bottom: ${compact ? "10pt" : "0.2in"}; }
       .section:last-child { margin-bottom: 0; }
 
       .section-label {
-        font-size: 9.5pt;
+        font-size: ${compact ? "9pt" : "9.5pt"};
         font-weight: 700;
         letter-spacing: 0.06em;
         color: #1a1a1a;
         border-bottom: 1pt solid #1a1a1a;
-        padding-bottom: 2pt;
-        margin-bottom: 7pt;
+        padding-bottom: ${compact ? "1.5pt" : "2pt"};
+        margin-bottom: ${compact ? "5pt" : "7pt"};
       }
 
       /* ── Summary ── */
       .summary-text {
-        font-size: 10pt;
-        line-height: 1.45;
+        font-size: ${compact ? "9.5pt" : "10pt"};
+        line-height: ${compact ? "1.37" : "1.45"};
         color: #1a1a1a;
       }
 
       /* ── Experience entries ── */
-      .entry-list { display: flex; flex-direction: column; gap: 10pt; }
+      .entry-list { display: flex; flex-direction: column; gap: ${compact ? "7pt" : "10pt"}; }
       .entry { }
       .entry-head {
         display: flex;
@@ -674,7 +709,7 @@ export function renderResumeDocumentHtml(document: ResumeDocument): string {
         gap: 8pt;
       }
       .entry-primary {
-        font-size: 10pt;
+        font-size: ${compact ? "9.5pt" : "10pt"};
         font-weight: 400;
         flex: 1;
       }
@@ -682,36 +717,31 @@ export function renderResumeDocumentHtml(document: ResumeDocument): string {
       .entry-sep { color: #666; }
       .entry-tech { font-weight: 400; color: #444; }
       .entry-meta {
-        font-size: 9pt;
+        font-size: ${compact ? "8.5pt" : "9pt"};
         color: #555;
         white-space: nowrap;
         flex-shrink: 0;
       }
 
-      /* ── Sub-bullets (experience / project) ── */
+      /* ── Sub-bullets ── */
       .sub-list {
         list-style: none;
-        margin: 4pt 0 0 0;
+        margin: ${compact ? "3pt" : "4pt"} 0 0 0;
         padding: 0;
         display: flex;
         flex-direction: column;
-        gap: 2pt;
+        gap: ${compact ? "1.5pt" : "2pt"};
       }
       .sub-list li {
         position: relative;
         padding-left: 14pt;
-        font-size: 9.5pt;
-        line-height: 1.42;
+        font-size: ${compact ? "9pt" : "9.5pt"};
+        line-height: ${compact ? "1.37" : "1.42"};
         color: #1a1a1a;
       }
       .sub-list li::before {
-        content: "○";
-        position: absolute;
-        left: 2pt;
-        top: 0;
-        font-size: 7pt;
-        color: #555;
-        line-height: 1.6;
+        content: "○"; position: absolute; left: 2pt; top: 0;
+        font-size: 7pt; color: #555; line-height: 1.6;
       }
 
       /* ── Projects ── */
@@ -719,22 +749,17 @@ export function renderResumeDocumentHtml(document: ResumeDocument): string {
         list-style: none;
         display: flex;
         flex-direction: column;
-        gap: 8pt;
+        gap: ${compact ? "6pt" : "8pt"};
         padding: 0;
       }
-      .project-item { }
       .project-head {
-        font-size: 10pt;
+        font-size: ${compact ? "9.5pt" : "10pt"};
         padding-left: 12pt;
         position: relative;
       }
       .project-head::before {
-        content: "●";
-        position: absolute;
-        left: 0;
-        font-size: 7pt;
-        top: 1pt;
-        color: #1a1a1a;
+        content: "●"; position: absolute; left: 0;
+        font-size: 7pt; top: 1pt; color: #1a1a1a;
       }
       .project-item .sub-list { margin-left: 12pt; }
 
@@ -743,38 +768,34 @@ export function renderResumeDocumentHtml(document: ResumeDocument): string {
         list-style: none;
         display: flex;
         flex-direction: column;
-        gap: 3pt;
+        gap: ${compact ? "2pt" : "3pt"};
         padding: 0;
       }
       .skill-list li {
         position: relative;
         padding-left: 12pt;
-        font-size: 9.5pt;
-        line-height: 1.42;
+        font-size: ${compact ? "9pt" : "9.5pt"};
+        line-height: ${compact ? "1.37" : "1.42"};
       }
       .skill-list li::before {
-        content: "●";
-        position: absolute;
-        left: 0;
-        font-size: 7pt;
-        top: 1pt;
-        color: #1a1a1a;
+        content: "●"; position: absolute; left: 0;
+        font-size: 7pt; top: 1pt; color: #1a1a1a;
       }
       .skill-label { font-weight: 700; }
 
-      /* ── Plain list (education, certs, awards…) ── */
+      /* ── Plain list ── */
       .plain-list {
         list-style: none;
         display: flex;
         flex-direction: column;
-        gap: 3pt;
+        gap: ${compact ? "2pt" : "3pt"};
         padding: 0;
       }
-      .plain-list li { font-size: 9.5pt; line-height: 1.42; }
+      .plain-list li { font-size: ${compact ? "9pt" : "9.5pt"}; line-height: ${compact ? "1.37" : "1.42"}; }
 
       @media print {
         body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-        .page { padding: 0.55in 0.6in; }
+        .page { padding: ${compact ? "0.38in 0.5in" : "0.55in 0.6in"}; }
       }
     </style>
   </head>

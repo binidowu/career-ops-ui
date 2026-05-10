@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 
+import { useTheme } from "@/components/common/ThemeProvider";
 import type { ToastMessage } from "@/components/common/Toast";
 
 import { PRIMARY_NAV_ITEMS } from "./shell-data";
@@ -26,7 +27,9 @@ function isActive(pathname: string, href: string) {
 export default function Topbar({ authEnabled, onNotify, onOpenPalette }: TopbarProps) {
   const pathname = usePathname();
   const router = useRouter();
+  const { theme, setTheme } = useTheme();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const darkModeEnabled = theme === "dark";
 
   async function handleLogout() {
     await fetch("/api/auth/logout", { method: "POST" });
@@ -42,6 +45,10 @@ export default function Topbar({ authEnabled, onNotify, onOpenPalette }: TopbarP
       tone: "neutral",
       dismissAfter: 4000,
     });
+  }
+
+  function toggleTheme() {
+    setTheme(darkModeEnabled ? "light" : "dark");
   }
 
   return (
@@ -89,6 +96,26 @@ export default function Topbar({ authEnabled, onNotify, onOpenPalette }: TopbarP
           >
             <span>More</span>
             <kbd>⌘K</kbd>
+          </button>
+
+          <button
+            aria-label={darkModeEnabled ? "Switch to light mode" : "Switch to dark mode"}
+            aria-pressed={darkModeEnabled}
+            className={`${styles.iconBtn} ${styles.themeToggle}`}
+            data-active={darkModeEnabled}
+            onClick={toggleTheme}
+            title={darkModeEnabled ? "Switch to light mode" : "Switch to dark mode"}
+            type="button"
+          >
+            {darkModeEnabled ? (
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                <path d="M8 2V1M8 15v-1M3.76 3.76 3.05 3.05M12.95 12.95l-.71-.71M2 8H1M15 8h-1M3.76 12.24l-.71.71M12.95 3.05l-.71.71M11.25 8A3.25 3.25 0 1 1 4.75 8a3.25 3.25 0 0 1 6.5 0Z" stroke="currentColor" strokeWidth="1.35" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            ) : (
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                <path d="M13.42 10.7A5.9 5.9 0 0 1 5.3 2.58 5.9 5.9 0 1 0 13.42 10.7Z" stroke="currentColor" strokeWidth="1.35" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            )}
           </button>
 
           <button className={styles.iconBtn} aria-label="Notifications" type="button">

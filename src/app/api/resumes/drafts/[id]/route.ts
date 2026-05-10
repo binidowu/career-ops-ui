@@ -1,8 +1,5 @@
-import {
-  getResumeDraftById,
-  patchResumeDraft,
-  type ResumeDraftOp,
-} from "@/lib/api/career-ops";
+import { getResumeDraftById, patchResumeDraft } from "@/lib/api/career-ops";
+import type { ResumeDraftOp } from "@/lib/types";
 
 export async function GET(
   _request: Request,

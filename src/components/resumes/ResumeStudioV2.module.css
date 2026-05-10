@@ -1,39 +1,32 @@
-/* ── Three-pane studio layout ── */
+/* ── Studio layout — left rail + center ── */
 
 .studio {
   display: grid;
-  grid-template-columns: 260px 1fr 280px;
+  grid-template-columns: 240px 1fr;
   grid-template-rows: 1fr;
   height: 100%;
   max-height: 100%;
   overflow: hidden;
+  position: relative;
 }
 
-/* At narrower viewports collapse the right rail */
-@media (max-width: 90rem) {
-  .studio {
-    grid-template-columns: 260px 1fr;
-  }
-
-  .rightRail {
-    display: none;
-  }
+.studio[data-right-rail-open="true"] {
+  grid-template-columns: 240px 1fr 272px;
 }
 
 @media (max-width: 72rem) {
-  .studio {
+  .studio,
+  .studio[data-right-rail-open="true"] {
     grid-template-columns: 1fr;
     height: auto;
     min-height: calc(100dvh - var(--topbar-height));
     overflow: visible;
   }
 
-  .rightRail {
-    display: none;
-  }
+  .rightRail { display: none; }
 }
 
-/* Right rail */
+/* Right rail — slides in when open */
 
 .rightRail {
   display: grid;
@@ -42,6 +35,29 @@
   border-left: 1px solid var(--color-border-subtle);
   background-color: var(--color-surface);
   overflow: hidden;
+}
+
+/* Toggle button — rendered inline inside the editor header bar */
+
+.rightRailToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 2rem;
+  padding: 0 var(--space-sm);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  font-size: var(--text-xs);
+  font-family: var(--font-body);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: border-color var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out);
+}
+
+.rightRailToggle:hover {
+  border-color: var(--color-line-strong);
+  color: var(--color-text);
 }
 
 .rightRailTabs {

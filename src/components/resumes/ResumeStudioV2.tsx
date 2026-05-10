@@ -21,6 +21,7 @@ import type {
 } from "@/lib/types";
 
 import { ResumeDiagnosticsPanel } from "./ResumeDiagnosticsPanel";
+import { ResumeDocumentEditor } from "./ResumeDocumentEditor";
 import { ResumeEvidencePanel } from "./ResumeEvidencePanel";
 import { ResumeStrategyPanel } from "./ResumeStrategyPanel";
 
@@ -79,6 +80,22 @@ function getDefaultResumeSourceId(profile: UserProfile | null) {
 /* ── Override persistence ── */
 
 const OVERRIDES_PREFIX = "resume-overrides-";
+const SAVED_DOC_PREFIX = "resume-doc-id-";
+
+function getSavedDocId(opportunityId: string, sourceId: string): string | null {
+  try { return localStorage.getItem(`${SAVED_DOC_PREFIX}${opportunityId}:${sourceId}`) ?? null; }
+  catch { return null; }
+}
+
+function setSavedDocId(opportunityId: string, sourceId: string, docId: string) {
+  try { localStorage.setItem(`${SAVED_DOC_PREFIX}${opportunityId}:${sourceId}`, docId); }
+  catch { /* quota errors non-fatal */ }
+}
+
+function clearSavedDocId(opportunityId: string, sourceId: string) {
+  try { localStorage.removeItem(`${SAVED_DOC_PREFIX}${opportunityId}:${sourceId}`); }
+  catch { /* ignore */ }
+}
 
 interface StoredOverrides {
   headlineOverride: string;
@@ -165,6 +182,7 @@ export default function ResumeStudioV2({
   );
   const [selectedKeywords, setSelectedKeywords] = useState<string[]>([]);
   const [format, setFormat] = useState<"a4" | "letter">("a4");
+  const [maxPages, setMaxPages] = useState<"1" | "2" | "auto">("auto");
   const [tone, setTone] = useState(50);
   const [debouncedTone, setDebouncedTone] = useState(50);
   const toneDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -188,6 +206,7 @@ export default function ResumeStudioV2({
   const [rewrite, setRewrite] = useState<ResumeRewriteResult | undefined>(undefined);
 
   /* Right rail */
+  const [rightRailOpen, setRightRailOpen] = useState(false);
   const [rightRailTab, setRightRailTab] = useState<RightRailTab>("strategy");
 
   const diagnosticCount =
@@ -287,6 +306,10 @@ export default function ResumeStudioV2({
   function handleRegenerate() {
     manualRefreshPendingRef.current = true;
     setEditing(null);
+    // Clear saved draft so a fully fresh document is generated.
+    if (selectedOpportunity) {
+      clearSavedDocId(selectedOpportunity.id, selectedResumeSourceId || "default");
+    }
     setDraftRefreshKey((current) => current + 1);
   }
 
@@ -307,6 +330,29 @@ export default function ResumeStudioV2({
       }
 
       setDraftLoading(true);
+
+      // On initial load (draftRefreshKey === 0, no manual refresh pending), try to restore
+      // a previously saved document before regenerating from the backend.
+      const isInitialLoad = draftRefreshKey === 0 && !manualRefreshPendingRef.current;
+      if (isInitialLoad) {
+        const savedId = getSavedDocId(selectedOpportunity.id, selectedResumeSourceId || "default");
+        if (savedId) {
+          try {
+            const savedResponse = await fetch(`/api/resumes/drafts/${savedId}`);
+            if (savedResponse.ok) {
+              const savedData = (await savedResponse.json()) as { document?: ResumeDocument };
+              if (savedData.document && !cancelled) {
+                setResumeDocument(savedData.document);
+                setDraftLoading(false);
+                return;
+              }
+            }
+          } catch {
+            // Saved draft not found or network error — fall through to regeneration.
+            clearSavedDocId(selectedOpportunity.id, selectedResumeSourceId || "default");
+          }
+        }
+      }
 
       try {
         const response = await fetch("/api/resumes/draft", {
@@ -337,6 +383,11 @@ export default function ResumeStudioV2({
 
         if (cancelled) return;
 
+        // Persist the document ID so refreshes restore this draft.
+        if (data.document) {
+          setSavedDocId(selectedOpportunity.id, selectedResumeSourceId || "default", data.document.id);
+        }
+
         setDraft(data.draft);
         setDraftResumeSource(data.resumeSource ?? null);
         setLastGeneratedSourceId(selectedResumeSourceId || null);
@@ -358,7 +409,7 @@ export default function ResumeStudioV2({
           manualRefreshPendingRef.current = false;
           notify({
             title: "Draft regenerated",
-            description: `Fresh ${data.draft.variantLabel.toLowerCase()} draft${data.resumeSource?.label ? ` from ${data.resumeSource.label}` : ""}. Your inline edits are preserved.`,
+            description: `Fresh draft generated. Previous edits replaced.`,
             dismissAfter: 4000,
           });
         }
@@ -427,26 +478,40 @@ export default function ResumeStudioV2({
     setExporting(true);
 
     try {
-      const expOverrides = Object.entries(expBulletOverrides).map(([i, bullets]) => ({
-        index: Number(i),
-        bullets,
-      }));
+      let response: Response;
+      let fileName: string;
 
-      const response = await fetch("/api/resumes/export", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          opportunityId: selectedOpportunity.id,
-          resumeSourceId: selectedResumeSourceId || undefined,
-          format,
-          selectedKeywords,
-          tone,
-          variant,
-          headlineOverride,
-          summaryOverride,
-          experienceOverrides: expOverrides,
-        }),
-      });
+      if (resumeDocument) {
+        // V2 path: export the saved document using the ayo-clean-v1 template
+        response = await fetch(`/api/resumes/drafts/${resumeDocument.id}/export`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ maxPages }),
+        });
+        fileName = resumeDocument.fileName;
+      } else {
+        // Legacy path: regenerate from draft
+        const expOverrides = Object.entries(expBulletOverrides).map(([i, bullets]) => ({
+          index: Number(i),
+          bullets,
+        }));
+        response = await fetch("/api/resumes/export", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            opportunityId: selectedOpportunity.id,
+            resumeSourceId: selectedResumeSourceId || undefined,
+            format,
+            selectedKeywords,
+            tone,
+            variant,
+            headlineOverride,
+            summaryOverride,
+            experienceOverrides: expOverrides,
+          }),
+        });
+        fileName = draft?.fileName ?? "career-ops-resume.pdf";
+      }
 
       if (!response.ok) {
         const data = (await response.json()) as { error?: string };
@@ -455,13 +520,13 @@ export default function ResumeStudioV2({
 
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
-      const anchor = document.createElement("a");
+      const anchor = window.document.createElement("a");
       anchor.href = url;
-      anchor.download = draft?.fileName ?? "career-ops-resume.pdf";
+      anchor.download = fileName;
       anchor.style.display = "none";
-      document.body.appendChild(anchor);
+      window.document.body.appendChild(anchor);
       anchor.click();
-      document.body.removeChild(anchor);
+      window.document.body.removeChild(anchor);
       URL.revokeObjectURL(url);
 
       notify({
@@ -523,7 +588,7 @@ export default function ResumeStudioV2({
   /* ── Render ── */
 
   return (
-    <section className={v2Styles.studio}>
+    <section className={v2Styles.studio} data-right-rail-open={rightRailOpen}>
 
       {/* ══ LEFT RAIL ══ */}
       <aside className={legacyStyles.controls}>
@@ -648,6 +713,7 @@ export default function ResumeStudioV2({
             <div className={legacyStyles.kvList}>
               {([
                 ["Paper Size", format === "a4" ? "A4" : "US Letter"],
+                ["Max Pages", maxPages === "auto" ? "Auto" : `${maxPages} page${maxPages === "1" ? "" : "s"}`],
                 ["Draft Angle", draft?.variantLabel ?? "Balanced emphasis"],
                 ["Profile", workspace.profileReady ? "Included" : "Missing"],
                 ["Keywords active", String(selectedKeywords.length)],
@@ -676,57 +742,25 @@ export default function ResumeStudioV2({
                 <option value="technical">Technical</option>
                 <option value="execution">Execution</option>
               </select>
+              <select
+                className={legacyStyles.select}
+                onChange={(e) => setMaxPages(e.target.value as "1" | "2" | "auto")}
+                value={maxPages}
+              >
+                <option value="auto">Auto pages</option>
+                <option value="1">1 page</option>
+                <option value="2">2 pages</option>
+              </select>
             </div>
           </section>
 
-          {/* Manual Edits */}
-          <section className={legacyStyles.controlSection}>
-            <div className={legacyStyles.panelHead}>
-              <p className={legacyStyles.sectionLabel}>Manual Edits</p>
-              <p className={legacyStyles.panelText}>
-                Override the headline or summary. Click the pencil icon on any section to edit inline.
-              </p>
-            </div>
-            <label className={legacyStyles.field}>
-              <span>Headline</span>
-              <input
-                className={legacyStyles.textInput}
-                onChange={(e) => {
-                  const value = e.target.value;
-                  setHeadlineOverride(value);
-                  if (selectedOpportunity) {
-                    saveStoredOverrides(selectedOpportunity.id, { headlineOverride: value, summaryOverride, expBulletOverrides });
-                  }
-                }}
-                placeholder={draft?.headline ?? "Generated headline"}
-                type="text"
-                value={headlineOverride}
-              />
-            </label>
-            <label className={legacyStyles.field}>
-              <span>Summary</span>
-              <textarea
-                className={legacyStyles.textArea}
-                onChange={(e) => {
-                  const value = e.target.value;
-                  setSummaryOverride(value);
-                  if (selectedOpportunity) {
-                    saveStoredOverrides(selectedOpportunity.id, { headlineOverride, summaryOverride: value, expBulletOverrides });
-                  }
-                }}
-                placeholder={draft?.summary ?? "Generated summary"}
-                rows={5}
-                value={summaryOverride}
-              />
-            </label>
-          </section>
         </div>
 
         {/* Left rail footer */}
         <div className={legacyStyles.controlsFooter}>
           <button
             className={legacyStyles.exportButton}
-            disabled={!draft || draftLoading || exporting}
+            disabled={(!draft && !resumeDocument) || draftLoading || exporting}
             onClick={() => void handleExport()}
             type="button"
           >
@@ -746,7 +780,66 @@ export default function ResumeStudioV2({
         </div>
       </aside>
 
-      {/* ══ CENTER — Document Preview ══ */}
+      {/* ══ CENTER — Document Editor (V2) or Legacy Preview ══ */}
+      {resumeDocument ? (
+        <ResumeDocumentEditor
+          headerActions={
+            <button
+              className={v2Styles.rightRailToggle}
+              onClick={() => setRightRailOpen((v) => !v)}
+              title={rightRailOpen ? "Hide details panel" : "Show strategy, evidence & diagnostics"}
+              type="button"
+            >
+              {rightRailOpen ? "✕ Close" : "≡ Details"}
+              {!rightRailOpen && diagnosticCount > 0 && (
+                <span className={v2Styles.rightRailBadge}>{diagnosticCount}</span>
+              )}
+            </button>
+          }
+          initialDocument={resumeDocument}
+          onDocumentChange={(doc) => {
+            setResumeDocument(doc);
+            if (selectedOpportunity) {
+              setSavedDocId(selectedOpportunity.id, selectedResumeSourceId || "default", doc.id);
+            }
+          }}
+          onRequestExport={async (doc) => {
+            setExporting(true);
+            try {
+              const response = await fetch(`/api/resumes/drafts/${doc.id}/export`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ maxPages }),
+              });
+              if (!response.ok) {
+                const data = (await response.json()) as { error?: string };
+                throw new Error(data.error ?? "Unable to export PDF.");
+              }
+              const blob = await response.blob();
+              const url = URL.createObjectURL(blob);
+              const anchor = window.document.createElement("a");
+              anchor.href = url;
+              anchor.download = doc.fileName;
+              anchor.style.display = "none";
+              window.document.body.appendChild(anchor);
+              anchor.click();
+              window.document.body.removeChild(anchor);
+              URL.revokeObjectURL(url);
+              notify({ title: "PDF exported", description: doc.fileName, dismissAfter: 4000 });
+              startTransition(() => { router.refresh(); });
+            } catch (error) {
+              notify({
+                title: "Export failed",
+                description: error instanceof Error ? error.message : "Check the export script.",
+                tone: "error",
+                dismissAfter: null,
+              });
+            } finally {
+              setExporting(false);
+            }
+          }}
+        />
+      ) : (
       <section className={legacyStyles.previewPanel}>
         {/* Header bar */}
         <div className={legacyStyles.previewHead}>
@@ -1076,56 +1169,51 @@ export default function ResumeStudioV2({
           </button>
         </div>
       </section>
+      )}
 
-      {/* ══ RIGHT RAIL ══ */}
-      <aside className={v2Styles.rightRail}>
-        {/* Tab bar */}
-        <div className={v2Styles.rightRailTabs}>
-          <button
-            className={v2Styles.rightRailTab}
-            data-active={rightRailTab === "strategy"}
-            onClick={() => setRightRailTab("strategy")}
-            type="button"
-          >
-            Strategy
-          </button>
-          <button
-            className={v2Styles.rightRailTab}
-            data-active={rightRailTab === "evidence"}
-            onClick={() => setRightRailTab("evidence")}
-            type="button"
-          >
-            Evidence
-          </button>
-          <button
-            className={v2Styles.rightRailTab}
-            data-active={rightRailTab === "diagnostics"}
-            onClick={() => setRightRailTab("diagnostics")}
-            type="button"
-          >
-            Diagnostics
-            {diagnosticCount > 0 && (
-              <span className={v2Styles.rightRailBadge}>{diagnosticCount}</span>
+      {/* ══ RIGHT RAIL (conditionally rendered) ══ */}
+      {rightRailOpen && (
+        <aside className={v2Styles.rightRail}>
+          <div className={v2Styles.rightRailTabs}>
+            <button
+              className={v2Styles.rightRailTab}
+              data-active={rightRailTab === "strategy"}
+              onClick={() => setRightRailTab("strategy")}
+              type="button"
+            >
+              Strategy
+            </button>
+            <button
+              className={v2Styles.rightRailTab}
+              data-active={rightRailTab === "evidence"}
+              onClick={() => setRightRailTab("evidence")}
+              type="button"
+            >
+              Evidence
+            </button>
+            <button
+              className={v2Styles.rightRailTab}
+              data-active={rightRailTab === "diagnostics"}
+              onClick={() => setRightRailTab("diagnostics")}
+              type="button"
+            >
+              Diagnostics
+              {diagnosticCount > 0 && (
+                <span className={v2Styles.rightRailBadge}>{diagnosticCount}</span>
+              )}
+            </button>
+          </div>
+          <div className={v2Styles.rightRailPanel}>
+            {rightRailTab === "strategy" && <ResumeStrategyPanel strategy={strategy} />}
+            {rightRailTab === "evidence" && (
+              <ResumeEvidencePanel evidenceSummary={evidenceSummary} evidenceDiagnostics={evidenceDiagnostics} />
             )}
-          </button>
-        </div>
-
-        {/* Panel content */}
-        <div className={v2Styles.rightRailPanel}>
-          {rightRailTab === "strategy" && (
-            <ResumeStrategyPanel strategy={strategy} />
-          )}
-          {rightRailTab === "evidence" && (
-            <ResumeEvidencePanel
-              evidenceSummary={evidenceSummary}
-              evidenceDiagnostics={evidenceDiagnostics}
-            />
-          )}
-          {rightRailTab === "diagnostics" && (
-            <ResumeDiagnosticsPanel document={resumeDocument} rewrite={rewrite} />
-          )}
-        </div>
-      </aside>
+            {rightRailTab === "diagnostics" && (
+              <ResumeDiagnosticsPanel document={resumeDocument} rewrite={rewrite} />
+            )}
+          </div>
+        </aside>
+      )}
 
     </section>
   );

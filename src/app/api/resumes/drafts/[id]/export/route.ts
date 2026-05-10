@@ -1,13 +1,15 @@
 import { appendApplyActivity, exportResumeDraftDocument } from "@/lib/api/career-ops";
 
 export async function POST(
-  _request: Request,
+  request: Request,
   context: { params: Promise<{ id: string }> },
 ) {
   const { id } = await context.params;
+  const body = await request.json().catch(() => ({})) as { maxPages?: unknown };
+  const maxPages = body.maxPages === "1" || body.maxPages === "2" ? body.maxPages : "auto";
 
   try {
-    const { buffer, fileName, overflowDiagnostics, estimatedPages } = await exportResumeDraftDocument(id);
+    const { buffer, fileName, overflowDiagnostics, estimatedPages } = await exportResumeDraftDocument(id, { maxPages });
 
     // Best-effort activity log — do not fail the export if this throws.
     try {

@@ -89,6 +89,7 @@
 
 .navItem:focus-visible,
 .paletteTrigger:focus-visible,
+.iconBtn:focus-visible,
 .menuToggle:focus-visible,
 .mobileItem:focus-visible {
   outline: 2px solid var(--color-focus);
@@ -162,6 +163,26 @@
 
 .iconBtn:hover {
   color: var(--color-text);
+}
+
+.themeToggle {
+  border: 1px solid var(--color-border);
+  background-color: var(--color-surface-2);
+  cursor: pointer;
+  transition:
+    border-color var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out),
+    background-color var(--duration-fast) var(--ease-out);
+}
+
+.themeToggle:hover {
+  border-color: var(--color-line-strong);
+}
+
+.themeToggle[data-active="true"] {
+  border-color: color-mix(in oklch, var(--color-accent-strong) 40%, var(--color-border));
+  background-color: color-mix(in oklch, var(--color-accent) 16%, var(--color-surface-2));
+  color: var(--color-accent-strong);
 }
 
 .avatar {

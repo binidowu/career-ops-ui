@@ -352,6 +352,20 @@ export interface ResumeDraftPersistence {
   indexPath: string;
 }
 
+export type ResumeDraftOp =
+  | { op: "setFormat"; format: "letter" | "a4" }
+  | { op: "setHeadline"; text: string }
+  | { op: "setStatus"; status: "draft" | "edited" | "exported" }
+  | { op: "setSectionEnabled"; sectionId: string; enabled: boolean }
+  | { op: "setSectionLabel"; sectionId: string; label: string }
+  | { op: "reorderSections"; sectionIds: string[] }
+  | { op: "editBullet"; sectionId: string; blockId: string; bulletId: string; text: string }
+  | { op: "addBullet"; sectionId: string; blockId: string; text: string; afterBulletId?: string }
+  | { op: "deleteBullet"; sectionId: string; blockId: string; bulletId: string }
+  | { op: "reorderBullets"; sectionId: string; blockId: string; bulletIds: string[] }
+  | { op: "lockBullet"; sectionId: string; blockId: string; bulletId: string; locked: boolean }
+  | { op: "replaceBlockText"; sectionId: string; blockId: string; text: string };
+
 export interface PipelineInboxItem {
   url: string;
   companyHint: string | null;

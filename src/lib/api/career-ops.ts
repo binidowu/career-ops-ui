@@ -54,6 +54,7 @@ import type {
   ResumeEvidenceDiagnostic,
   ResumeEvidenceItem,
   ResumeEvidenceSummary,
+  ResumeDraftOp,
   ResumeRewriteResult,
   ResumeStrategy,
   ScanRunResult,
@@ -1489,7 +1490,16 @@ export async function generateResumeDraft(input: {
     });
 
     const payload = JSON.parse(stdout) as BackendResumeDraftPayload;
-    return toUiResumeDraft(payload, profile);
+    const result = toUiResumeDraft(payload, profile);
+
+    // Ensure the document is persisted at the standard UI location so
+    // subsequent PATCH and GET calls can find it by ID regardless of
+    // where the backend CLI stored the original file.
+    if (result.document) {
+      await saveResumeDraftDocument(result.document).catch(() => {});
+    }
+
+    return result;
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Unable to generate the tailored resume draft.";
@@ -2258,21 +2268,41 @@ function getResumeDraftLatestPath(opportunityId: string) {
 }
 
 export async function getResumeDraftById(id: string): Promise<ResumeDocument | null> {
+  const { stat } = await import("node:fs/promises");
   const draftsDir = resolveCareerOpsFile(...RESUME_DRAFTS_SUBDIR);
-  let opportunityDirs: string[] = [];
 
-  try {
-    opportunityDirs = await readdir(draftsDir);
-  } catch {
-    return null;
+  // The backend stores drafts up to 3 levels deep:
+  //   resume-drafts/{opportunityId}/{sourceId}/{documentId}.json
+  // We also check the 2-level path for UI-written drafts:
+  //   resume-drafts/{opportunityId}/{documentId}.json
+  async function isDir(p: string) {
+    try { return (await stat(p)).isDirectory(); } catch { return false; }
   }
 
-  for (const opportunityId of opportunityDirs) {
-    const candidatePath = getResumeDraftFilePath(opportunityId, id);
-    const doc = await readJsonFile<ResumeDocument>(candidatePath);
-    if (doc?.id === id) {
-      return doc;
-    }
+  let level1: string[] = [];
+  try { level1 = await readdir(draftsDir); } catch { return null; }
+
+  for (const l1 of level1) {
+    const l1path = resolveCareerOpsFile(...RESUME_DRAFTS_SUBDIR, l1);
+    if (!(await isDir(l1path))) continue;
+
+    // 2-level check: resume-drafts/{l1}/{id}.json
+    const twoLevel = readJsonFile<ResumeDocument>(join(l1path, `${id}.json`));
+
+    let level2: string[] = [];
+    try { level2 = await readdir(l1path); } catch { /* skip */ }
+
+    const [twoDoc, ...threeDocs] = await Promise.all([
+      twoLevel,
+      ...level2.map(async (l2) => {
+        const l2path = join(l1path, l2);
+        if (!(await isDir(l2path))) return null;
+        return readJsonFile<ResumeDocument>(join(l2path, `${id}.json`));
+      }),
+    ]);
+
+    const found = [twoDoc, ...threeDocs].find((d) => d?.id === id);
+    if (found) return found;
   }
 
   return null;
@@ -2290,19 +2320,7 @@ export async function saveResumeDraftDocument(document: ResumeDocument): Promise
   return document;
 }
 
-export type ResumeDraftOp =
-  | { op: "setFormat"; format: "letter" | "a4" }
-  | { op: "setHeadline"; text: string }
-  | { op: "setStatus"; status: "draft" | "edited" | "exported" }
-  | { op: "setSectionEnabled"; sectionId: string; enabled: boolean }
-  | { op: "setSectionLabel"; sectionId: string; label: string }
-  | { op: "reorderSections"; sectionIds: string[] }
-  | { op: "editBullet"; sectionId: string; blockId: string; bulletId: string; text: string }
-  | { op: "addBullet"; sectionId: string; blockId: string; text: string; afterBulletId?: string }
-  | { op: "deleteBullet"; sectionId: string; blockId: string; bulletId: string }
-  | { op: "reorderBullets"; sectionId: string; blockId: string; bulletIds: string[] }
-  | { op: "lockBullet"; sectionId: string; blockId: string; bulletId: string; locked: boolean }
-  | { op: "replaceBlockText"; sectionId: string; blockId: string; text: string };
+// ResumeDraftOp is defined in @/lib/types and imported above.
 
 function applyResumeDraftOp(document: ResumeDocument, op: ResumeDraftOp): ResumeDocument {
   switch (op.op) {
@@ -2670,7 +2688,7 @@ export async function rewriteResumeDraftContent(input: {
   throw new Error(`Unsupported rewrite scope: "${input.scope}". Use "bullet" or "section".`);
 }
 
-export async function exportResumeDraftDocument(id: string): Promise<{
+export async function exportResumeDraftDocument(id: string, options?: { maxPages?: "1" | "2" | "auto" }): Promise<{
   buffer: Buffer;
   estimatedPages: number;
   fileName: string;
@@ -2705,7 +2723,9 @@ export async function exportResumeDraftDocument(id: string): Promise<{
     }
   }
 
-  const html = renderResumeDocumentHtml(document);
+  // Use compact CSS when 1-page output is requested — smaller font/spacing, tighter margins.
+  const compact = options?.maxPages === "1";
+  const html = renderResumeDocumentHtml(document, { compact });
   const workdir = await mkdtempNode(pathJoin(tmpdir(), "career-ops-ui-resume-"));
   const htmlPath = pathJoin(workdir, document.fileName.replace(/\.pdf$/, ".html"));
   const pdfPath = pathJoin(workdir, document.fileName);
