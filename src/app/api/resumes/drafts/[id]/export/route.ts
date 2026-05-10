@@ -7,7 +7,7 @@ export async function POST(
   const { id } = await context.params;
 
   try {
-    const { buffer, fileName, format: _format } = await exportResumeDraftDocument(id);
+    const { buffer, fileName, overflowDiagnostics, estimatedPages } = await exportResumeDraftDocument(id);
 
     // Best-effort activity log — do not fail the export if this throws.
     try {
@@ -23,12 +23,20 @@ export async function POST(
       // Non-fatal.
     }
 
-    return new Response(new Uint8Array(buffer), {
-      headers: {
-        "Content-Disposition": `attachment; filename="${fileName}"`,
-        "Content-Type": "application/pdf",
-      },
-    });
+    const headers: Record<string, string> = {
+      "Content-Disposition": `attachment; filename="${fileName}"`,
+      "Content-Type": "application/pdf",
+      "X-Resume-Estimated-Pages": String(estimatedPages),
+    };
+
+    if (overflowDiagnostics.some((d) => d.severity === "warning")) {
+      headers["X-Resume-Overflow-Warning"] = overflowDiagnostics
+        .filter((d) => d.severity === "warning")
+        .map((d) => d.message)
+        .join("; ");
+    }
+
+    return new Response(new Uint8Array(buffer), { headers });
   } catch (error) {
     return Response.json(
       {

@@ -362,172 +362,428 @@ function escapeHtml(value: string) {
     .replaceAll("'", "&#39;");
 }
 
-export function renderResumeDocumentHtml(document: ResumeDocument): string {
-  const contactHtml = document.contactLines
+// ---------------------------------------------------------------------------
+// ayo-clean-v1 template helpers
+// ---------------------------------------------------------------------------
+
+function buildContactLine(lines: string[]): string {
+  return lines
     .map((line) => {
       const isEmail = line.includes("@");
-      const isLink =
-        line.includes("github.com") || line.includes("linkedin.com") || line.startsWith("http");
+      const isUrl =
+        line.includes("github.com") ||
+        line.includes("linkedin.com") ||
+        line.startsWith("http");
       const href = isEmail
         ? `mailto:${line}`
-        : isLink
+        : isUrl
           ? line.startsWith("http")
             ? line
             : `https://${line}`
-          : undefined;
+          : null;
+      const display = escapeHtml(
+        line.replace(/^https?:\/\//, "").replace(/\/$/, ""),
+      );
       return href
-        ? `<a href="${href}" target="_blank" rel="noopener noreferrer">${escapeHtml(line)}</a>`
-        : `<span>${escapeHtml(line)}</span>`;
+        ? `<a href="${href}" target="_blank" rel="noopener noreferrer">${display}</a>`
+        : `<span>${display}</span>`;
     })
-    .join("\n");
+    .join('<span class="contact-sep"> | </span>');
+}
+
+function renderExperienceBlock(block: {
+  type: "experience";
+  company: string;
+  role: string;
+  location: string;
+  period: string;
+  bullets: Array<{ text: string }>;
+}): string {
+  const bulletsHtml = block.bullets
+    .map((b) => `<li>${escapeHtml(b.text)}</li>`)
+    .join("");
+  const meta = [block.location, block.period].filter(Boolean).join(" · ");
+  return `<article class="entry">
+    <div class="entry-head">
+      <span class="entry-primary"><strong>${escapeHtml(block.role)}</strong><span class="entry-sep"> | </span>${escapeHtml(block.company)}</span>
+      ${meta ? `<span class="entry-meta">${escapeHtml(meta)}</span>` : ""}
+    </div>
+    ${bulletsHtml ? `<ul class="sub-list">${bulletsHtml}</ul>` : ""}
+  </article>`;
+}
+
+function renderProjectBlock(block: {
+  type: "project";
+  title: string;
+  description: string;
+  bullets: Array<{ text: string }>;
+}): string {
+  const bulletsHtml = block.bullets
+    .map((b) => `<li>${escapeHtml(b.text)}</li>`)
+    .join("");
+  const heading = block.description
+    ? `${escapeHtml(block.title)}<span class="entry-sep"> | </span><span class="entry-tech">${escapeHtml(block.description)}</span>`
+    : escapeHtml(block.title);
+  return `<li class="project-item">
+    <div class="project-head"><strong>${heading}</strong></div>
+    ${bulletsHtml ? `<ul class="sub-list">${bulletsHtml}</ul>` : ""}
+  </li>`;
+}
+
+function renderSkillGroupBlock(block: {
+  type: "skillGroup";
+  label: string;
+  items: string[];
+}): string {
+  return `<li><span class="skill-label">${escapeHtml(block.label)}:</span> ${escapeHtml(block.items.join(", "))}</li>`;
+}
+
+function renderListItemBlock(block: { type: "listItem"; text: string }): string {
+  return `<li>${escapeHtml(block.text)}</li>`;
+}
+
+function renderTextBlock(block: { type: "text"; text: string }): string {
+  return `<p class="summary-text">${escapeHtml(block.text)}</p>`;
+}
+
+function renderSection(section: ResumeDocument["sections"][number]): string {
+  if (!section.enabled || !section.blocks.length) return "";
+
+  const blocks = section.blocks;
+  const firstType = blocks[0]?.type;
+
+  // Project sections: top-level bullet list with sub-bullets
+  const isProjectSection = blocks.every((b) => b.type === "project");
+  // Experience sections: entry articles
+  const isExpSection = blocks.every((b) => b.type === "experience");
+  // Skill sections: inline label: items
+  const isSkillSection = blocks.every((b) => b.type === "skillGroup");
+  // List-item sections (education, certifications, awards…)
+  const isListSection = blocks.every((b) => b.type === "listItem");
+  // Summary / text sections
+  const isTextSection = blocks.every((b) => b.type === "text") || firstType === "text";
+
+  let innerHtml = "";
+
+  if (isProjectSection) {
+    innerHtml = `<ul class="project-list">${blocks.map((b) => renderProjectBlock(b as Parameters<typeof renderProjectBlock>[0])).join("")}</ul>`;
+  } else if (isExpSection) {
+    innerHtml = `<div class="entry-list">${blocks.map((b) => renderExperienceBlock(b as Parameters<typeof renderExperienceBlock>[0])).join("")}</div>`;
+  } else if (isSkillSection) {
+    innerHtml = `<ul class="skill-list">${blocks.map((b) => renderSkillGroupBlock(b as Parameters<typeof renderSkillGroupBlock>[0])).join("")}</ul>`;
+  } else if (isListSection) {
+    innerHtml = `<ul class="plain-list">${blocks.map((b) => renderListItemBlock(b as Parameters<typeof renderListItemBlock>[0])).join("")}</ul>`;
+  } else if (isTextSection) {
+    innerHtml = blocks.map((b) => renderTextBlock(b as Parameters<typeof renderTextBlock>[0])).join("");
+  } else {
+    // Mixed section — render each block by type
+    innerHtml = blocks
+      .map((b) => {
+        if (b.type === "experience") return renderExperienceBlock(b);
+        if (b.type === "project") return renderProjectBlock(b);
+        if (b.type === "skillGroup") return renderSkillGroupBlock(b);
+        if (b.type === "listItem") return renderListItemBlock(b);
+        if (b.type === "text") return renderTextBlock(b);
+        return "";
+      })
+      .join("");
+  }
+
+  return `<section class="section">
+    <div class="section-label">${escapeHtml(section.label.toUpperCase())}</div>
+    ${innerHtml}
+  </section>`;
+}
+
+// ---------------------------------------------------------------------------
+// Overflow estimator — returns approximate page count for pre-export warning
+// ---------------------------------------------------------------------------
+
+// Line height in points at 10pt body, 1.4 leading
+const LINE_PT = 14;
+// Characters that fit on a 7in content line at 10pt Arial (approx 95 chars)
+const CHARS_PER_LINE = 95;
+
+function estimateTextLines(text: string): number {
+  return Math.max(1, Math.ceil(text.length / CHARS_PER_LINE));
+}
+
+export function estimateResumePageCount(document: ResumeDocument): {
+  estimatedPages: number;
+  overflows: boolean;
+  diagnostics: Array<{ code: string; message: string; severity: "info" | "warning" | "error" }>;
+} {
+  // Header: name(24pt) + headline(14pt) + contact(12pt) + spacing(16pt) ≈ 66pt
+  let totalPt = 66;
+
+  for (const section of document.sections.filter((s) => s.enabled)) {
+    // Section label + border + margin ≈ 28pt
+    totalPt += 28;
+
+    for (const block of section.blocks) {
+      if (block.type === "text") {
+        totalPt += estimateTextLines(block.text) * LINE_PT;
+      } else if (block.type === "listItem") {
+        totalPt += estimateTextLines(block.text) * LINE_PT;
+      } else if (block.type === "skillGroup") {
+        totalPt += LINE_PT;
+      } else if (block.type === "experience") {
+        // Entry header row + optional location
+        totalPt += LINE_PT + (block.location ? LINE_PT : 0);
+        for (const bullet of block.bullets) {
+          totalPt += estimateTextLines(bullet.text) * LINE_PT;
+        }
+        // Gap between entries
+        totalPt += 10;
+      } else if (block.type === "project") {
+        // Project title row
+        totalPt += LINE_PT;
+        for (const bullet of block.bullets) {
+          totalPt += estimateTextLines(bullet.text) * LINE_PT;
+        }
+        totalPt += 8;
+      }
+    }
+
+    // Section bottom margin
+    totalPt += 14;
+  }
+
+  const pageHeightPt = document.format === "a4" ? 770 : 720;
+  const estimatedPages = Math.ceil(totalPt / pageHeightPt);
+  const overflows = totalPt > pageHeightPt * 2;
+
+  const diagnostics: Array<{ code: string; message: string; severity: "info" | "warning" | "error" }> = [];
+
+  if (estimatedPages > 2) {
+    diagnostics.push({
+      code: "resume_overflow_pages",
+      message: `Resume content estimates ${estimatedPages} pages. Consider shortening bullets or hiding sections.`,
+      severity: "warning",
+    });
+  } else if (estimatedPages === 2) {
+    diagnostics.push({
+      code: "resume_two_pages",
+      message: "Resume content fills approximately 2 pages.",
+      severity: "info",
+    });
+  }
+
+  return { estimatedPages, overflows, diagnostics };
+}
+
+// ---------------------------------------------------------------------------
+// ayo-clean-v1 renderer
+// ---------------------------------------------------------------------------
+
+export function renderResumeDocumentHtml(document: ResumeDocument): string {
+  const contactLineHtml = buildContactLine(document.contactLines);
 
   const enabledSections = [...document.sections]
     .filter((s) => s.enabled)
     .sort((a, b) => a.order - b.order);
 
-  const sectionsHtml = enabledSections
-    .map((section) => {
-      const blocksHtml = section.blocks
-        .map((block) => {
-          if (block.type === "text") {
-            return `<p>${escapeHtml(block.text)}</p>`;
-          }
-          if (block.type === "listItem") {
-            return `<li>${escapeHtml(block.text)}</li>`;
-          }
-          if (block.type === "experience") {
-            const bulletsHtml = block.bullets
-              .map((b) => `<li>${escapeHtml(b.text)}</li>`)
-              .join("");
-            return `<article class="entry">
-              <div class="entry-head">
-                <span class="entry-title"><strong>${escapeHtml(block.role)}</strong> | ${escapeHtml(block.company)}</span>
-                <span class="entry-date">${escapeHtml(block.period)}</span>
-              </div>
-              ${block.location ? `<div class="entry-desc">${escapeHtml(block.location)}</div>` : ""}
-              <ul class="bullet-list">${bulletsHtml}</ul>
-            </article>`;
-          }
-          if (block.type === "project") {
-            const bulletsHtml = block.bullets
-              .map((b) => `<li>${escapeHtml(b.text)}</li>`)
-              .join("");
-            return `<article class="entry">
-              <div class="entry-head">
-                <span class="entry-title"><strong>${escapeHtml(block.title)}</strong>${block.description ? ` — ${escapeHtml(block.description)}` : ""}</span>
-              </div>
-              ${bulletsHtml ? `<ul class="bullet-list">${bulletsHtml}</ul>` : ""}
-            </article>`;
-          }
-          if (block.type === "skillGroup") {
-            return `<div class="ontology-group">
-              <div class="ontology-group-label">${escapeHtml(block.label)}</div>
-              <div class="ontology-group-items">${escapeHtml(block.items.join(", "))}</div>
-            </div>`;
-          }
-          return "";
-        })
-        .join("");
+  const sectionsHtml = enabledSections.map(renderSection).join("");
 
-      const isListSection =
-        section.blocks.length > 0 && section.blocks.every((b) => b.type === "listItem");
-      const isSkillSection =
-        section.blocks.length > 0 && section.blocks.every((b) => b.type === "skillGroup");
-      const isExperienceSection =
-        section.blocks.length > 0 &&
-        section.blocks.some((b) => b.type === "experience" || b.type === "project");
-
-      const innerHtml = isListSection
-        ? `<ul class="plain-list">${blocksHtml}</ul>`
-        : isSkillSection
-          ? `<div class="ontology-grid">${blocksHtml}</div>`
-          : isExperienceSection
-            ? `<div class="entry-list">${blocksHtml}</div>`
-            : blocksHtml;
-
-      return `<section class="section">
-        <div class="section-label">${escapeHtml(section.label.toUpperCase())}</div>
-        ${innerHtml}
-      </section>`;
-    })
-    .join("");
-
-  const pageWidth = document.format === "letter" ? "8.5in" : "8.27in";
+  // Letter: 8.5in page, A4: 8.27in page — 0.6in side margins each = 7.3in / 7.07in content
+  const pageSize = document.format === "a4"
+    ? "@page { size: A4; }"
+    : "@page { size: letter; }";
 
   return `<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>${escapeHtml(document.targetLabel)} Resume</title>
+    <title>${escapeHtml(document.targetLabel)} — Resume</title>
     <style>
+      ${pageSize}
       * { box-sizing: border-box; margin: 0; padding: 0; }
+
       body {
         background: #fff;
-        color: #111;
-        font-family: Georgia, "Times New Roman", serif;
-        font-size: 0.85rem;
-        line-height: 1.5;
+        color: #1a1a1a;
+        font-family: Arial, "Helvetica Neue", Helvetica, sans-serif;
+        font-size: 10pt;
+        line-height: 1.4;
       }
+
       .page {
-        max-width: ${pageWidth};
+        width: ${document.format === "a4" ? "8.27in" : "8.5in"};
         margin: 0 auto;
-        padding: 0.75in 0.8in;
+        padding: 0.55in 0.6in 0.55in 0.6in;
       }
+
+      /* ── Header ── */
       .doc-header {
+        margin-bottom: 0.18in;
+        padding-bottom: 0.1in;
+        border-bottom: 1.5pt solid #1a1a1a;
+      }
+      .doc-name {
+        font-size: 18pt;
+        font-weight: 700;
+        line-height: 1.15;
+        letter-spacing: -0.01em;
+        color: #1a1a1a;
+      }
+      .doc-headline {
+        font-size: 10.5pt;
+        font-weight: 400;
+        color: #444;
+        margin-top: 3pt;
+        margin-bottom: 4pt;
+      }
+      .doc-contact {
+        font-size: 9pt;
+        color: #333;
+        margin-top: 4pt;
+      }
+      .doc-contact a { color: #1a1a1a; text-decoration: none; }
+      .doc-contact a:hover { text-decoration: underline; }
+      .contact-sep { color: #999; }
+
+      /* ── Sections ── */
+      .section { margin-bottom: 0.2in; }
+      .section:last-child { margin-bottom: 0; }
+
+      .section-label {
+        font-size: 9.5pt;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        color: #1a1a1a;
+        border-bottom: 1pt solid #1a1a1a;
+        padding-bottom: 2pt;
+        margin-bottom: 7pt;
+      }
+
+      /* ── Summary ── */
+      .summary-text {
+        font-size: 10pt;
+        line-height: 1.45;
+        color: #1a1a1a;
+      }
+
+      /* ── Experience entries ── */
+      .entry-list { display: flex; flex-direction: column; gap: 10pt; }
+      .entry { }
+      .entry-head {
         display: flex;
         justify-content: space-between;
-        align-items: flex-start;
-        gap: 1.5rem;
-        padding-bottom: 1.25rem;
-        border-bottom: 1.5px solid #111;
-        margin-bottom: 1.5rem;
+        align-items: baseline;
+        gap: 8pt;
       }
-      .doc-identity { flex: 1; display: flex; flex-direction: column; gap: 0.25rem; }
-      .doc-name { font-size: 1.6rem; font-weight: 700; letter-spacing: -0.02em; color: #111; line-height: 1.15; }
-      .doc-title { font-size: 1.25rem; font-weight: 400; color: #555; }
-      .doc-contact { display: flex; flex-direction: column; align-items: flex-end; gap: 0.35rem; flex-shrink: 0; padding-top: 0.5rem; }
-      .doc-contact span, .doc-contact a {
-        font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace;
-        font-size: 0.75rem; color: #111; text-decoration: none; display: block;
+      .entry-primary {
+        font-size: 10pt;
+        font-weight: 400;
+        flex: 1;
       }
-      .doc-contact a:hover { text-decoration: underline; }
-      .section { margin-bottom: 1.5rem; }
-      .section-label {
-        font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace;
-        font-size: 0.65rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase;
-        color: #666; margin-bottom: 0.9rem; border-bottom: 1px solid #e0e0e0; padding-bottom: 0.45rem;
+      .entry-primary strong { font-weight: 700; }
+      .entry-sep { color: #666; }
+      .entry-tech { font-weight: 400; color: #444; }
+      .entry-meta {
+        font-size: 9pt;
+        color: #555;
+        white-space: nowrap;
+        flex-shrink: 0;
       }
-      .section p { font-size: 0.82rem; color: #222; line-height: 1.55; }
-      .entry-list { display: flex; flex-direction: column; gap: 1.5rem; }
-      .entry { display: flex; flex-direction: column; gap: 0.5rem; }
-      .entry-head { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; margin-bottom: 0.25rem; }
-      .entry-title { font-size: 0.95rem; font-weight: 400; color: #555; flex: 1; }
-      .entry-title strong { font-weight: 700; color: #111; }
-      .entry-desc { font-style: italic; color: #555; font-size: 0.82rem; }
-      .entry-date { font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace; font-size: 0.75rem; color: #111; white-space: nowrap; flex-shrink: 0; }
-      .bullet-list { list-style: none; display: grid; gap: 0.3rem; margin: 0; padding: 0; }
-      .bullet-list li { position: relative; padding-left: 1.1rem; font-size: 0.82rem; color: #222; line-height: 1.55; }
-      .bullet-list li::before { content: "—"; position: absolute; left: 0; color: #aaa; font-size: 0.7em; top: 0.15em; }
-      .plain-list { list-style: none; display: flex; flex-direction: column; gap: 0.25rem; }
-      .plain-list li { font-size: 0.85rem; color: #333; line-height: 1.5; }
-      .ontology-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5rem; }
-      .ontology-group { display: flex; flex-direction: column; gap: 0.35rem; }
-      .ontology-group-label { font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace; font-size: 0.6rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: #666; }
-      .ontology-group-items { font-size: 0.75rem; color: #333; line-height: 1.5; }
-      @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } .page { padding: 0; } }
+
+      /* ── Sub-bullets (experience / project) ── */
+      .sub-list {
+        list-style: none;
+        margin: 4pt 0 0 0;
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 2pt;
+      }
+      .sub-list li {
+        position: relative;
+        padding-left: 14pt;
+        font-size: 9.5pt;
+        line-height: 1.42;
+        color: #1a1a1a;
+      }
+      .sub-list li::before {
+        content: "○";
+        position: absolute;
+        left: 2pt;
+        top: 0;
+        font-size: 7pt;
+        color: #555;
+        line-height: 1.6;
+      }
+
+      /* ── Projects ── */
+      .project-list {
+        list-style: none;
+        display: flex;
+        flex-direction: column;
+        gap: 8pt;
+        padding: 0;
+      }
+      .project-item { }
+      .project-head {
+        font-size: 10pt;
+        padding-left: 12pt;
+        position: relative;
+      }
+      .project-head::before {
+        content: "●";
+        position: absolute;
+        left: 0;
+        font-size: 7pt;
+        top: 1pt;
+        color: #1a1a1a;
+      }
+      .project-item .sub-list { margin-left: 12pt; }
+
+      /* ── Skills ── */
+      .skill-list {
+        list-style: none;
+        display: flex;
+        flex-direction: column;
+        gap: 3pt;
+        padding: 0;
+      }
+      .skill-list li {
+        position: relative;
+        padding-left: 12pt;
+        font-size: 9.5pt;
+        line-height: 1.42;
+      }
+      .skill-list li::before {
+        content: "●";
+        position: absolute;
+        left: 0;
+        font-size: 7pt;
+        top: 1pt;
+        color: #1a1a1a;
+      }
+      .skill-label { font-weight: 700; }
+
+      /* ── Plain list (education, certs, awards…) ── */
+      .plain-list {
+        list-style: none;
+        display: flex;
+        flex-direction: column;
+        gap: 3pt;
+        padding: 0;
+      }
+      .plain-list li { font-size: 9.5pt; line-height: 1.42; }
+
+      @media print {
+        body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        .page { padding: 0.55in 0.6in; }
+      }
     </style>
   </head>
   <body>
     <main class="page">
       <header class="doc-header">
-        <div class="doc-identity">
-          <div class="doc-name">${escapeHtml(document.name)}</div>
-          ${document.headline ? `<div class="doc-title">${escapeHtml(document.headline)}</div>` : ""}
-        </div>
-        <div class="doc-contact">
-          ${contactHtml}
-        </div>
+        <div class="doc-name">${escapeHtml(document.name)}</div>
+        ${document.headline ? `<div class="doc-headline">${escapeHtml(document.headline)}</div>` : ""}
+        ${document.contactLines.length ? `<div class="doc-contact">${contactLineHtml}</div>` : ""}
       </header>
       ${sectionsHtml}
     </main>

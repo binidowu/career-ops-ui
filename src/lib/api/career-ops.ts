@@ -2672,8 +2672,10 @@ export async function rewriteResumeDraftContent(input: {
 
 export async function exportResumeDraftDocument(id: string): Promise<{
   buffer: Buffer;
+  estimatedPages: number;
   fileName: string;
   format: "letter" | "a4";
+  overflowDiagnostics: Array<{ code: string; message: string; severity: "info" | "warning" | "error" }>;
 }> {
   const { execFile: execFileNode } = await import("node:child_process");
   const { mkdir: mkdirNode, mkdtemp: mkdtempNode, writeFile: writeFileNode, readFile: readFileNode } = await import("node:fs/promises");
@@ -2687,7 +2689,22 @@ export async function exportResumeDraftDocument(id: string): Promise<{
     throw new Error(`Resume draft "${id}" not found.`);
   }
 
-  const { renderResumeDocumentHtml } = await import("@/lib/resume-studio");
+  const { renderResumeDocumentHtml, estimateResumePageCount } = await import("@/lib/resume-studio");
+
+  // Attach overflow diagnostics to the saved document before rendering.
+  const overflowCheck = estimateResumePageCount(document);
+  if (overflowCheck.diagnostics.length) {
+    const existingCodes = new Set(document.diagnostics.map((d) => d.code));
+    const newDiagnostics = overflowCheck.diagnostics.filter((d) => !existingCodes.has(d.code));
+    if (newDiagnostics.length) {
+      await saveResumeDraftDocument({
+        ...document,
+        diagnostics: [...document.diagnostics, ...newDiagnostics],
+        updatedAt: new Date().toISOString(),
+      });
+    }
+  }
+
   const html = renderResumeDocumentHtml(document);
   const workdir = await mkdtempNode(pathJoin(tmpdir(), "career-ops-ui-resume-"));
   const htmlPath = pathJoin(workdir, document.fileName.replace(/\.pdf$/, ".html"));
@@ -2703,7 +2720,13 @@ export async function exportResumeDraftDocument(id: string): Promise<{
   );
 
   const buffer = await readFileNode(pdfPath);
-  return { buffer, fileName: document.fileName, format: document.format };
+  return {
+    buffer,
+    fileName: document.fileName,
+    format: document.format,
+    overflowDiagnostics: overflowCheck.diagnostics,
+    estimatedPages: overflowCheck.estimatedPages,
+  };
 }
 
 export async function runMaintenanceCommand(input: {
