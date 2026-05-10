@@ -33,7 +33,7 @@ export default function Topbar({ authEnabled, onNotify, onOpenPalette }: TopbarP
 
   async function handleLogout() {
     await fetch("/api/auth/logout", { method: "POST" });
-    router.push("/login");
+    router.push("/landing");
     router.refresh();
   }
 

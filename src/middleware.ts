@@ -5,7 +5,16 @@ import { isAuthEnabled, SESSION_COOKIE, verifySessionToken } from "@/lib/auth";
 
 // Logout must be public so an expired-session user can still clear their cookie
 // without getting a 401 redirect loop.
-const PUBLIC_PATHS = ["/login", "/api/auth/login", "/api/auth/logout"];
+const PUBLIC_PATHS = [
+  "/landing",
+  "/login",
+  "/register",
+  "/onboarding",
+  "/app-handoff",
+  "/auth/gate",
+  "/api/auth/login",
+  "/api/auth/logout",
+];
 
 function isPublicPath(pathname: string): boolean {
   return PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));
@@ -32,7 +41,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
   }
 
-  const loginUrl = new URL("/login", request.url);
+  const loginUrl = new URL("/auth/gate", request.url);
   loginUrl.searchParams.set("from", pathname);
   return NextResponse.redirect(loginUrl);
 }

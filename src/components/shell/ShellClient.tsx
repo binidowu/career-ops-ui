@@ -1,5 +1,6 @@
 "use client";
 
+import { usePathname } from "next/navigation";
 import { useEffect, useEffectEvent, useState } from "react";
 
 import Toast, { type ToastMessage } from "@/components/common/Toast";
@@ -23,6 +24,16 @@ export default function ShellClient({
   children,
   commandItems,
 }: ShellClientProps) {
+  const pathname = usePathname();
+  const PUBLIC_ROUTE_PREFIXES = [
+    "/landing",
+    "/login",
+    "/register",
+    "/onboarding",
+    "/app-handoff",
+    "/auth/gate",
+  ];
+  const isPublicRoute = PUBLIC_ROUTE_PREFIXES.some((p) => pathname?.startsWith(p)) ?? false;
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
 
@@ -65,6 +76,10 @@ export default function ShellClient({
       timers.forEach((timer) => window.clearTimeout(timer));
     };
   }, [toasts]);
+
+  if (isPublicRoute) {
+    return <ToastProvider value={notify}>{children}</ToastProvider>;
+  }
 
   return (
     <ToastProvider value={notify}>
