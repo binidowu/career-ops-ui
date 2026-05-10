@@ -182,6 +182,55 @@ export interface ResumeEvidenceSummary {
   warnings: string[];
 }
 
+export type ResumeJobFamily =
+  | "software"
+  | "data/analytics"
+  | "IT/support"
+  | "product/design"
+  | "finance"
+  | "teaching"
+  | "healthcare/medical"
+  | "operations/admin"
+  | "general";
+
+export type ResumeSectionType =
+  | "summary"
+  | "skills"
+  | "projects"
+  | "experience"
+  | "certifications"
+  | "education"
+  | "awards"
+  | "publications"
+  | "volunteering";
+
+export interface ResumeSectionPolicy {
+  enabled: boolean;
+  label: string;
+  maxItems?: number;
+  maxBulletsPerItem?: number;
+  prominence: "primary" | "secondary" | "supporting";
+  reason: string;
+}
+
+export interface ResumeEvidenceSelection {
+  evidenceId: string;
+  reason: string;
+  score: number;
+  sectionType: ResumeSectionType;
+}
+
+export interface ResumeStrategy {
+  templateId: "ayo-clean-v1";
+  jobFamily: ResumeJobFamily;
+  narrativeAngle: string;
+  sectionOrder: ResumeSectionType[];
+  sectionPolicies: Record<ResumeSectionType, ResumeSectionPolicy>;
+  keywordPlan: string[];
+  evidencePlan: ResumeEvidenceSelection[];
+  warnings: string[];
+}
+
 export interface PipelineInboxItem {
   url: string;
   companyHint: string | null;

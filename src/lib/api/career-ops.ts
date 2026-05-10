@@ -52,6 +52,7 @@ import type {
   ResumeEvidenceDiagnostic,
   ResumeEvidenceItem,
   ResumeEvidenceSummary,
+  ResumeStrategy,
   ScanRunResult,
   StateDefinition,
   InterviewPrepWorkspace,
@@ -147,6 +148,7 @@ interface BackendResumeDraftPayload {
     tone: number;
     variant: ResumeDraftVariant;
   };
+  strategy?: ResumeStrategy;
 }
 
 export interface GeneratedResumeDraft {
@@ -157,6 +159,7 @@ export interface GeneratedResumeDraft {
   };
   evidenceSummary?: ResumeEvidenceSummary;
   resumeSource: ResumeSource;
+  strategy?: ResumeStrategy;
 }
 
 function clearCache(prefixes: string[] = []) {
@@ -577,6 +580,7 @@ function toUiResumeDraft(
         }
       : undefined,
     evidenceSummary: payload.evidenceSummary,
+    strategy: payload.strategy,
     resumeSource: {
       id: payload.resumeSource.id,
       label: payload.resumeSource.label,
