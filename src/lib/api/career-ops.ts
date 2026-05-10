@@ -48,6 +48,7 @@ import type {
   PipelineProcessJob,
   PipelineProcessStartResponse,
   ResumeDocument,
+  ResumeDraftPersistence,
   ResumeSource,
   ResumeSourceExtractionDiagnostic,
   ResumeEvidenceDiagnostic,
@@ -153,6 +154,7 @@ interface BackendResumeDraftPayload {
   strategy?: ResumeStrategy;
   document?: ResumeDocument;
   rewrite?: ResumeRewriteResult;
+  persistence?: ResumeDraftPersistence;
 }
 
 export interface GeneratedResumeDraft {
@@ -166,6 +168,7 @@ export interface GeneratedResumeDraft {
   strategy?: ResumeStrategy;
   document?: ResumeDocument;
   rewrite?: ResumeRewriteResult;
+  persistence?: ResumeDraftPersistence;
 }
 
 function clearCache(prefixes: string[] = []) {
@@ -589,6 +592,7 @@ function toUiResumeDraft(
     strategy: payload.strategy,
     document: payload.document,
     rewrite: payload.rewrite,
+    persistence: payload.persistence,
     resumeSource: {
       id: payload.resumeSource.id,
       label: payload.resumeSource.label,
@@ -1229,6 +1233,8 @@ export async function generateInterviewPrepIntel(input: {
     resolveCareerOpsFile("interview-intel-draft.mjs"),
     "--report",
     opportunity.reportPath,
+    "--opportunity-id",
+    input.opportunityId,
     "--json",
   ];
 
@@ -2235,6 +2241,469 @@ function parseMaintOutput(
       : `Applied ${count} change${count !== 1 ? "s" : ""}.`,
     changesFound: count,
   };
+}
+
+/* ============================================================
+   Resume Document V2 — Persistence + Patch + Rewrite + Export
+   ============================================================ */
+
+const RESUME_DRAFTS_SUBDIR = ["resume-drafts"];
+
+function getResumeDraftFilePath(opportunityId: string, draftId: string) {
+  return resolveCareerOpsFile(...RESUME_DRAFTS_SUBDIR, opportunityId, `${draftId}.json`);
+}
+
+function getResumeDraftLatestPath(opportunityId: string) {
+  return resolveCareerOpsFile(...RESUME_DRAFTS_SUBDIR, opportunityId, "latest.json");
+}
+
+export async function getResumeDraftById(id: string): Promise<ResumeDocument | null> {
+  const draftsDir = resolveCareerOpsFile(...RESUME_DRAFTS_SUBDIR);
+  let opportunityDirs: string[] = [];
+
+  try {
+    opportunityDirs = await readdir(draftsDir);
+  } catch {
+    return null;
+  }
+
+  for (const opportunityId of opportunityDirs) {
+    const candidatePath = getResumeDraftFilePath(opportunityId, id);
+    const doc = await readJsonFile<ResumeDocument>(candidatePath);
+    if (doc?.id === id) {
+      return doc;
+    }
+  }
+
+  return null;
+}
+
+export async function saveResumeDraftDocument(document: ResumeDocument): Promise<ResumeDocument> {
+  const filePath = getResumeDraftFilePath(document.opportunityId, document.id);
+  const latestPath = getResumeDraftLatestPath(document.opportunityId);
+  const dir = resolveCareerOpsFile(...RESUME_DRAFTS_SUBDIR, document.opportunityId);
+
+  await mkdir(dir, { recursive: true });
+  await writeFile(filePath, `${JSON.stringify(document, null, 2)}\n`, "utf8");
+  await writeFile(latestPath, `${JSON.stringify({ id: document.id }, null, 2)}\n`, "utf8");
+
+  return document;
+}
+
+export type ResumeDraftOp =
+  | { op: "setFormat"; format: "letter" | "a4" }
+  | { op: "setHeadline"; text: string }
+  | { op: "setStatus"; status: "draft" | "edited" | "exported" }
+  | { op: "setSectionEnabled"; sectionId: string; enabled: boolean }
+  | { op: "setSectionLabel"; sectionId: string; label: string }
+  | { op: "reorderSections"; sectionIds: string[] }
+  | { op: "editBullet"; sectionId: string; blockId: string; bulletId: string; text: string }
+  | { op: "addBullet"; sectionId: string; blockId: string; text: string; afterBulletId?: string }
+  | { op: "deleteBullet"; sectionId: string; blockId: string; bulletId: string }
+  | { op: "reorderBullets"; sectionId: string; blockId: string; bulletIds: string[] }
+  | { op: "lockBullet"; sectionId: string; blockId: string; bulletId: string; locked: boolean }
+  | { op: "replaceBlockText"; sectionId: string; blockId: string; text: string };
+
+function applyResumeDraftOp(document: ResumeDocument, op: ResumeDraftOp): ResumeDocument {
+  switch (op.op) {
+    case "setFormat":
+      return { ...document, format: op.format };
+
+    case "setHeadline":
+      return { ...document, headline: op.text };
+
+    case "setStatus":
+      return { ...document, status: op.status };
+
+    case "setSectionEnabled":
+      return {
+        ...document,
+        sections: document.sections.map((section) =>
+          section.id === op.sectionId ? { ...section, enabled: op.enabled } : section,
+        ),
+      };
+
+    case "setSectionLabel":
+      return {
+        ...document,
+        sections: document.sections.map((section) =>
+          section.id === op.sectionId ? { ...section, label: op.label } : section,
+        ),
+      };
+
+    case "reorderSections": {
+      const sectionMap = new Map(document.sections.map((s) => [s.id, s]));
+      const reordered = op.sectionIds
+        .map((id, index) => {
+          const section = sectionMap.get(id);
+          return section ? { ...section, order: index } : null;
+        })
+        .filter((s): s is NonNullable<typeof s> => s !== null);
+      const remaining = document.sections
+        .filter((s) => !op.sectionIds.includes(s.id))
+        .map((s, i) => ({ ...s, order: reordered.length + i }));
+      return { ...document, sections: [...reordered, ...remaining] };
+    }
+
+    case "editBullet":
+      return {
+        ...document,
+        sections: document.sections.map((section) => {
+          if (section.id !== op.sectionId) return section;
+          return {
+            ...section,
+            blocks: section.blocks.map((block) => {
+              if (block.id !== op.blockId) return block;
+              if (block.type !== "experience" && block.type !== "project") return block;
+              return {
+                ...block,
+                bullets: block.bullets.map((bullet) =>
+                  bullet.id === op.bulletId
+                    ? { ...bullet, text: op.text, userEdited: true }
+                    : bullet,
+                ),
+              };
+            }),
+          };
+        }),
+      };
+
+    case "addBullet": {
+      const newBullet = {
+        id: `bullet-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        text: op.text,
+        sourceEvidenceIds: [],
+        matchedKeywords: [],
+        userEdited: true,
+        locked: false,
+      };
+      return {
+        ...document,
+        sections: document.sections.map((section) => {
+          if (section.id !== op.sectionId) return section;
+          return {
+            ...section,
+            blocks: section.blocks.map((block) => {
+              if (block.id !== op.blockId) return block;
+              if (block.type !== "experience" && block.type !== "project") return block;
+              if (!op.afterBulletId) {
+                return { ...block, bullets: [...block.bullets, newBullet] };
+              }
+              const afterIndex = block.bullets.findIndex((b) => b.id === op.afterBulletId);
+              const next = [...block.bullets];
+              next.splice(afterIndex + 1, 0, newBullet);
+              return { ...block, bullets: next };
+            }),
+          };
+        }),
+      };
+    }
+
+    case "deleteBullet":
+      return {
+        ...document,
+        sections: document.sections.map((section) => {
+          if (section.id !== op.sectionId) return section;
+          return {
+            ...section,
+            blocks: section.blocks.map((block) => {
+              if (block.id !== op.blockId) return block;
+              if (block.type !== "experience" && block.type !== "project") return block;
+              return {
+                ...block,
+                bullets: block.bullets.filter((b) => b.id !== op.bulletId),
+              };
+            }),
+          };
+        }),
+      };
+
+    case "reorderBullets":
+      return {
+        ...document,
+        sections: document.sections.map((section) => {
+          if (section.id !== op.sectionId) return section;
+          return {
+            ...section,
+            blocks: section.blocks.map((block) => {
+              if (block.id !== op.blockId) return block;
+              if (block.type !== "experience" && block.type !== "project") return block;
+              const bulletMap = new Map(block.bullets.map((b) => [b.id, b]));
+              const reordered = op.bulletIds
+                .map((id) => bulletMap.get(id))
+                .filter((b): b is NonNullable<typeof b> => Boolean(b));
+              const rest = block.bullets.filter((b) => !op.bulletIds.includes(b.id));
+              return { ...block, bullets: [...reordered, ...rest] };
+            }),
+          };
+        }),
+      };
+
+    case "lockBullet":
+      return {
+        ...document,
+        sections: document.sections.map((section) => {
+          if (section.id !== op.sectionId) return section;
+          return {
+            ...section,
+            blocks: section.blocks.map((block) => {
+              if (block.id !== op.blockId) return block;
+              if (block.type !== "experience" && block.type !== "project") return block;
+              return {
+                ...block,
+                bullets: block.bullets.map((b) =>
+                  b.id === op.bulletId ? { ...b, locked: op.locked } : b,
+                ),
+              };
+            }),
+          };
+        }),
+      };
+
+    case "replaceBlockText":
+      return {
+        ...document,
+        sections: document.sections.map((section) => {
+          if (section.id !== op.sectionId) return section;
+          return {
+            ...section,
+            blocks: section.blocks.map((block) => {
+              if (block.id !== op.blockId) return block;
+              if (block.type !== "text" && block.type !== "listItem") return block;
+              return { ...block, text: op.text, userEdited: true };
+            }),
+          };
+        }),
+      };
+
+    default:
+      return document;
+  }
+}
+
+export async function patchResumeDraft(
+  id: string,
+  ops: ResumeDraftOp[],
+): Promise<ResumeDocument> {
+  const document = await getResumeDraftById(id);
+  if (!document) {
+    throw new Error(`Resume draft "${id}" not found.`);
+  }
+
+  let next = document;
+  for (const op of ops) {
+    next = applyResumeDraftOp(next, op);
+  }
+
+  next = {
+    ...next,
+    status: next.status === "draft" ? "edited" : next.status,
+    updatedAt: new Date().toISOString(),
+  };
+
+  return saveResumeDraftDocument(next);
+}
+
+export type ResumeDraftRewriteScope = "document" | "section" | "bullet";
+export type ResumeDraftRewriteInstruction =
+  | "make-technical"
+  | "make-concise"
+  | "ats-align"
+  | "emphasize-leadership"
+  | "reduce-jargon"
+  | "quantify"
+  | "plain-language";
+
+export async function rewriteResumeDraftContent(input: {
+  id: string;
+  scope: ResumeDraftRewriteScope;
+  sectionId?: string;
+  blockId?: string;
+  bulletId?: string;
+  instruction?: ResumeDraftRewriteInstruction;
+}): Promise<ResumeDocument> {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) {
+    throw new Error("ANTHROPIC_API_KEY is not set. Add it to .env.local and restart the dev server.");
+  }
+
+  const document = await getResumeDraftById(input.id);
+  if (!document) {
+    throw new Error(`Resume draft "${input.id}" not found.`);
+  }
+
+  const client = new Anthropic({ apiKey });
+
+  const instructionNote = input.instruction
+    ? ` Additional instruction: ${input.instruction.replace(/-/g, " ")}.`
+    : "";
+
+  const strategyContext = [
+    `Role: ${document.targetLabel}`,
+    `Job family: ${document.strategy?.jobFamily ?? "general"}`,
+    `Narrative angle: ${document.strategy?.narrativeAngle ?? ""}`,
+    `Keywords: ${(document.strategy?.keywordPlan ?? []).slice(0, 12).join(", ")}`,
+  ].join("\n");
+
+  if (input.scope === "bullet" && input.sectionId && input.blockId && input.bulletId) {
+    const section = document.sections.find((s) => s.id === input.sectionId);
+    const block = section?.blocks.find((b) => b.id === input.blockId);
+    if (!block || (block.type !== "experience" && block.type !== "project")) {
+      throw new Error("Block not found or not rewritable.");
+    }
+    const bullet = block.bullets.find((b) => b.id === input.bulletId);
+    if (!bullet) throw new Error("Bullet not found.");
+    if (bullet.locked) throw new Error("Bullet is locked and cannot be rewritten.");
+
+    const prompt = [
+      "Rewrite this resume bullet for the target role. Keep it concise, action-oriented, and ATS-readable.",
+      `Do not invent new employers, tools, dates, or certifications not present in the original.${instructionNote}`,
+      "",
+      "Target context:",
+      strategyContext,
+      "",
+      `Original bullet: "${bullet.text}"`,
+      "",
+      "Return only the rewritten bullet text, no quotes, no prefix.",
+    ].join("\n");
+
+    const response = await client.messages.create({
+      model: process.env.ANTHROPIC_RESUME_MODEL ?? "claude-sonnet-4-6",
+      max_tokens: 200,
+      temperature: 0.3,
+      system: "You are a senior resume writer. Rewrite resume bullets to be specific, truthful, and role-aligned.",
+      messages: [{ role: "user", content: prompt }],
+    });
+
+    const rewrittenText = response.content
+      .filter((b) => b.type === "text")
+      .map((b) => b.text)
+      .join("")
+      .trim()
+      .replace(/^["']|["']$/g, "");
+
+    return patchResumeDraft(input.id, [
+      {
+        op: "editBullet",
+        sectionId: input.sectionId,
+        blockId: input.blockId,
+        bulletId: input.bulletId,
+        text: rewrittenText,
+      },
+    ]);
+  }
+
+  if (input.scope === "section" && input.sectionId) {
+    const section = document.sections.find((s) => s.id === input.sectionId);
+    if (!section) throw new Error("Section not found.");
+
+    const bulletsToRewrite: Array<{ blockId: string; bulletId: string; text: string }> = [];
+    for (const block of section.blocks) {
+      if (block.type === "experience" || block.type === "project") {
+        for (const bullet of block.bullets) {
+          if (!bullet.locked) {
+            bulletsToRewrite.push({ blockId: block.id, bulletId: bullet.id, text: bullet.text });
+          }
+        }
+      }
+    }
+
+    if (!bulletsToRewrite.length) {
+      return document;
+    }
+
+    const bulletList = bulletsToRewrite
+      .map((b, i) => `${i + 1}. ${b.text}`)
+      .join("\n");
+
+    const prompt = [
+      `Rewrite these ${bulletsToRewrite.length} resume bullets for the section "${section.label}".`,
+      `Keep each bullet concise, action-oriented, and ATS-readable.${instructionNote}`,
+      "Return a JSON array of rewritten strings in the same order. No extra text.",
+      "",
+      "Target context:",
+      strategyContext,
+      "",
+      "Bullets:",
+      bulletList,
+    ].join("\n");
+
+    const response = await client.messages.create({
+      model: process.env.ANTHROPIC_RESUME_MODEL ?? "claude-sonnet-4-6",
+      max_tokens: 1200,
+      temperature: 0.3,
+      system: "You are a senior resume writer. Return only a JSON array of rewritten bullet strings.",
+      messages: [{ role: "user", content: prompt }],
+    });
+
+    const rawText = response.content
+      .filter((b) => b.type === "text")
+      .map((b) => b.text)
+      .join("")
+      .trim();
+
+    let rewritten: string[] = [];
+    try {
+      const match = rawText.match(/\[[\s\S]*\]/);
+      rewritten = match ? (JSON.parse(match[0]) as string[]) : [];
+    } catch {
+      rewritten = [];
+    }
+
+    const ops: ResumeDraftOp[] = bulletsToRewrite
+      .map((b, i) => {
+        const text = rewritten[i]?.trim();
+        if (!text) return null;
+        return {
+          op: "editBullet" as const,
+          sectionId: input.sectionId!,
+          blockId: b.blockId,
+          bulletId: b.bulletId,
+          text,
+        };
+      })
+      .filter((o): o is NonNullable<typeof o> => Boolean(o));
+
+    return ops.length ? patchResumeDraft(input.id, ops) : document;
+  }
+
+  throw new Error(`Unsupported rewrite scope: "${input.scope}". Use "bullet" or "section".`);
+}
+
+export async function exportResumeDraftDocument(id: string): Promise<{
+  buffer: Buffer;
+  fileName: string;
+  format: "letter" | "a4";
+}> {
+  const { execFile: execFileNode } = await import("node:child_process");
+  const { mkdir: mkdirNode, mkdtemp: mkdtempNode, writeFile: writeFileNode, readFile: readFileNode } = await import("node:fs/promises");
+  const { tmpdir } = await import("node:os");
+  const { join: pathJoin } = await import("node:path");
+  const { promisify: nodePromisify } = await import("node:util");
+  const execFileAsyncLocal = nodePromisify(execFileNode);
+
+  const document = await getResumeDraftById(id);
+  if (!document) {
+    throw new Error(`Resume draft "${id}" not found.`);
+  }
+
+  const { renderResumeDocumentHtml } = await import("@/lib/resume-studio");
+  const html = renderResumeDocumentHtml(document);
+  const workdir = await mkdtempNode(pathJoin(tmpdir(), "career-ops-ui-resume-"));
+  const htmlPath = pathJoin(workdir, document.fileName.replace(/\.pdf$/, ".html"));
+  const pdfPath = pathJoin(workdir, document.fileName);
+
+  await mkdirNode(workdir, { recursive: true });
+  await writeFileNode(htmlPath, html, "utf8");
+
+  await execFileAsyncLocal(
+    "node",
+    [resolveCareerOpsFile("generate-pdf.mjs"), htmlPath, pdfPath, `--format=${document.format}`],
+    { cwd: getCareerOpsPath() },
+  );
+
+  const buffer = await readFileNode(pdfPath);
+  return { buffer, fileName: document.fileName, format: document.format };
 }
 
 export async function runMaintenanceCommand(input: {

@@ -1,5 +1,5 @@
 import type { ParsedCvDocument } from "@/lib/data/parse-cv";
-import type { Evaluation, Opportunity, UserProfile } from "@/lib/types";
+import type { Evaluation, Opportunity, ResumeDocument, UserProfile } from "@/lib/types";
 
 export type ResumeDraftVariant = "balanced" | "technical" | "execution";
 
@@ -360,6 +360,179 @@ function escapeHtml(value: string) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;");
+}
+
+export function renderResumeDocumentHtml(document: ResumeDocument): string {
+  const contactHtml = document.contactLines
+    .map((line) => {
+      const isEmail = line.includes("@");
+      const isLink =
+        line.includes("github.com") || line.includes("linkedin.com") || line.startsWith("http");
+      const href = isEmail
+        ? `mailto:${line}`
+        : isLink
+          ? line.startsWith("http")
+            ? line
+            : `https://${line}`
+          : undefined;
+      return href
+        ? `<a href="${href}" target="_blank" rel="noopener noreferrer">${escapeHtml(line)}</a>`
+        : `<span>${escapeHtml(line)}</span>`;
+    })
+    .join("\n");
+
+  const enabledSections = [...document.sections]
+    .filter((s) => s.enabled)
+    .sort((a, b) => a.order - b.order);
+
+  const sectionsHtml = enabledSections
+    .map((section) => {
+      const blocksHtml = section.blocks
+        .map((block) => {
+          if (block.type === "text") {
+            return `<p>${escapeHtml(block.text)}</p>`;
+          }
+          if (block.type === "listItem") {
+            return `<li>${escapeHtml(block.text)}</li>`;
+          }
+          if (block.type === "experience") {
+            const bulletsHtml = block.bullets
+              .map((b) => `<li>${escapeHtml(b.text)}</li>`)
+              .join("");
+            return `<article class="entry">
+              <div class="entry-head">
+                <span class="entry-title"><strong>${escapeHtml(block.role)}</strong> | ${escapeHtml(block.company)}</span>
+                <span class="entry-date">${escapeHtml(block.period)}</span>
+              </div>
+              ${block.location ? `<div class="entry-desc">${escapeHtml(block.location)}</div>` : ""}
+              <ul class="bullet-list">${bulletsHtml}</ul>
+            </article>`;
+          }
+          if (block.type === "project") {
+            const bulletsHtml = block.bullets
+              .map((b) => `<li>${escapeHtml(b.text)}</li>`)
+              .join("");
+            return `<article class="entry">
+              <div class="entry-head">
+                <span class="entry-title"><strong>${escapeHtml(block.title)}</strong>${block.description ? ` — ${escapeHtml(block.description)}` : ""}</span>
+              </div>
+              ${bulletsHtml ? `<ul class="bullet-list">${bulletsHtml}</ul>` : ""}
+            </article>`;
+          }
+          if (block.type === "skillGroup") {
+            return `<div class="ontology-group">
+              <div class="ontology-group-label">${escapeHtml(block.label)}</div>
+              <div class="ontology-group-items">${escapeHtml(block.items.join(", "))}</div>
+            </div>`;
+          }
+          return "";
+        })
+        .join("");
+
+      const isListSection =
+        section.blocks.length > 0 && section.blocks.every((b) => b.type === "listItem");
+      const isSkillSection =
+        section.blocks.length > 0 && section.blocks.every((b) => b.type === "skillGroup");
+      const isExperienceSection =
+        section.blocks.length > 0 &&
+        section.blocks.some((b) => b.type === "experience" || b.type === "project");
+
+      const innerHtml = isListSection
+        ? `<ul class="plain-list">${blocksHtml}</ul>`
+        : isSkillSection
+          ? `<div class="ontology-grid">${blocksHtml}</div>`
+          : isExperienceSection
+            ? `<div class="entry-list">${blocksHtml}</div>`
+            : blocksHtml;
+
+      return `<section class="section">
+        <div class="section-label">${escapeHtml(section.label.toUpperCase())}</div>
+        ${innerHtml}
+      </section>`;
+    })
+    .join("");
+
+  const pageWidth = document.format === "letter" ? "8.5in" : "8.27in";
+
+  return `<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>${escapeHtml(document.targetLabel)} Resume</title>
+    <style>
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body {
+        background: #fff;
+        color: #111;
+        font-family: Georgia, "Times New Roman", serif;
+        font-size: 0.85rem;
+        line-height: 1.5;
+      }
+      .page {
+        max-width: ${pageWidth};
+        margin: 0 auto;
+        padding: 0.75in 0.8in;
+      }
+      .doc-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 1.5rem;
+        padding-bottom: 1.25rem;
+        border-bottom: 1.5px solid #111;
+        margin-bottom: 1.5rem;
+      }
+      .doc-identity { flex: 1; display: flex; flex-direction: column; gap: 0.25rem; }
+      .doc-name { font-size: 1.6rem; font-weight: 700; letter-spacing: -0.02em; color: #111; line-height: 1.15; }
+      .doc-title { font-size: 1.25rem; font-weight: 400; color: #555; }
+      .doc-contact { display: flex; flex-direction: column; align-items: flex-end; gap: 0.35rem; flex-shrink: 0; padding-top: 0.5rem; }
+      .doc-contact span, .doc-contact a {
+        font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace;
+        font-size: 0.75rem; color: #111; text-decoration: none; display: block;
+      }
+      .doc-contact a:hover { text-decoration: underline; }
+      .section { margin-bottom: 1.5rem; }
+      .section-label {
+        font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace;
+        font-size: 0.65rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase;
+        color: #666; margin-bottom: 0.9rem; border-bottom: 1px solid #e0e0e0; padding-bottom: 0.45rem;
+      }
+      .section p { font-size: 0.82rem; color: #222; line-height: 1.55; }
+      .entry-list { display: flex; flex-direction: column; gap: 1.5rem; }
+      .entry { display: flex; flex-direction: column; gap: 0.5rem; }
+      .entry-head { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; margin-bottom: 0.25rem; }
+      .entry-title { font-size: 0.95rem; font-weight: 400; color: #555; flex: 1; }
+      .entry-title strong { font-weight: 700; color: #111; }
+      .entry-desc { font-style: italic; color: #555; font-size: 0.82rem; }
+      .entry-date { font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace; font-size: 0.75rem; color: #111; white-space: nowrap; flex-shrink: 0; }
+      .bullet-list { list-style: none; display: grid; gap: 0.3rem; margin: 0; padding: 0; }
+      .bullet-list li { position: relative; padding-left: 1.1rem; font-size: 0.82rem; color: #222; line-height: 1.55; }
+      .bullet-list li::before { content: "—"; position: absolute; left: 0; color: #aaa; font-size: 0.7em; top: 0.15em; }
+      .plain-list { list-style: none; display: flex; flex-direction: column; gap: 0.25rem; }
+      .plain-list li { font-size: 0.85rem; color: #333; line-height: 1.5; }
+      .ontology-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5rem; }
+      .ontology-group { display: flex; flex-direction: column; gap: 0.35rem; }
+      .ontology-group-label { font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace; font-size: 0.6rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: #666; }
+      .ontology-group-items { font-size: 0.75rem; color: #333; line-height: 1.5; }
+      @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } .page { padding: 0; } }
+    </style>
+  </head>
+  <body>
+    <main class="page">
+      <header class="doc-header">
+        <div class="doc-identity">
+          <div class="doc-name">${escapeHtml(document.name)}</div>
+          ${document.headline ? `<div class="doc-title">${escapeHtml(document.headline)}</div>` : ""}
+        </div>
+        <div class="doc-contact">
+          ${contactHtml}
+        </div>
+      </header>
+      ${sectionsHtml}
+    </main>
+  </body>
+</html>`;
 }
 
 export function renderResumeHtml(draft: ResumeDraft) {

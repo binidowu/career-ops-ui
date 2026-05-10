@@ -332,6 +332,8 @@ export interface ResumeDocument {
   strategy: ResumeStrategy;
   sections: ResumeSection[];
   diagnostics: ResumeDiagnostic[];
+  userEdits: unknown[];
+  exportHistory: unknown[];
   createdAt: string;
   updatedAt: string;
 }
@@ -342,6 +344,12 @@ export interface ResumeRewriteResult {
   model: string | null;
   status: "skipped" | "fallback" | "applied";
   diagnostics: ResumeDiagnostic[];
+}
+
+export interface ResumeDraftPersistence {
+  draftPath: string;
+  latestPath: string;
+  indexPath: string;
 }
 
 export interface PipelineInboxItem {
