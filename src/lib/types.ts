@@ -113,11 +113,23 @@ export interface EvaluationSection {
 }
 
 export interface ResumeSource {
+  extractionDiagnostics?: ResumeSourceExtractionDiagnostic[];
   id: string;
   label: string;
+  originalPath?: string;
   path: string;
   default?: boolean;
   targetRoles: string[];
+}
+
+export interface ResumeSourceExtractionDiagnostic {
+  code:
+    | "extracted_text_empty"
+    | "extracted_text_short"
+    | "normalized_markdown_generated"
+    | "unsupported_source_format";
+  message: string;
+  severity: "info" | "warning" | "error";
 }
 
 export type ResumeEvidenceKind =

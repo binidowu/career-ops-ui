@@ -1,5 +1,6 @@
 import { execFile, spawn } from "node:child_process";
 import { access, mkdir, readdir, readFile, writeFile } from "node:fs/promises";
+import { createRequire } from "node:module";
 import { basename, extname, join, resolve as resolvePath } from "node:path";
 import { promisify } from "node:util";
 import Anthropic from "@anthropic-ai/sdk";
@@ -47,6 +48,7 @@ import type {
   PipelineProcessJob,
   PipelineProcessStartResponse,
   ResumeSource,
+  ResumeSourceExtractionDiagnostic,
   ResumeEvidenceDiagnostic,
   ResumeEvidenceItem,
   ResumeEvidenceSummary,
@@ -68,6 +70,7 @@ interface CacheEntry<T> {
 
 const cache = new Map<string, CacheEntry<unknown>>();
 const execFileAsync = promisify(execFile);
+const loadCommonJsModule = createRequire(import.meta.url);
 const LOCAL_TOOL_PATHS = ["/opt/homebrew/bin", "/usr/local/bin"];
 const CODEX_CLI_CANDIDATES = [
   process.env.CODEX_CLI_PATH,
@@ -1250,6 +1253,167 @@ function sanitizeResumeSourceId(value: string) {
     .slice(0, 64) || "resume";
 }
 
+const RESUME_SOURCE_EXTENSIONS = [".md", ".markdown", ".txt", ".pdf", ".docx"] as const;
+
+const RESUME_SECTION_HEADINGS: Record<string, string> = {
+  "academic background": "Education",
+  awards: "Awards",
+  certifications: "Certifications",
+  "case studies": "Case Studies",
+  credentials: "Credentials",
+  education: "Education",
+  employment: "Employment",
+  "employment history": "Employment History",
+  experience: "Experience",
+  honors: "Awards",
+  licenses: "Licenses",
+  portfolio: "Portfolio",
+  profile: "Profile",
+  projects: "Projects",
+  publications: "Publications",
+  skills: "Skills",
+  summary: "Summary",
+  technologies: "Technologies",
+  volunteering: "Volunteering",
+  "volunteer experience": "Volunteer Experience",
+  "work experience": "Work Experience",
+  "professional experience": "Professional Experience",
+  "professional summary": "Professional Summary",
+  "technical skills": "Technical Skills",
+  "core skills": "Core Skills",
+  "core competencies": "Core Competencies",
+  "selected work": "Selected Work",
+};
+
+type PdfParse = (buffer: Buffer) => Promise<{
+  numpages: number;
+  text: string;
+}>;
+
+function normalizeExtractedResumeMarkdown(input: {
+  fileName: string;
+  label?: string;
+  text: string;
+  trustedMarkdown: boolean;
+}) {
+  const title = input.label?.trim() || input.fileName.replace(/\.[^.]+$/, "");
+  const normalizedText = input.text
+    .replace(/\r\n?/g, "\n")
+    .replace(/\u00a0/g, " ")
+    .split("\n")
+    .map((line) => line.trimEnd())
+    .join("\n")
+    .trim();
+
+  if (input.trustedMarkdown) {
+    return normalizedText;
+  }
+
+  const lines = normalizedText.split("\n");
+  const body = lines
+    .map((line) => {
+      const trimmed = line.trim();
+      const headingKey = trimmed
+        .replace(/:$/, "")
+        .replace(/\s+/g, " ")
+        .toLowerCase();
+      const heading = RESUME_SECTION_HEADINGS[headingKey];
+
+      if (heading) {
+        return `## ${heading}`;
+      }
+
+      return line;
+    })
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+
+  if (/^#\s+/m.test(body)) {
+    return body;
+  }
+
+  return [`# ${title}`, body.includes("## ") ? body : `## Imported Resume Text\n${body}`]
+    .filter(Boolean)
+    .join("\n\n");
+}
+
+async function extractResumeSourceText(input: {
+  buffer: Buffer;
+  extension: string;
+  fileName: string;
+  label?: string;
+}) {
+  const diagnostics: ResumeSourceExtractionDiagnostic[] = [];
+  let text = "";
+  let trustedMarkdown = false;
+
+  if (input.extension === ".md" || input.extension === ".markdown") {
+    text = input.buffer.toString("utf8");
+    trustedMarkdown = true;
+  } else if (input.extension === ".txt") {
+    text = input.buffer.toString("utf8");
+  } else if (input.extension === ".pdf") {
+    const pdfParse = loadCommonJsModule("pdf-parse/lib/pdf-parse.js") as PdfParse;
+    const parsed = await pdfParse(input.buffer);
+    text = parsed.text;
+    diagnostics.push({
+      code: "normalized_markdown_generated",
+      severity: "info",
+      message: `Extracted text from ${parsed.numpages} PDF page${parsed.numpages === 1 ? "" : "s"} and saved a normalized markdown source.`,
+    });
+  } else if (input.extension === ".docx") {
+    const mammoth = await import("mammoth");
+    const extracted = await mammoth.extractRawText({ buffer: input.buffer });
+    text = extracted.value;
+    for (const message of extracted.messages.slice(0, 3)) {
+      diagnostics.push({
+        code: "normalized_markdown_generated",
+        severity: message.type === "error" ? "warning" : "info",
+        message: message.message,
+      });
+    }
+    diagnostics.push({
+      code: "normalized_markdown_generated",
+      severity: "info",
+      message: "Extracted DOCX text and saved a normalized markdown source.",
+    });
+  } else {
+    diagnostics.push({
+      code: "unsupported_source_format",
+      severity: "error",
+      message: "Supported resume uploads are Markdown, text, PDF, and DOCX files.",
+    });
+  }
+
+  const normalizedMarkdown = normalizeExtractedResumeMarkdown({
+    fileName: input.fileName,
+    label: input.label,
+    text,
+    trustedMarkdown,
+  });
+
+  const plainTextLength = text.replace(/\s+/g, " ").trim().length;
+  if (!plainTextLength) {
+    diagnostics.push({
+      code: "extracted_text_empty",
+      severity: "error",
+      message: "No readable text could be extracted from this resume file.",
+    });
+  } else if (plainTextLength < 400) {
+    diagnostics.push({
+      code: "extracted_text_short",
+      severity: "warning",
+      message: "Only a small amount of text was extracted. Review the normalized source before using it for tailoring.",
+    });
+  }
+
+  return {
+    diagnostics,
+    normalizedMarkdown,
+  };
+}
+
 export async function generateResumeDraft(input: {
   format?: "a4" | "letter";
   headlineOverride?: string;
@@ -1316,7 +1480,7 @@ export async function generateResumeDraft(input: {
 }
 
 export async function uploadResumeSourceFile(input: {
-  content: string;
+  fileBuffer: Buffer;
   fileName: string;
   label?: string;
   makeDefault?: boolean;
@@ -1325,31 +1489,56 @@ export async function uploadResumeSourceFile(input: {
   noStore();
 
   const extension = extname(input.fileName).toLowerCase();
-  if (![".md", ".txt"].includes(extension)) {
-    throw new Error("Upload a markdown or plain-text resume for now. PDF/DOCX parsing is not wired yet.");
+  if (!RESUME_SOURCE_EXTENSIONS.includes(extension as (typeof RESUME_SOURCE_EXTENSIONS)[number])) {
+    throw new Error("Upload a Markdown, plain-text, PDF, or DOCX resume source.");
   }
 
   const baseId = sanitizeResumeSourceId(input.fileName.replace(/\.[^.]+$/, ""));
   let finalId = baseId;
   let counter = 2;
 
-  while (await careerOpsFileExists("resumes", `${finalId}${extension || ".md"}`)) {
+  while (await careerOpsFileExists("resumes", `${finalId}.md`)) {
     finalId = `${baseId}-${counter}`;
     counter += 1;
   }
 
-  const finalFileName = `${finalId}${extension || ".md"}`;
-  const relativePath = `resumes/${finalFileName}`;
+  const originalExtension = extension || ".txt";
+  const originalRelativePath = `resumes/originals/${finalId}${originalExtension}`;
+  const normalizedRelativePath = `resumes/${finalId}.md`;
+  const extracted = await extractResumeSourceText({
+    buffer: input.fileBuffer,
+    extension,
+    fileName: input.fileName,
+    label: input.label,
+  });
+
+  if (extracted.diagnostics.some((diagnostic) => diagnostic.severity === "error")) {
+    throw new Error(
+      extracted.diagnostics.find((diagnostic) => diagnostic.severity === "error")?.message ??
+        "Unable to extract readable resume text.",
+    );
+  }
 
   await mkdir(resolveCareerOpsFile("resumes"), { recursive: true });
-  await writeFile(resolveCareerOpsFile(...relativePath.split("/")), input.content, "utf8");
+  await mkdir(resolveCareerOpsFile("resumes", "originals"), { recursive: true });
+  await writeFile(
+    resolveCareerOpsFile(...originalRelativePath.split("/")),
+    input.fileBuffer,
+  );
+  await writeFile(
+    resolveCareerOpsFile(...normalizedRelativePath.split("/")),
+    extracted.normalizedMarkdown,
+    "utf8",
+  );
 
   clearCache(["profile", "profile-template"]);
 
   return {
+    extractionDiagnostics: extracted.diagnostics,
     id: finalId,
     label: input.label?.trim() || input.fileName.replace(/\.[^.]+$/, ""),
-    path: relativePath,
+    originalPath: originalRelativePath,
+    path: normalizedRelativePath,
     default: Boolean(input.makeDefault),
     targetRoles: input.targetRoles ?? [],
   };

@@ -638,7 +638,7 @@ export function ResumesSection({ id, registerRef, value, onChange }: ResumesSect
     if (!uploadFile) {
       notify({
         title: "Choose a resume file first",
-        description: "Upload a markdown or plain-text resume source to register it here.",
+        description: "Upload a Markdown, text, PDF, or DOCX resume source to register it here.",
         tone: "error",
         dismissAfter: 5000,
       });
@@ -677,9 +677,14 @@ export function ResumesSection({ id, registerRef, value, onChange }: ResumesSect
       setUploadRoles("");
       setUploadDefault(false);
       setShowUpload(false);
+      const warningCount =
+        uploaded.extractionDiagnostics?.filter((diagnostic) => diagnostic.severity !== "info")
+          .length ?? 0;
       notify({
         title: "Resume source uploaded",
-        description: "Save settings to persist it in profile.yml.",
+        description: warningCount
+          ? `Save settings to persist it in profile.yml. ${warningCount} extraction warning${warningCount === 1 ? "" : "s"} found.`
+          : "Save settings to persist it in profile.yml.",
         dismissAfter: 5000,
       });
     } catch (error) {
@@ -714,8 +719,8 @@ export function ResumesSection({ id, registerRef, value, onChange }: ResumesSect
         <div className={styles.uploadPanel} style={{ marginBottom: "var(--space-lg)" }}>
           <p className={styles.cardEyebrow}>Upload new source</p>
           <p style={{ fontSize: "var(--text-xs)", color: "var(--color-text-tertiary)" }}>
-            Markdown or plain-text resume files. PDF/DOCX ingestion still needs backend parsing
-            work.
+            Markdown, plain-text, PDF, or DOCX resume files. PDF/DOCX uploads are extracted
+            into normalized markdown for Resume Studio.
           </p>
           <label style={{ display: "grid", gap: "var(--space-xs)" }}>
             <span style={{ fontSize: "10px", fontWeight: 700, letterSpacing: "0.07em", textTransform: "uppercase", color: "var(--color-text-tertiary)" }}>
@@ -723,7 +728,7 @@ export function ResumesSection({ id, registerRef, value, onChange }: ResumesSect
             </span>
             <input
               type="file"
-              accept=".md,.txt,text/markdown,text/plain"
+              accept=".md,.markdown,.txt,.pdf,.docx,text/markdown,text/plain,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
               className={styles.fileInput}
               onChange={(event: ChangeEvent<HTMLInputElement>) =>
                 setUploadFile(event.target.files?.[0] ?? null)
@@ -760,6 +765,23 @@ export function ResumesSection({ id, registerRef, value, onChange }: ResumesSect
                   <StatusPill label="Valid" tone="success" />
                 </div>
                 <span className={styles.resumeCardPath}>{source.path}</span>
+                {source.originalPath ? (
+                  <span className={styles.resumeCardPath}>Original: {source.originalPath}</span>
+                ) : null}
+                {source.extractionDiagnostics?.length ? (
+                  <div className={styles.resumeRolesRow}>
+                    {source.extractionDiagnostics.map((diagnostic, diagnosticIndex) => (
+                      <span
+                        key={`${diagnostic.code}-${diagnosticIndex}`}
+                        className={styles.resumeRoleChip}
+                        title={diagnostic.message}
+                      >
+                        {diagnostic.severity === "warning" ? "Warning" : "Parsed"}:{" "}
+                        {diagnostic.message}
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
                 {source.targetRoles.length ? (
                   <div className={styles.resumeRolesRow}>
                     {source.targetRoles.map((role) => (

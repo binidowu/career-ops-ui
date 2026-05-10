@@ -1,4 +1,7 @@
-import type { UserProfile } from "@/lib/types";
+import type {
+  ResumeSourceExtractionDiagnostic,
+  UserProfile,
+} from "@/lib/types";
 
 import { parseYaml } from "./yaml-lite";
 
@@ -33,6 +36,36 @@ function toArchetypeFit(
   return "primary";
 }
 
+function toResumeSourceDiagnostic(
+  value: unknown,
+): ResumeSourceExtractionDiagnostic | null {
+  const diagnostic = toRecord(value);
+  const code = toString(diagnostic.code);
+  const severity =
+    diagnostic.severity === "error" || diagnostic.severity === "warning"
+      ? diagnostic.severity
+      : "info";
+  const message = toString(diagnostic.message);
+
+  if (
+    ![
+      "extracted_text_empty",
+      "extracted_text_short",
+      "normalized_markdown_generated",
+      "unsupported_source_format",
+    ].includes(code) ||
+    !message
+  ) {
+    return null;
+  }
+
+  return {
+    code: code as ResumeSourceExtractionDiagnostic["code"],
+    message,
+    severity,
+  };
+}
+
 export function parseProfileYaml(text: string): UserProfile {
   const parsed = parseYaml(text);
   const candidate = toRecord(parsed.candidate);
@@ -47,6 +80,12 @@ export function parseProfileYaml(text: string): UserProfile {
         return {
           id: toString(record.id),
           label: toString(record.label) || toString(record.id) || "Resume source",
+          extractionDiagnostics: Array.isArray(record.extraction_diagnostics)
+            ? record.extraction_diagnostics
+                .map(toResumeSourceDiagnostic)
+                .filter((item): item is ResumeSourceExtractionDiagnostic => Boolean(item))
+            : [],
+          originalPath: toOptionalString(record.original_path),
           path: toString(record.path),
           default:
             typeof record.default === "boolean"

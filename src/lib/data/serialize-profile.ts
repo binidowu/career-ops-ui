@@ -66,9 +66,22 @@ export function serializeProfileYaml(profile: UserProfile) {
             "  - id: " + quote(source.id),
             "    label: " + quote(source.label),
             "    path: " + quote(source.path),
+            source.originalPath ? "    original_path: " + quote(source.originalPath) : null,
             source.default ? "    default: true" : null,
             source.targetRoles.length
               ? ["    target_roles:", ...source.targetRoles.map((role) => `      - ${quote(role)}`)].join("\n")
+              : null,
+            source.extractionDiagnostics?.length
+              ? [
+                  "    extraction_diagnostics:",
+                  ...source.extractionDiagnostics.map((diagnostic) =>
+                    [
+                      "      - code: " + quote(diagnostic.code),
+                      "        severity: " + quote(diagnostic.severity),
+                      "        message: " + quote(diagnostic.message),
+                    ].join("\n"),
+                  ),
+                ].join("\n")
               : null,
           ]
             .filter(Boolean)

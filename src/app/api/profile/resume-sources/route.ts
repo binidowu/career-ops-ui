@@ -1,4 +1,8 @@
+import { Buffer } from "node:buffer";
+
 import { uploadResumeSourceFile } from "@/lib/api/career-ops";
+
+export const runtime = "nodejs";
 
 function lineToList(value: FormDataEntryValue | null) {
   if (typeof value !== "string") {
@@ -28,7 +32,7 @@ export async function POST(request: Request) {
   try {
     const source = await uploadResumeSourceFile({
       fileName: file.name,
-      content: await file.text(),
+      fileBuffer: Buffer.from(await file.arrayBuffer()),
       label: typeof label === "string" ? label.trim() : "",
       makeDefault: makeDefault === "true",
       targetRoles,

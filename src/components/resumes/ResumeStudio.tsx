@@ -570,6 +570,21 @@ export default function ResumeStudio({
                         Targets: {selected.targetRoles.join(", ")}
                       </p>
                     ) : null}
+                    {selected?.originalPath ? (
+                      <p className={styles.sourceRoles}>
+                        Original: {selected.originalPath}
+                      </p>
+                    ) : null}
+                    {selected?.extractionDiagnostics?.length ? (
+                      <div className={styles.sourceRoles}>
+                        {selected.extractionDiagnostics.map((diagnostic, index) => (
+                          <p key={`${diagnostic.code}-${index}`}>
+                            {diagnostic.severity === "warning" ? "Warning" : "Parsed"}:{" "}
+                            {diagnostic.message}
+                          </p>
+                        ))}
+                      </div>
+                    ) : null}
                   </>
                 );
               })()}
