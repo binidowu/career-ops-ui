@@ -1,4 +1,4 @@
-import ResumeStudio from "@/components/resumes/ResumeStudio";
+import ResumeStudioV2 from "@/components/resumes/ResumeStudioV2";
 import {
   getOpportunities,
   getOpportunity,
@@ -39,7 +39,7 @@ export default async function ResumesPage({
 
   return (
     <article className={styles.page}>
-      <ResumeStudio
+      <ResumeStudioV2
         initialEvaluation={initialDetail.evaluation}
         initialOpportunity={initialDetail.opportunity}
         opportunities={opportunities}
