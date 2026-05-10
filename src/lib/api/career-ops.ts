@@ -47,11 +47,13 @@ import type {
   PipelineInboxItem,
   PipelineProcessJob,
   PipelineProcessStartResponse,
+  ResumeDocument,
   ResumeSource,
   ResumeSourceExtractionDiagnostic,
   ResumeEvidenceDiagnostic,
   ResumeEvidenceItem,
   ResumeEvidenceSummary,
+  ResumeRewriteResult,
   ResumeStrategy,
   ScanRunResult,
   StateDefinition,
@@ -149,6 +151,8 @@ interface BackendResumeDraftPayload {
     variant: ResumeDraftVariant;
   };
   strategy?: ResumeStrategy;
+  document?: ResumeDocument;
+  rewrite?: ResumeRewriteResult;
 }
 
 export interface GeneratedResumeDraft {
@@ -160,6 +164,8 @@ export interface GeneratedResumeDraft {
   evidenceSummary?: ResumeEvidenceSummary;
   resumeSource: ResumeSource;
   strategy?: ResumeStrategy;
+  document?: ResumeDocument;
+  rewrite?: ResumeRewriteResult;
 }
 
 function clearCache(prefixes: string[] = []) {
@@ -581,6 +587,8 @@ function toUiResumeDraft(
       : undefined,
     evidenceSummary: payload.evidenceSummary,
     strategy: payload.strategy,
+    document: payload.document,
+    rewrite: payload.rewrite,
     resumeSource: {
       id: payload.resumeSource.id,
       label: payload.resumeSource.label,

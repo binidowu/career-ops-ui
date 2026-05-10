@@ -231,6 +231,119 @@ export interface ResumeStrategy {
   warnings: string[];
 }
 
+export interface ResumeDiagnostic {
+  code: string;
+  message: string;
+  severity: "info" | "warning" | "error";
+}
+
+export interface ResumeBullet {
+  id: string;
+  text: string;
+  sourceEvidenceIds: string[];
+  matchedKeywords: string[];
+  userEdited: boolean;
+  locked: boolean;
+}
+
+export interface ResumeTextBlock {
+  id: string;
+  type: "text";
+  text: string;
+  sourceEvidenceIds: string[];
+  matchedKeywords: string[];
+  userEdited: boolean;
+  locked: boolean;
+}
+
+export interface ResumeExperienceBlock {
+  id: string;
+  type: "experience";
+  company: string;
+  role: string;
+  location: string;
+  period: string;
+  bullets: ResumeBullet[];
+  userEdited: boolean;
+  locked: boolean;
+}
+
+export interface ResumeProjectBlock {
+  id: string;
+  type: "project";
+  title: string;
+  description: string;
+  bullets: ResumeBullet[];
+  sourceEvidenceIds: string[];
+  matchedKeywords: string[];
+  userEdited: boolean;
+  locked: boolean;
+}
+
+export interface ResumeSkillGroupBlock {
+  id: string;
+  type: "skillGroup";
+  label: string;
+  items: string[];
+  sourceEvidenceIds: string[];
+  matchedKeywords: string[];
+  userEdited: boolean;
+  locked: boolean;
+}
+
+export interface ResumeListItemBlock {
+  id: string;
+  type: "listItem";
+  text: string;
+  sourceEvidenceIds: string[];
+  matchedKeywords: string[];
+  userEdited: boolean;
+  locked: boolean;
+}
+
+export type ResumeBlock =
+  | ResumeTextBlock
+  | ResumeExperienceBlock
+  | ResumeProjectBlock
+  | ResumeSkillGroupBlock
+  | ResumeListItemBlock;
+
+export interface ResumeSection {
+  id: string;
+  type: ResumeSectionType;
+  label: string;
+  enabled: boolean;
+  order: number;
+  blocks: ResumeBlock[];
+}
+
+export interface ResumeDocument {
+  id: string;
+  opportunityId: string;
+  resumeSourceIds: string[];
+  templateId: "ayo-clean-v1";
+  format: "letter" | "a4";
+  status: "draft" | "edited" | "exported";
+  name: string;
+  headline: string;
+  contactLines: string[];
+  fileName: string;
+  targetLabel: string;
+  strategy: ResumeStrategy;
+  sections: ResumeSection[];
+  diagnostics: ResumeDiagnostic[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ResumeRewriteResult {
+  mode: "off" | "auto" | "ai";
+  provider: "openai" | "anthropic" | null;
+  model: string | null;
+  status: "skipped" | "fallback" | "applied";
+  diagnostics: ResumeDiagnostic[];
+}
+
 export interface PipelineInboxItem {
   url: string;
   companyHint: string | null;
